@@ -508,126 +508,13 @@ export default function Page() {
         </div>
       </header>
 
-      <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-900 text-white">
-        <div className="absolute inset-0 opacity-20">
-          <div className="absolute -top-24 -right-16 h-72 w-72 rounded-full bg-emerald-400 blur-3xl" />
-          <div className="absolute bottom-0 left-0 h-72 w-72 rounded-full bg-cyan-400 blur-3xl" />
-        </div>
-
-        <div className="relative mx-auto grid max-w-7xl gap-12 px-6 py-20 md:px-10 lg:grid-cols-2 lg:items-center lg:py-28">
-          <div>
-            <div className="mb-4 inline-flex rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm backdrop-blur">
-              Robotic Mowing for Residential, Commercial & Large Properties
-            </div>
-
-            <h1 className="max-w-4xl text-4xl font-black tracking-tight md:text-6xl">
-              Smarter mowing. Less labor. Better-looking properties.
-            </h1>
-
-            <p className="mt-6 max-w-2xl text-lg text-slate-200 md:text-xl">
-              Integrity Distribution Systems provides robotic mower sales,
-              install, setup, support, and property-focused solutions for modern
-              landowners, developers, and property managers.
-            </p>
-
-            <div className="mt-8 flex flex-wrap gap-4">
-              <a
-                href="#contact"
-                className="rounded-2xl bg-white px-6 py-3 text-base font-semibold text-slate-900 shadow-lg transition hover:scale-[1.02]"
-              >
-                Get a Quote
-              </a>
-              <a
-                href="#services"
-                className="rounded-2xl border border-white/30 bg-white/10 px-6 py-3 text-base font-semibold text-white backdrop-blur transition hover:bg-white/20"
-              >
-                See Our Services
-              </a>
-            </div>
-
-            <div className="mt-10 grid max-w-xl grid-cols-2 gap-4 md:grid-cols-3">
-              {[
-                "Sales",
-                "Install",
-                "Setup",
-                "Service",
-                "Support",
-                "Property Solutions",
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-sm font-medium text-slate-100 backdrop-blur"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <div className="rounded-[2rem] border border-white/10 bg-white/10 p-4 shadow-2xl backdrop-blur-xl">
-              <div className="rounded-[1.5rem] bg-slate-100 p-6 text-slate-900">
-                <div className="mb-6">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-700">
-                    Why it works
-                  </p>
-                  <h2 className="mt-2 text-2xl font-bold">
-                    Autonomous mowing that actually saves time
-                  </h2>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-white p-5 shadow-sm">
-                    <p className="text-sm font-semibold text-slate-500">
-                      Traditional mowing
-                    </p>
-                    <p className="mt-2 text-3xl font-black">Higher labor</p>
-                    <p className="mt-2 text-sm text-slate-600">
-                      Fuel, weather delays, scheduling problems, routine wear,
-                      and somebody still has to babysit it.
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl bg-emerald-50 p-5 shadow-sm">
-                    <p className="text-sm font-semibold text-emerald-700">
-                      Autonomous mowing
-                    </p>
-                    <p className="mt-2 text-3xl font-black">Lower effort</p>
-                    <p className="mt-2 text-sm text-slate-700">
-                      Consistent cutting, quieter operation, and a smarter long-term
-                      maintenance strategy.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-2xl bg-slate-900 p-5 text-white">
-                  <p className="text-sm uppercase tracking-[0.2em] text-slate-400">
-                    Built for
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {markets.map((market) => (
-                      <span
-                        key={market}
-                        className="rounded-full bg-white/10 px-3 py-1 text-sm"
-                      >
-                        {market}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section id="services" className="mx-auto max-w-7xl px-6 py-20 md:px-10">
         <div className="max-w-3xl">
           <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
             What we do
           </p>
           <h2 className="mt-3 text-3xl font-black tracking-tight md:text-5xl">
-            We don’t just sell robotic mowers. We make them work on real properties.
+            We don’t just sell robotic mowers. We guide you step by step to taking back your time and reducing your costs.
           </h2>
           <p className="mt-5 text-lg text-slate-600">
             A mower in a box is not a solution. The solution is proper planning,
