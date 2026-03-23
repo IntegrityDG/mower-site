@@ -34,6 +34,17 @@ type ProductOption =
   | "PandaG G1 Commercial"
   | "Not sure / need recommendation";
 
+type BrandKey = "luba3" | "lymow" | "yarbo" | "pandag";
+
+type BrandMedia = {
+  key: BrandKey;
+  name: string;
+  video: string;
+  front: string;
+  back: string;
+  thumb: string;
+};
+
 const interestOptions: InterestOption[] = [
   "Quote",
   "Product recommendation",
@@ -70,6 +81,41 @@ const productOptions: ProductOption[] = [
   "Not sure / need recommendation",
 ];
 
+const brandMediaMap: Record<BrandKey, BrandMedia> = {
+  luba3: {
+    key: "luba3",
+    name: "Luba 3 AWD",
+    video: "https://www.facebook.com/share/v/1BNNAUY6pD/",
+    front: "/brochures/luba3-front.jpg",
+    back: "/brochures/luba3-back.jpg",
+    thumb: "/products/luba3-thumb.png",
+  },
+  lymow: {
+    key: "lymow",
+    name: "Lymow One Plus",
+    video: "https://www.facebook.com/share/v/1B4NTynQAm/",
+    front: "/brochures/lymow-one-plus-front.jpg",
+    back: "/brochures/lymow-one-plus-back.jpg",
+    thumb: "/products/lymow-one-plus-thumb.png",
+  },
+  yarbo: {
+    key: "yarbo",
+    name: "Yarbo Modular System",
+    video: "https://www.facebook.com/share/v/1Cetb4FED4/",
+    front: "/brochures/yarbo-pro-front.jpg",
+    back: "/brochures/yarbo-pro-back.jpg",
+    thumb: "/products/yarbo-thumb.png",
+  },
+  pandag: {
+    key: "pandag",
+    name: "PandaG G1 Commercial",
+    video: "https://www.facebook.com/share/v/18H79raTRE/",
+    front: "/brochures/pandag-g1-front.jpg",
+    back: "/brochures/pandag-g1-back.jpg",
+    thumb: "/products/pandag-thumb.png",
+  },
+};
+
 function toggleArrayValue<T extends string>(
   value: T,
   setter: React.Dispatch<React.SetStateAction<T[]>>
@@ -98,14 +144,13 @@ function getRecommendations(data: RecommendationInput) {
     pandag: 0,
   };
 
-  // 1. PROPERTY TYPE
-  // User said ALL for all four, so give all a neutral baseline.
+  // 1. Property type = neutral baseline for all
   scores.luba += 1;
   scores.lymow += 1;
   scores.yarbo += 1;
   scores.pandag += 1;
 
-  // 2. PROPERTY SIZE
+  // 2. Property size
   if (data.propertySize === "Under 1 acre") {
     scores.luba += 2;
     scores.lymow += 3;
@@ -134,31 +179,19 @@ function getRecommendations(data: RecommendationInput) {
     scores.yarbo += 2;
   }
 
-  // 3. TERRAIN
-  if (data.terrain.includes("Open wide area")) {
-    scores.luba += 3;
-  }
+  // 3. Terrain
+  if (data.terrain.includes("Open wide area")) scores.luba += 3;
+  if (data.terrain.includes("Steep slopes")) scores.luba += 3;
+  if (data.terrain.includes("Moderate slopes")) scores.luba += 3;
+  if (data.terrain.includes("Mostly flat")) scores.luba += 3;
 
-  if (data.terrain.includes("Steep slopes")) {
-    scores.luba += 3;
-  }
-
-  if (data.terrain.includes("Moderate slopes")) {
-    scores.luba += 3;
-  }
-
-  if (data.terrain.includes("Mostly flat")) {
-    scores.luba += 3;
-  }
-
-  // Lymow = ALL
   if (data.terrain.length > 0) {
     scores.lymow += 1;
     scores.yarbo += 1;
     scores.pandag += 1;
   }
 
-  // 4. OBSTACLES TO WEEDEAT AROUND
+  // 4. Obstacles
   if (data.obstacleLevel === "Couple") {
     scores.luba += 3;
     scores.lymow += 3;
@@ -178,7 +211,7 @@ function getRecommendations(data: RecommendationInput) {
     scores.pandag += 3;
   }
 
-  // 5. FENCE ROW
+  // 5. Fence row
   if (data.fenceRow === "No") {
     scores.luba += 3;
     scores.lymow += 3;
@@ -189,7 +222,7 @@ function getRecommendations(data: RecommendationInput) {
     scores.pandag += 3;
   }
 
-  // 6. PRIORITIES (best to worst per user)
+  // 6. Priorities
   data.priorities.forEach((priority) => {
     switch (priority) {
       case "Lowest maintenance":
@@ -197,38 +230,31 @@ function getRecommendations(data: RecommendationInput) {
         scores.luba += 2;
         scores.yarbo += 1;
         break;
-
       case "Best cut quality":
         scores.luba += 3;
         scores.yarbo += 2;
         scores.lymow += 1;
         break;
-
       case "Handles slopes well":
         scores.pandag += 3;
         scores.lymow += 2;
         scores.yarbo += 1;
         break;
-
       case "Commercial durability":
         scores.pandag += 3;
         scores.yarbo += 2;
         scores.lymow += 1;
-        scores.luba += 0;
         break;
-
       case "Quiet operation":
         scores.luba += 3;
         scores.lymow += 2;
         scores.yarbo += 1;
         break;
-
       case "Saves labor time":
         scores.yarbo += 3;
         scores.pandag += 2;
         scores.lymow += 1;
         break;
-
       case "Modern curb appeal":
         scores.yarbo += 3;
         scores.luba += 2;
@@ -237,15 +263,13 @@ function getRecommendations(data: RecommendationInput) {
     }
   });
 
-  // 7. PRODUCT INTEREST (minor influence)
+  // 7. Product interest = minor influence
   data.productInterest.forEach((product) => {
     if (product === "Luba 3 AWD") scores.luba += 1;
     if (product === "Lymow One Plus") scores.lymow += 1;
     if (product === "Yarbo Modular System") scores.yarbo += 1;
     if (product === "PandaG G1 Commercial") scores.pandag += 1;
   });
-
-  // 8. PURCHASE VS FINANCE = no scoring influence
 
   const machineNames = {
     luba: "Luba 3 AWD",
@@ -258,33 +282,168 @@ function getRecommendations(data: RecommendationInput) {
     [keyof typeof scores, number]
   >).sort((a, b) => b[1] - a[1]);
 
-  const topFit = machineNames[ranked[0][0]];
-  const secondFit = machineNames[ranked[1][0]];
-  const thirdFit = machineNames[ranked[2][0]];
-
-  const why: string[] = [];
-
-  if (data.propertySize) why.push(`property size: ${data.propertySize}`);
-  if (data.obstacleLevel) why.push(`obstacle level: ${data.obstacleLevel}`);
-  if (data.fenceRow) why.push(`fence row: ${data.fenceRow}`);
-  if (data.terrain.length) why.push(`terrain: ${data.terrain.join(", ")}`);
-  if (data.priorities.length) why.push(`priorities: ${data.priorities.join(", ")}`);
-
-  const salesNote =
-    data.purchaseType === "Finance"
-      ? "This lead is likely worth a financing conversation early."
-      : data.purchaseType === "Purchase"
-      ? "This lead is likely worth a direct purchase pricing conversation early."
-      : "";
-
   return {
-    topFit,
-    secondFit,
-    thirdFit,
-    scores,
-    why,
-    salesNote,
+    topFit: machineNames[ranked[0][0]],
+    secondFit: machineNames[ranked[1][0]],
+    thirdFit: machineNames[ranked[2][0]],
+    why: [
+      data.propertySize ? `property size: ${data.propertySize}` : "",
+      data.obstacleLevel ? `obstacle level: ${data.obstacleLevel}` : "",
+      data.fenceRow ? `fence row: ${data.fenceRow}` : "",
+      data.terrain.length ? `terrain: ${data.terrain.join(", ")}` : "",
+      data.priorities.length ? `priorities: ${data.priorities.join(", ")}` : "",
+    ].filter(Boolean),
+    salesNote:
+      data.purchaseType === "Finance"
+        ? "This lead is likely worth a financing conversation early."
+        : data.purchaseType === "Purchase"
+        ? "This lead is likely worth a direct purchase pricing conversation early."
+        : "",
   };
+}
+
+function BrandCard({
+  brand,
+  onClick,
+}: {
+  brand: BrandMedia;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full items-center gap-4 rounded-[1.25rem] border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-emerald-400 hover:bg-white hover:shadow-md"
+    >
+      <img
+        src={brand.thumb}
+        alt={brand.name}
+        className="h-20 w-20 rounded-xl border border-slate-200 bg-white object-cover"
+      />
+      <div>
+        <p className="text-lg font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">
+          {brand.name}
+        </p>
+        <p className="mt-1 text-sm text-slate-600">
+          Click for brochure or video
+        </p>
+      </div>
+    </button>
+  );
+}
+
+function BrandChoiceModal({
+  brand,
+  onClose,
+  onBrochure,
+}: {
+  brand: BrandMedia | null;
+  onClose: () => void;
+  onBrochure: () => void;
+}) {
+  if (!brand) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4">
+      <div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+              Equipment Options
+            </p>
+            <h3 className="mt-2 text-2xl font-black text-slate-900">
+              {brand.name}
+            </h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Choose how you want to view this machine.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-6 space-y-3">
+          <button
+            type="button"
+            onClick={onBrochure}
+            className="w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:scale-[1.01]"
+          >
+            View Brochure
+          </button>
+
+          <a
+            href={brand.video}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block w-full rounded-2xl bg-blue-600 px-5 py-3 text-center text-sm font-bold text-white transition hover:scale-[1.01]"
+          >
+            Watch Video
+          </a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BrochureModal({
+  brand,
+  onClose,
+}: {
+  brand: BrandMedia | null;
+  onClose: () => void;
+}) {
+  if (!brand) return null;
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/85 p-4">
+      <div className="max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl md:p-8">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+              Brochure
+            </p>
+            <h3 className="mt-2 text-2xl font-black text-slate-900 md:text-3xl">
+              {brand.name}
+            </h3>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div>
+            <p className="mb-3 text-sm font-semibold text-slate-700">Front</p>
+            <img
+              src={brand.front}
+              alt={`${brand.name} brochure front`}
+              className="w-full rounded-[1.5rem] border border-slate-200 shadow-sm"
+            />
+          </div>
+
+          <div>
+            <p className="mb-3 text-sm font-semibold text-slate-700">Back</p>
+            <img
+              src={brand.back}
+              alt={`${brand.name} brochure back`}
+              className="w-full rounded-[1.5rem] border border-slate-200 shadow-sm"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Page() {
@@ -316,14 +475,8 @@ export default function Page() {
     "Smarter long-term property management",
   ];
 
-  const markets = [
-    "Residential Properties",
-    "Subdivisions & Developments",
-    "Commercial Properties",
-    "Large Estates",
-    "Property Managers",
-    "Specialty Sites",
-  ];
+  const [selectedBrand, setSelectedBrand] = useState<BrandMedia | null>(null);
+  const [showBrochure, setShowBrochure] = useState(false);
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -358,8 +511,19 @@ export default function Page() {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  const recommendation = useMemo(() => {
-    return getRecommendations({
+  const recommendation = useMemo(
+    () =>
+      getRecommendations({
+        propertyType,
+        propertySize,
+        terrain,
+        obstacleLevel,
+        fenceRow,
+        priorities,
+        productInterest,
+        purchaseType,
+      }),
+    [
       propertyType,
       propertySize,
       terrain,
@@ -368,17 +532,8 @@ export default function Page() {
       priorities,
       productInterest,
       purchaseType,
-    });
-  }, [
-    propertyType,
-    propertySize,
-    terrain,
-    obstacleLevel,
-    fenceRow,
-    priorities,
-    productInterest,
-    purchaseType,
-  ]);
+    ]
+  );
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -508,33 +663,39 @@ export default function Page() {
         </div>
       </header>
 
-      <section id="services" className="mx-auto max-w-7xl px-6 py-20 md:px-10">
-        <div className="max-w-3xl">
-          <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-            What we do
-          </p>
-          <h2 className="mt-3 text-3xl font-black tracking-tight md:text-5xl">
-            We don’t just sell robotic mowers. We guide you step by step to taking back your time and reducing your costs.
-          </h2>
-          <p className="mt-5 text-lg text-slate-600">
-            A mower in a box is not a solution. The solution is proper planning,
-            correct setup, real support, and knowing what system actually fits
-            the property.
-          </p>
-        </div>
+      <section
+        id="services"
+        className="mx-auto max-w-7xl px-6 py-20 md:px-10"
+      >
+        <div className="rounded-[2rem] bg-slate-200 px-8 py-10 md:px-10">
+          <div className="max-w-3xl">
+            <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+              What we do
+            </p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight md:text-5xl">
+              We don’t just sell robotic mowers. We guide you step-by-step to take
+              back your time and reduce your costs.
+            </h2>
+            <p className="mt-5 text-lg text-slate-700">
+              A mower in a box is not a solution. The solution is proper planning,
+              correct setup, real support, and knowing what system actually fits
+              the property.
+            </p>
+          </div>
 
-        <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {services.map((service) => (
-            <div
-              key={service.title}
-              className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
-            >
-              <h3 className="text-xl font-bold">{service.title}</h3>
-              <p className="mt-3 text-base leading-7 text-slate-600">
-                {service.desc}
-              </p>
-            </div>
-          ))}
+          <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            {services.map((service) => (
+              <div
+                key={service.title}
+                className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+              >
+                <h3 className="text-xl font-bold">{service.title}</h3>
+                <p className="mt-3 text-base leading-7 text-slate-600">
+                  {service.desc}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -567,10 +728,28 @@ export default function Page() {
                 consistent appearance and low maintenance effort are the priority.
               </p>
 
-              <div className="mt-6 space-y-3 text-lg font-semibold text-slate-900">
-                <p>Luba 3 AWD</p>
-                <p>Lymow One Plus</p>
-                <p>Yarbo Modular System</p>
+              <div className="mt-6 space-y-3">
+                <BrandCard
+                  brand={brandMediaMap.luba3}
+                  onClick={() => {
+                    setSelectedBrand(brandMediaMap.luba3);
+                    setShowBrochure(false);
+                  }}
+                />
+                <BrandCard
+                  brand={brandMediaMap.lymow}
+                  onClick={() => {
+                    setSelectedBrand(brandMediaMap.lymow);
+                    setShowBrochure(false);
+                  }}
+                />
+                <BrandCard
+                  brand={brandMediaMap.yarbo}
+                  onClick={() => {
+                    setSelectedBrand(brandMediaMap.yarbo);
+                    setShowBrochure(false);
+                  }}
+                />
               </div>
             </div>
 
@@ -586,9 +765,21 @@ export default function Page() {
                 mowing where durability, coverage, and scalability matter.
               </p>
 
-              <div className="mt-6 space-y-3 text-lg font-semibold text-slate-900">
-                <p>Yarbo Modular System</p>
-                <p>PandaG G1 Commercial</p>
+              <div className="mt-6 space-y-3">
+                <BrandCard
+                  brand={brandMediaMap.yarbo}
+                  onClick={() => {
+                    setSelectedBrand(brandMediaMap.yarbo);
+                    setShowBrochure(false);
+                  }}
+                />
+                <BrandCard
+                  brand={brandMediaMap.pandag}
+                  onClick={() => {
+                    setSelectedBrand(brandMediaMap.pandag);
+                    setShowBrochure(false);
+                  }}
+                />
               </div>
             </div>
           </div>
@@ -1021,6 +1212,20 @@ export default function Page() {
           </div>
         </div>
       </footer>
+
+      <BrandChoiceModal
+        brand={selectedBrand}
+        onClose={() => {
+          setSelectedBrand(null);
+          setShowBrochure(false);
+        }}
+        onBrochure={() => setShowBrochure(true)}
+      />
+
+      <BrochureModal
+        brand={selectedBrand && showBrochure ? selectedBrand : null}
+        onClose={() => setShowBrochure(false)}
+      />
     </div>
   );
 }
