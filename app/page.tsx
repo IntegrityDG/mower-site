@@ -302,30 +302,24 @@ function getRecommendations(data: RecommendationInput) {
   };
 }
 
-function BrandCard({
-  brand,
-  onClick,
-}: {
-  brand: BrandMedia;
-  onClick: () => void;
-}) {
+function BrandCard({ brand, onClick }: any) {
   return (
     <button
-      type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-4 rounded-[1.25rem] border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-emerald-400 hover:bg-white hover:shadow-md"
+      className="flex w-full items-center gap-6 rounded-xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:shadow-lg hover:bg-white"
     >
       <img
         src={brand.thumb}
-        alt={brand.name}
-        className="h-20 w-20 rounded-xl border border-slate-200 bg-white object-cover"
+        className="h-36 w-36 rounded-lg object-cover border"
       />
+
       <div>
-        <p className="text-lg font-semibold text-slate-900 underline decoration-slate-300 underline-offset-4">
-          {brand.name}
-        </p>
-        <p className="mt-1 text-sm text-slate-600">
+        <p className="font-semibold underline text-lg">{brand.name}</p>
+        <p className="text-sm text-slate-500">
           Click for brochure or video
+        </p>
+        <p className="mt-2 text-sm text-slate-700">
+          {brand.description}
         </p>
       </div>
     </button>
@@ -344,9 +338,9 @@ function BrandChoiceModal({
   if (!brand) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 gap-6 p-4">
       <div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-4 p-4">
           <div>
             <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
               Equipment Options
