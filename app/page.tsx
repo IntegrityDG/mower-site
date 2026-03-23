@@ -88,7 +88,7 @@ const brandMediaMap: Record<BrandKey, BrandMedia> = {
     video: "https://www.facebook.com/share/v/1BNNAUY6pD/",
     front: "/brochures/luba3-front.jpg",
     back: "/brochures/luba3-back.jpg",
-    thumb: "/products/luba3-thumb.png",
+    thumb: "/products/luba3-thumb.PNG",
   },
   lymow: {
     key: "lymow",
@@ -96,7 +96,7 @@ const brandMediaMap: Record<BrandKey, BrandMedia> = {
     video: "https://www.facebook.com/share/v/1B4NTynQAm/",
     front: "/brochures/lymow-one-plus-front.jpg",
     back: "/brochures/lymow-one-plus-back.jpg",
-    thumb: "/products/lymow-one-plus-thumb.png",
+    thumb: "/products/lymow-one-plus-thumb.PNG",
   },
   yarbo: {
     key: "yarbo",
@@ -104,7 +104,7 @@ const brandMediaMap: Record<BrandKey, BrandMedia> = {
     video: "https://www.facebook.com/share/v/1Cetb4FED4/",
     front: "/brochures/yarbo-pro-front.jpg",
     back: "/brochures/yarbo-pro-back.jpg",
-    thumb: "/products/yarbo-thumb.png",
+    thumb: "/products/yarbo-thumb.PNG",
   },
   pandag: {
     key: "pandag",
@@ -112,7 +112,7 @@ const brandMediaMap: Record<BrandKey, BrandMedia> = {
     video: "https://www.facebook.com/share/v/18H79raTRE/",
     front: "/brochures/pandag-g1-front.jpg",
     back: "/brochures/pandag-g1-back.jpg",
-    thumb: "/products/pandag-thumb.png",
+    thumb: "/products/pandag-thumb.PNG",
   },
 };
 
