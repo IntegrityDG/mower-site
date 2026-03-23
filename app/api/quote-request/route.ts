@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const propertyType = body.propertyType?.trim() || null;
     const propertySize = body.propertySize?.trim() || null;
     const obstacleLevel = body.obstacleLevel?.trim() || null;
-    const fenceRow = body.fenceRow?.trim() || null;
+    const weedEating = body.weedEating?.trim() || null;
     const purchaseType = body.purchaseType?.trim() || null;
     const extraNotes = body.extraNotes?.trim() || null;
 
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
         property_size: propertySize,
         terrain: terrain.length ? terrain : null,
         obstacle_level: obstacleLevel,
-        fence_row: fenceRow,
+        fence_row: weedEating,
         priorities: priorities.length ? priorities : null,
         product_interest: productInterest.length ? productInterest : null,
         purchase_type: purchaseType,
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
       propertyType ? `Type: ${propertyType}` : null,
       propertySize ? `Size: ${propertySize}` : null,
       obstacleLevel ? `Obstacles: ${obstacleLevel}` : null,
-      fenceRow ? `Fence row: ${fenceRow}` : null,
+      weedEating ? `Weed eating needed: ${weedEating}` : null,
       purchaseType ? `Buy/Finance: ${purchaseType}` : null,
       interests.length ? `Interests: ${interests.join(", ")}` : null,
       terrain.length ? `Terrain: ${terrain.join(", ")}` : null,

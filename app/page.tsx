@@ -130,7 +130,7 @@ type RecommendationInput = {
   propertySize: string;
   terrain: string[];
   obstacleLevel: string;
-  fenceRow: string;
+  weedEating: string;
   priorities: string[];
   productInterest: string[];
   purchaseType: string;
@@ -171,7 +171,8 @@ function getRecommendations(data: RecommendationInput) {
 
   if (data.propertySize === "5–10 acres") {
     scores.yarbo += 3;
-    scores.luba += 1;
+    scores.luba += 2;
+    scores.lymow += 2;
   }
 
   if (data.propertySize === "10+ acres") {
@@ -211,15 +212,15 @@ function getRecommendations(data: RecommendationInput) {
     scores.pandag += 3;
   }
 
-  // 5. Fence row
-  if (data.fenceRow === "No") {
-    scores.luba += 3;
-    scores.lymow += 3;
+  // 5. Weed eating capability
+  if (data.weedEating === "No") {
+  scores.luba += 3;
+  scores.lymow += 3;
   }
 
-  if (data.fenceRow === "Yes") {
-    scores.yarbo += 3;
-    scores.pandag += 3;
+  if (data.weedEating === "Yes") {
+  scores.yarbo += 3;
+  scores.pandag += 3;
   }
 
   // 6. Priorities
@@ -289,7 +290,7 @@ function getRecommendations(data: RecommendationInput) {
     why: [
       data.propertySize ? `property size: ${data.propertySize}` : "",
       data.obstacleLevel ? `obstacle level: ${data.obstacleLevel}` : "",
-      data.fenceRow ? `fence row: ${data.fenceRow}` : "",
+      data.weedEating ? `weed eating needed: ${data.weedEating}` : "",
       data.terrain.length ? `terrain: ${data.terrain.join(", ")}` : "",
       data.priorities.length ? `priorities: ${data.priorities.join(", ")}` : "",
     ].filter(Boolean),
@@ -515,7 +516,7 @@ export default function Page() {
   >("");
   const [terrain, setTerrain] = useState<TerrainOption[]>([]);
   const [obstacleLevel, setObstacleLevel] = useState<"Couple" | "Few" | "Many" | "">("");
-  const [fenceRow, setFenceRow] = useState<"Yes" | "No" | "">("");
+  const [weedEating, setWeedEating] = useState<"Yes" | "No" | "">("");
   const [priorities, setPriorities] = useState<PriorityOption[]>([]);
   const [productInterest, setProductInterest] = useState<ProductOption[]>([]);
   const [purchaseType, setPurchaseType] = useState<"Purchase" | "Finance" | "">("");
@@ -532,7 +533,7 @@ export default function Page() {
         propertySize,
         terrain,
         obstacleLevel,
-        fenceRow,
+        weedEating,
         priorities,
         productInterest,
         purchaseType,
@@ -542,7 +543,7 @@ export default function Page() {
       propertySize,
       terrain,
       obstacleLevel,
-      fenceRow,
+      weedEating,
       priorities,
       productInterest,
       purchaseType,
@@ -571,7 +572,7 @@ export default function Page() {
           propertySize,
           terrain,
           obstacleLevel,
-          fenceRow,
+          weedEating,
           priorities,
           productInterest,
           purchaseType,
@@ -607,7 +608,7 @@ export default function Page() {
       setPropertySize("");
       setTerrain([]);
       setObstacleLevel("");
-      setFenceRow("");
+      setWeedEating("");
       setPriorities([]);
       setProductInterest([]);
       setPurchaseType("");
@@ -1097,12 +1098,11 @@ export default function Page() {
                         <label key={option} className="flex items-center gap-2">
                           <input
                             type="radio"
-                            name="fenceRow"
+                            name="weedEating"
                             value={option}
-                            checked={fenceRow === option}
-                            onChange={(e) =>
-                              setFenceRow(e.target.value as "Yes" | "No")
-                            }
+                            checked={weedEating === option}
+                            onChange={(e) => setWeedEating(e.target.value as "Yes" | "No")}
+                          
                           />
                           {option}
                         </label>
