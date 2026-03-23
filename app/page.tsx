@@ -392,49 +392,69 @@ function BrochureModal({
   brand: BrandMedia | null;
   onClose: () => void;
 }) {
+  const [page, setPage] = useState<1 | 2>(1);
+
   if (!brand) return null;
 
+  const currentImage = page === 1 ? brand.front : brand.back;
+
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/85 p-4">
-      <div className="max-h-[95vh] w-full max-w-6xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl md:p-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-              Brochure
-            </p>
-            <h3 className="mt-2 text-2xl font-black text-slate-900 md:text-3xl">
-              {brand.name}
-            </h3>
-          </div>
+    <div className="fixed inset-0 z-[110] bg-black flex flex-col">
+      
+      {/* TOP BAR */}
+      <div className="flex items-center justify-between p-4 bg-black text-white">
+        <h2 className="text-lg font-bold">{brand.name}</h2>
+
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setPage(1)}
+            className={`px-3 py-1 rounded ${page === 1 ? "bg-white text-black" : "bg-white/20"}`}
+          >
+            Page 1
+          </button>
 
           <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            onClick={() => setPage(2)}
+            className={`px-3 py-1 rounded ${page === 2 ? "bg-white text-black" : "bg-white/20"}`}
           >
-            Close
+            Page 2
+          </button>
+
+          <button
+            onClick={onClose}
+            className="ml-4 text-sm"
+          >
+            ✕ Close
           </button>
         </div>
+      </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <div>
-            <p className="mb-3 text-sm font-semibold text-slate-700">Front</p>
-            <img
-              src={brand.front}
-              alt={`${brand.name} brochure front`}
-              className="w-full rounded-[1.5rem] border border-slate-200 shadow-sm"
-            />
-          </div>
+      {/* IMAGE AREA */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <img
+          src={currentImage}
+          alt={`${brand.name} brochure`}
+          className="max-h-full max-w-full object-contain"
+        />
+      </div>
 
-          <div>
-            <p className="mb-3 text-sm font-semibold text-slate-700">Back</p>
-            <img
-              src={brand.back}
-              alt={`${brand.name} brochure back`}
-              className="w-full rounded-[1.5rem] border border-slate-200 shadow-sm"
-            />
-          </div>
-        </div>
+      {/* NAV BUTTONS */}
+      <div className="flex justify-between p-4 bg-black">
+        <button
+          onClick={() => setPage(1)}
+          disabled={page === 1}
+          className="text-white disabled:opacity-30"
+        >
+          ← Previous
+        </button>
+
+        <button
+          onClick={() => setPage(2)}
+          disabled={page === 2}
+          className="text-white disabled:opacity-30"
+        >
+          Next →
+        </button>
       </div>
     </div>
   );
