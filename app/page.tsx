@@ -623,7 +623,7 @@ export default function Page() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      <header className="sticky top-0 z-50 border-b border-slate-300/80 bg-white/90 backdrop-blur">
+      <header className="border-b border-slate-750/80 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 md:px-10">
           <div className="flex items-center gap-4">
             <img
