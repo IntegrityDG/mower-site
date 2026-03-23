@@ -720,12 +720,15 @@ export default function Page() {
               Equipment Options
             </p>
             <h2 className="mt-3 text-3xl font-black tracking-tight md:text-5xl">
-              The right system depends on the property.
+              The right system depends on the property. 
             </h2>
             <p className="mt-5 text-lg text-slate-600">
               Not all robotic mowers are built for the same job. We help match
               the right equipment based on property type, terrain, and
               performance expectations.
+
+              Take a moment to explore our lineup -- select any system to view 
+              detailed brochures and videos.
             </p>
           </div>
 
