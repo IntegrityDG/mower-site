@@ -104,7 +104,7 @@ const brandMediaMap: Record<BrandKey, BrandMedia> = {
     video: "https://www.facebook.com/share/v/1Cetb4FED4/",
     front: "/brochures/yarbo-pro-front.jpg",
     back: "/brochures/yarbo-pro-back.jpg",
-    thumb: "/products/yarbo-thumb.PNG",
+    thumb: "/products/yarbo-thumb.png",
   },
   pandag: {
     key: "pandag",
@@ -112,7 +112,7 @@ const brandMediaMap: Record<BrandKey, BrandMedia> = {
     video: "https://www.facebook.com/share/v/18H79raTRE/",
     front: "/brochures/pandag-g1-front.jpg",
     back: "/brochures/pandag-g1-back.jpg",
-    thumb: "/products/pandag-thumb.PNG",
+    thumb: "/products/pandag-thumb.png",
   },
 };
 
