@@ -152,9 +152,9 @@ function getRecommendations(data: RecommendationInput) {
 
   // 2. Property size
   if (data.propertySize === "Under 1 acre") {
-    scores.luba += 2;
+    scores.luba += 3;
     scores.lymow += 3;
-    scores.yarbo += 1;
+    scores.yarbo += 2;
   }
 
   if (data.propertySize === "1–3 acres") {
@@ -166,7 +166,7 @@ function getRecommendations(data: RecommendationInput) {
   if (data.propertySize === "3–5 acres") {
     scores.luba += 3;
     scores.lymow += 3;
-    scores.yarbo += 2;
+    scores.yarbo += 3;
   }
 
   if (data.propertySize === "5–10 acres") {
@@ -181,16 +181,48 @@ function getRecommendations(data: RecommendationInput) {
   }
 
   // 3. Terrain
-  if (data.terrain.includes("Open wide area")) scores.luba += 3;
-  if (data.terrain.includes("Steep slopes")) scores.luba += 3;
-  if (data.terrain.includes("Moderate slopes")) scores.luba += 3;
-  if (data.terrain.includes("Mostly flat")) scores.luba += 3;
 
-  if (data.terrain.length > 0) {
-    scores.lymow += 1;
-    scores.yarbo += 1;
-    scores.pandag += 1;
-  }
+if (data.terrain.includes("Open wide area")) {
+  scores.luba += 2;
+  scores.yarbo += 3;
+  scores.lymow += 2;
+  scores.pandag += 3;
+}
+
+if (data.terrain.includes("Mostly flat")) {
+  scores.luba += 3;
+  scores.lymow += 3;
+  scores.yarbo += 3;
+  scores.pandag += 3;
+}
+
+if (data.terrain.includes("Moderate slopes")) {
+  scores.luba += 3;
+  scores.lymow += 3;
+  scores.yarbo += 3;
+  scores.pandag += 3;
+}
+
+if (data.terrain.includes("Steep slopes")) {
+  scores.pandag += 3;
+  scores.lymow += 3;
+  scores.yarbo += 3;
+  scores.luba += 2;
+}
+
+if (data.terrain.includes("Rough / uneven ground")) {
+  scores.lymow += 3;
+  scores.pandag += 3;
+  scores.yarbo += 3;
+  scores.luba += 2;
+}
+
+if (data.terrain.includes("Obstacles / trees / landscaping")) {
+  scores.yarbo += 3;
+  scores.pandag += 2;
+  scores.lymow += 3;
+  scores.luba += 3;
+}
 
   // 4. Obstacles
   if (data.obstacleLevel === "Couple") {
@@ -210,12 +242,16 @@ function getRecommendations(data: RecommendationInput) {
   if (data.obstacleLevel === "Many") {
     scores.yarbo += 3;
     scores.pandag += 3;
+    scores.lymow += 3;
+    scores.luba += 3;
   }
 
   // 5. Weed eating capability
   if (data.weedEating === "No") {
   scores.luba += 3;
   scores.lymow += 3;
+  scores.yarbo += 3;
+  scores.pandag += 3;
   }
 
   if (data.weedEating === "Yes") {
@@ -228,38 +264,44 @@ function getRecommendations(data: RecommendationInput) {
     switch (priority) {
       case "Lowest maintenance":
         scores.lymow += 3;
-        scores.luba += 2;
-        scores.yarbo += 1;
-        break;
-      case "Best cut quality":
         scores.luba += 3;
         scores.yarbo += 2;
-        scores.lymow += 1;
+        scores.pandag += 2;
+        break;
+      case "Best cut quality":
+        scores.luba += 1;
+        scores.yarbo += 3;
+        scores.lymow += 3;
+        scores.pandag += 3;
         break;
       case "Handles slopes well":
         scores.pandag += 3;
-        scores.lymow += 2;
-        scores.yarbo += 1;
+        scores.lymow += 3;
+        scores.yarbo += 3;
+        scores.luba += 2;
         break;
       case "Commercial durability":
         scores.pandag += 3;
-        scores.yarbo += 2;
-        scores.lymow += 1;
+        scores.yarbo += 3;
+        scores.lymow += 3;
+        scores.luba += 2;
         break;
       case "Quiet operation":
         scores.luba += 3;
-        scores.lymow += 2;
-        scores.yarbo += 1;
+        scores.lymow += 3;
+        scores.yarbo += 2;
         break;
       case "Saves labor time":
         scores.yarbo += 3;
-        scores.pandag += 2;
-        scores.lymow += 1;
+        scores.luba += 2;
+        scores.lymow += 2;
+        scores.pandag += 3;
         break;
       case "Modern curb appeal":
         scores.yarbo += 3;
         scores.luba += 2;
-        scores.lymow += 1;
+        scores.lymow += 2;
+        scores.pandag += 3;
         break;
     }
   });
