@@ -1,1290 +1,252 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { useState } from "react";
+import LocationPathSelector, {
+  CustomerPath,
+  Region,
+} from "@/components/LocationPathSelector";
 
-type InterestOption =
-  | "Quote"
-  | "Product recommendation"
-  | "Install"
-  | "Setup"
-  | "Service / repair"
-  | "Property management solution";
-
-type TerrainOption =
-  | "Mostly flat"
-  | "Moderate slopes"
-  | "Steep slopes"
-  | "Rough / uneven ground"
-  | "Obstacles / trees / landscaping"
-  | "Open wide area";
-
-type PriorityOption =
-  | "Lowest maintenance"
-  | "Best cut quality"
-  | "Handles slopes well"
-  | "Commercial durability"
-  | "Quiet operation"
-  | "Saves labor time"
-  | "Modern curb appeal";
-
-type ProductOption =
-  | "Luba 3 AWD"
-  | "Lymow One Plus"
-  | "Yarbo Modular System"
-  | "PandaG G1 Commercial"
-  | "Not sure / need recommendation";
-
-type BrandKey = "luba3" | "lymow" | "yarbo" | "pandag";
-
-type BrandMedia = {
-  key: BrandKey;
-  name: string;
-  video: string;
-  front: string;
-  back: string;
-  thumb: string;
-};
-
-const interestOptions: InterestOption[] = [
-  "Quote",
-  "Product recommendation",
-  "Install",
-  "Setup",
-  "Service / repair",
-  "Property management solution",
-];
-
-const terrainOptions: TerrainOption[] = [
-  "Mostly flat",
-  "Moderate slopes",
-  "Steep slopes",
-  "Rough / uneven ground",
-  "Obstacles / trees / landscaping",
-  "Open wide area",
-];
-
-const priorityOptions: PriorityOption[] = [
-  "Lowest maintenance",
-  "Best cut quality",
-  "Handles slopes well",
-  "Commercial durability",
-  "Quiet operation",
-  "Saves labor time",
-  "Modern curb appeal",
-];
-
-const productOptions: ProductOption[] = [
-  "Luba 3 AWD",
-  "Lymow One Plus",
-  "Yarbo Modular System",
-  "PandaG G1 Commercial",
-  "Not sure / need recommendation",
-];
-
-const brandMediaMap: Record<BrandKey, BrandMedia> = {
-  luba3: {
-    key: "luba3",
-    name: "Luba 3 AWD",
-    video: "https://www.facebook.com/share/v/1BNNAUY6pD/",
-    front: "/brochures/luba3-front.jpg",
-    back: "/brochures/luba3-back.jpg",
-    thumb: "/products/luba3-thumb.PNG",
+const pathContent: Record<
+  CustomerPath,
+  {
+    eyebrow: string;
+    title: string;
+    description: string;
+  }
+> = {
+  nationwide: {
+    eyebrow: "Nationwide Purchasing",
+    title: "Build your equipment order.",
+    description:
+      "Compare available systems, select equipment and accessories, choose purchase or financing, and begin the self-ordering process.",
   },
-  lymow: {
-    key: "lymow",
-    name: "Lymow One Plus",
-    video: "https://www.facebook.com/share/v/1B4NTynQAm/",
-    front: "/brochures/lymow-one-plus-front.jpg",
-    back: "/brochures/lymow-one-plus-back.jpg",
-    thumb: "/products/lymow-one-plus-thumb.PNG",
+
+  "local-services": {
+    eyebrow: "IDS Regional Services",
+    title: "Build your equipment and service package.",
+    description:
+      "Eligible customers can select equipment along with professional installation, setup, support, and other locally available IDS services.",
   },
-  yarbo: {
-    key: "yarbo",
-    name: "Yarbo Modular System",
-    video: "https://www.facebook.com/share/v/1Cetb4FED4/",
-    front: "/brochures/yarbo-pro-front.jpg",
-    back: "/brochures/yarbo-pro-back.jpg",
-    thumb: "/products/yarbo-thumb.png",
-  },
-  pandag: {
-    key: "pandag",
-    name: "PandaG G1 Commercial",
-    video: "https://www.facebook.com/share/v/18H79raTRE/",
-    front: "/brochures/pandag-g1-front.jpg",
-    back: "/brochures/pandag-g1-back.jpg",
-    thumb: "/products/pandag-thumb.png",
+
+  recommendation: {
+    eyebrow: "Guided Recommendation",
+    title: "Let us help identify the right system.",
+    description:
+      "Answer questions about acreage, terrain, obstacles, maintenance goals, and desired capabilities to receive a guided equipment recommendation.",
   },
 };
-
-function toggleArrayValue<T extends string>(
-  value: T,
-  setter: React.Dispatch<React.SetStateAction<T[]>>
-) {
-  setter((prev) =>
-    prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
-  );
-}
-
-type RecommendationInput = {
-  propertyType: string;
-  propertySize: string;
-  terrain: string[];
-  obstacleLevel: string;
-  weedEating: string;
-  priorities: string[];
-  productInterest: string[];
-  purchaseType: string;
-};
-
-function getRecommendations(data: RecommendationInput) {
-  const scores = {
-    luba: 0,
-    lymow: 0,
-    yarbo: 0,
-    pandag: 0,
-  };
-
-  // 1. Property type = neutral baseline for all
-  scores.luba += 1;
-  scores.lymow += 1;
-  scores.yarbo += 1;
-  scores.pandag += 1;
-
-  // 2. Property size
-  if (data.propertySize === "Under 1 acre") {
-    scores.luba += 3;
-    scores.lymow += 3;
-    scores.yarbo += 2;
-  }
-
-  if (data.propertySize === "1–3 acres") {
-    scores.luba += 3;
-    scores.lymow += 3;
-    scores.yarbo += 2;
-  }
-
-  if (data.propertySize === "3–5 acres") {
-    scores.luba += 3;
-    scores.lymow += 3;
-    scores.yarbo += 3;
-  }
-
-  if (data.propertySize === "5–10 acres") {
-    scores.yarbo += 3;
-    scores.luba += 2;
-    scores.lymow += 2;
-  }
-
-  if (data.propertySize === "10+ acres") {
-    scores.pandag += 3;
-    scores.yarbo += 2;
-  }
-
-  // 3. Terrain
-
-if (data.terrain.includes("Open wide area")) {
-  scores.luba += 2;
-  scores.yarbo += 3;
-  scores.lymow += 2;
-  scores.pandag += 3;
-}
-
-if (data.terrain.includes("Mostly flat")) {
-  scores.luba += 3;
-  scores.lymow += 3;
-  scores.yarbo += 3;
-  scores.pandag += 3;
-}
-
-if (data.terrain.includes("Moderate slopes")) {
-  scores.luba += 3;
-  scores.lymow += 3;
-  scores.yarbo += 3;
-  scores.pandag += 3;
-}
-
-if (data.terrain.includes("Steep slopes")) {
-  scores.pandag += 3;
-  scores.lymow += 3;
-  scores.yarbo += 3;
-  scores.luba += 2;
-}
-
-if (data.terrain.includes("Rough / uneven ground")) {
-  scores.lymow += 3;
-  scores.pandag += 3;
-  scores.yarbo += 3;
-  scores.luba += 2;
-}
-
-if (data.terrain.includes("Obstacles / trees / landscaping")) {
-  scores.yarbo += 3;
-  scores.pandag += 2;
-  scores.lymow += 3;
-  scores.luba += 3;
-}
-
-  // 4. Obstacles
-  if (data.obstacleLevel === "Couple") {
-    scores.luba += 3;
-    scores.lymow += 3;
-    scores.yarbo += 3;
-    scores.pandag += 3;
-  }
-
-  if (data.obstacleLevel === "Few") {
-    scores.luba += 3;
-    scores.lymow += 3;
-    scores.yarbo += 3;
-    scores.pandag += 3;
-  }
-
-  if (data.obstacleLevel === "Many") {
-    scores.yarbo += 3;
-    scores.pandag += 3;
-    scores.lymow += 3;
-    scores.luba += 3;
-  }
-
-  // 5. Weed eating capability
-  if (data.weedEating === "No") {
-  scores.luba += 3;
-  scores.lymow += 3;
-  scores.yarbo += 3;
-  scores.pandag += 3;
-  }
-
-  if (data.weedEating === "Yes") {
-  scores.yarbo += 3;
-  scores.pandag += 3;
-  }
-
-  // 6. Priorities
-  data.priorities.forEach((priority) => {
-    switch (priority) {
-      case "Lowest maintenance":
-        scores.lymow += 3;
-        scores.luba += 3;
-        scores.yarbo += 2;
-        scores.pandag += 2;
-        break;
-      case "Best cut quality":
-        scores.luba += 1;
-        scores.yarbo += 3;
-        scores.lymow += 3;
-        scores.pandag += 3;
-        break;
-      case "Handles slopes well":
-        scores.pandag += 3;
-        scores.lymow += 3;
-        scores.yarbo += 3;
-        scores.luba += 2;
-        break;
-      case "Commercial durability":
-        scores.pandag += 3;
-        scores.yarbo += 3;
-        scores.lymow += 3;
-        scores.luba += 2;
-        break;
-      case "Quiet operation":
-        scores.luba += 3;
-        scores.lymow += 3;
-        scores.yarbo += 2;
-        break;
-      case "Saves labor time":
-        scores.yarbo += 3;
-        scores.luba += 2;
-        scores.lymow += 2;
-        scores.pandag += 3;
-        break;
-      case "Modern curb appeal":
-        scores.yarbo += 3;
-        scores.luba += 2;
-        scores.lymow += 2;
-        scores.pandag += 3;
-        break;
-    }
-  });
-
-  // 7. Product interest = minor influence
-  data.productInterest.forEach((product) => {
-    if (product === "Luba 3 AWD") scores.luba += 1;
-    if (product === "Lymow One Plus") scores.lymow += 1;
-    if (product === "Yarbo Modular System") scores.yarbo += 1;
-    if (product === "PandaG G1 Commercial") scores.pandag += 1;
-  });
-
-  const machineNames = {
-    luba: "Luba 3 AWD",
-    lymow: "Lymow One Plus",
-    yarbo: "Yarbo Modular System",
-    pandag: "PandaG G1 Commercial",
-  } as const;
-
-  const ranked = (Object.entries(scores) as Array<
-    [keyof typeof scores, number]
-  >).sort((a, b) => b[1] - a[1]);
-
-  return {
-    topFit: machineNames[ranked[0][0]],
-    secondFit: machineNames[ranked[1][0]],
-    thirdFit: machineNames[ranked[2][0]],
-    why: [
-      data.propertySize ? `property size: ${data.propertySize}` : "",
-      data.obstacleLevel ? `obstacle level: ${data.obstacleLevel}` : "",
-      data.weedEating ? `weed eating needed: ${data.weedEating}` : "",
-      data.terrain.length ? `terrain: ${data.terrain.join(", ")}` : "",
-      data.priorities.length ? `priorities: ${data.priorities.join(", ")}` : "",
-    ].filter(Boolean),
-    salesNote:
-      data.purchaseType === "Finance"
-        ? "This lead is likely worth a financing conversation early."
-        : data.purchaseType === "Purchase"
-        ? "This lead is likely worth a direct purchase pricing conversation early."
-        : "",
-  };
-}
-
-function BrandCard({ brand, onClick }: any) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex w-full items-center gap-6 rounded-xl border border-slate-200 bg-slate-50 p-5 text-left transition hover:shadow-lg hover:bg-white"
-    >
-      <img
-        src={brand.thumb}
-        className="h-36 w-36 rounded-lg object-cover border"
-      />
-
-      <div>
-        <p className="font-semibold underline text-lg">{brand.name}</p>
-        <p className="text-sm text-slate-500">
-          Click for brochure or video
-        </p>
-        <p className="mt-2 text-sm text-slate-700">
-          {brand.description}
-        </p>
-      </div>
-    </button>
-  );
-}
-
-function BrandChoiceModal({
-  brand,
-  onClose,
-  onBrochure,
-}: {
-  brand: BrandMedia | null;
-  onClose: () => void;
-  onBrochure: () => void;
-}) {
-  if (!brand) return null;
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-md rounded-[2rem] bg-white p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-              Equipment Options
-            </p>
-            <h3 className="mt-2 text-2xl font-black text-slate-900">
-              {brand.name}
-            </h3>
-            <p className="mt-2 text-sm text-slate-600">
-              Choose how you want to view this machine.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-          >
-            Close
-          </button>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          <button
-            type="button"
-            onClick={onBrochure}
-            className="w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:scale-[1.01]"
-          >
-            View Brochure
-          </button>
-
-          <a
-            href={brand.video}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block w-full rounded-2xl bg-blue-600 px-5 py-3 text-center text-sm font-bold text-white transition hover:scale-[1.01]"
-          >
-            Watch Video
-          </a>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BrochureModal({
-  brand,
-  onClose,
-}: {
-  brand: BrandMedia | null;
-  onClose: () => void;
-}) {
-  const [page, setPage] = useState<1 | 2>(1);
-
-  if (!brand) return null;
-
-  const currentImage = page === 1 ? brand.front : brand.back;
-
-  return (
-    <div className="fixed inset-0 z-[110] bg-black flex flex-col">
-      
-      {/* TOP BAR */}
-      <div className="flex items-center justify-between p-4 bg-black text-white">
-        <h2 className="text-lg font-bold">{brand.name}</h2>
-
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setPage(1)}
-            className={`px-3 py-1 rounded ${page === 1 ? "bg-white text-black" : "bg-white/20"}`}
-          >
-            Page 1
-          </button>
-
-          <button
-            onClick={() => setPage(2)}
-            className={`px-3 py-1 rounded ${page === 2 ? "bg-white text-black" : "bg-white/20"}`}
-          >
-            Page 2
-          </button>
-
-          <button
-            onClick={onClose}
-            className="ml-4 text-sm"
-          >
-            ✕ Close
-          </button>
-        </div>
-      </div>
-
-      {/* IMAGE AREA */}
-      <div className="flex-1 flex items-center justify-center p-4">
-        <img
-          src={currentImage}
-          alt={`${brand.name} brochure`}
-          className="max-h-full max-w-full object-contain"
-        />
-      </div>
-
-      {/* NAV BUTTONS */}
-      <div className="flex justify-between p-4 bg-black">
-        <button
-          onClick={() => setPage(1)}
-          disabled={page === 1}
-          className="text-white disabled:opacity-30"
-        >
-          ← Previous
-        </button>
-
-        <button
-          onClick={() => setPage(2)}
-          disabled={page === 2}
-          className="text-white disabled:opacity-30"
-        >
-          Next →
-        </button>
-      </div>
-    </div>
-  );
-}
 
 export default function Page() {
-  const services = [
-    {
-      title: "Sales",
-      desc: "We help match the right robotic mower to the property, layout, budget, and long-term goals.",
-    },
-    {
-      title: "Install & Setup",
-      desc: "Professional property mapping, boundary setup, app configuration, and first-run dialing so the system starts right.",
-    },
-    {
-      title: "Service & Support",
-      desc: "Ongoing troubleshooting, adjustments, seasonal support, and real help when something needs attention.",
-    },
-    {
-      title: "Property Management",
-      desc: "Scalable autonomous mowing solutions for residential, commercial, development, and larger managed properties.",
-    },
-  ];
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedRegion, setSelectedRegion] = useState<Region>("");
+  const [selectedPath, setSelectedPath] = useState<CustomerPath | "">("");
 
-  const benefits = [
-    "Cleaner, more consistent cuts",
-    "Lower labor demand",
-    "Reduced fuel and routine mowing costs",
-    "Quiet operation",
-    "Modern curb appeal",
-    "Smarter long-term property management",
-  ];
-
-  const [selectedBrand, setSelectedBrand] = useState<BrandMedia | null>(null);
-  const [showBrochure, setShowBrochure] = useState(false);
-
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [preferredContactMethod, setPreferredContactMethod] = useState<
-    "Call" | "Text" | "Email" | ""
-  >("");
-
-  const [propertyType, setPropertyType] = useState<
-    | "Residential"
-    | "Commercial"
-    | "Subdivision / HOA"
-    | "Large Estate"
-    | "Development / Builder"
-    | "Other"
-    | ""
-  >("");
-
-  const [interests, setInterests] = useState<InterestOption[]>([]);
-  const [propertySize, setPropertySize] = useState<
-    "Under 1 acre" | "1–3 acres" | "3–5 acres" | "5–10 acres" | "10+ acres" | ""
-  >("");
-  const [terrain, setTerrain] = useState<TerrainOption[]>([]);
-  const [obstacleLevel, setObstacleLevel] = useState<"Couple" | "Few" | "Many" | "">("");
-  const [weedEating, setWeedEating] = useState<"Yes" | "No" | "">("");
-  const [priorities, setPriorities] = useState<PriorityOption[]>([]);
-  const [productInterest, setProductInterest] = useState<ProductOption[]>([]);
-  const [purchaseType, setPurchaseType] = useState<"Purchase" | "Finance" | "">("");
-  const [extraNotes, setExtraNotes] = useState("");
-
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-
-  const recommendation = useMemo(
-    () =>
-      getRecommendations({
-        propertyType,
-        propertySize,
-        terrain,
-        obstacleLevel,
-        weedEating,
-        priorities,
-        productInterest,
-        purchaseType,
-      }),
-    [
-      propertyType,
-      propertySize,
-      terrain,
-      obstacleLevel,
-      weedEating,
-      priorities,
-      productInterest,
-      purchaseType,
-    ]
-  );
-
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
-    setMessage("");
-    setErrorMessage("");
-
-    try {
-      const res = await fetch("/api/quote-request", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name,
-          phone,
-          email,
-          preferredContactMethod,
-          propertyType,
-          interests,
-          propertySize,
-          terrain,
-          obstacleLevel,
-          weedEating,
-          priorities,
-          productInterest,
-          purchaseType,
-          extraNotes,
-          autoSuggestion: [
-            recommendation.topFit,
-            recommendation.secondFit,
-            recommendation.thirdFit,
-          ],
-        }),
-      });
-
-      const text = await res.text();
-      let data: { error?: string; success?: boolean } = {};
-
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Server returned invalid response: ${text.slice(0, 140)}`);
-      }
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to send request.");
-      }
-
-      setMessage("Quote request sent successfully.");
-      setName("");
-      setPhone("");
-      setEmail("");
-      setPreferredContactMethod("");
-      setPropertyType("");
-      setInterests([]);
-      setPropertySize("");
-      setTerrain([]);
-      setObstacleLevel("");
-      setWeedEating("");
-      setPriorities([]);
-      setProductInterest([]);
-      setPurchaseType("");
-      setExtraNotes("");
-    } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : "Something went wrong.";
-      setErrorMessage(msg);
-    } finally {
-      setLoading(false);
-    }
+  function handleStateChange(state: string) {
+    setSelectedState(state);
+    setSelectedRegion("");
+    setSelectedPath("");
   }
 
+  function handleRegionChange(region: Region) {
+    setSelectedRegion(region);
+    setSelectedPath("");
+  }
+
+  const activePath = selectedPath ? pathContent[selectedPath] : null;
+
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      <header className="border-b border-slate-750/80 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6 md:px-10">
-          <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-slate-100 text-slate-950">
+      {/* HEADER / COMPANY BANNER */}
+      <header className="border-b border-slate-300 bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-center px-4 py-5 sm:px-6 md:px-10">
+          <div className="flex w-full max-w-6xl items-center justify-center gap-3 sm:gap-5 md:gap-8">
             <img
               src="/logo.png"
-              alt="Integrity Distribution Systems Logo"
-              className="h-24 md:h-40 w-auto object-contain"
+              alt="Integrity Distribution Systems"
+              width={650}
+              height={250}
+              className="h-auto w-[145px] shrink-0 object-contain sm:w-[230px] md:w-[320px] lg:w-[360px]"
             />
-            <div>
-              <p className="text-xl font-black tracking-tight text-slate-900">
+
+            <div className="min-w-0 border-l border-slate-300 pl-3 text-left sm:pl-5 md:pl-8">
+              <p className="text-4xl font-black leading-tight tracking-tight text-slate-950 sm:text-3xl md:text-4xl lg:text-5xl">
                 Integrity Distribution Systems
               </p>
-              <p className="text-xs uppercase tracking-[0.25em] text-emerald-700">
+
+              <p className="mt-2 text-xl font-bold uppercase leading-5 tracking-[0.12em] text-emerald-700 sm:text-base sm:tracking-[0.17em] md:text-lg lg:text-xl">
                 Autonomous Lawn Care Solutions
               </p>
             </div>
           </div>
-
-          <nav className="hidden items-center gap-6 md:flex">
-            <a
-              href="#services"
-              className="text-sm font-semibold text-slate-700 hover:text-slate-950"
-            >
-              Services
-            </a>
-            <a
-              href="#brands"
-              className="text-sm font-semibold text-slate-700 hover:text-slate-950"
-            >
-              Brands
-            </a>
-            <a
-              href="#benefits"
-              className="text-sm font-semibold text-slate-700 hover:text-slate-950"
-            >
-              Benefits
-            </a>
-            <a
-              href="#contact"
-              className="text-sm font-semibold text-slate-700 hover:text-slate-950"
-            >
-              Contact
-            </a>
-          </nav>
-
-          <a
-            href="#contact"
-            className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:scale-[1.02]"
-          >
-            Request Info
-          </a>
         </div>
       </header>
 
-      <section
-        id="services"
-        className="mx-auto max-w-7xl px-6 py-20 md:px-10"
-      >
-        <div className="rounded-[2rem] bg-slate-200 px-8 py-10 md:px-10">
-          <div className="max-w-3xl">
-            <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-              What we do
-            </p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight md:text-5xl">
-              We don’t just sell robotic mowers. We guide you step-by-step to take
-              back your time and reduce your costs.
-            </h2>
-            <p className="mt-5 text-lg text-slate-700">
-              A mower in a box is not a solution. The solution is proper planning,
-              correct setup, real support, and knowing what system actually fits
-              the property.
-            </p>
-          </div>
+      <main>
+        {/* HERO */}
+        <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-6 py-20 text-white md:px-10 md:py-24">
+         {/* Background glow */}
+         <div className="pointer-events-none absolute inset-0 opacity-20">
+           <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-emerald-400 blur-3xl" />
+           <div className="absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-cyan-400 blur-3xl" />
+         </div>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            {services.map((service) => (
-              <div
-                key={service.title}
-                className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
-              >
-                <h3 className="text-xl font-bold">{service.title}</h3>
-                <p className="mt-3 text-base leading-7 text-slate-600">
-                  {service.desc}
+         {/* Centered hero content */}
+         <div className="relative z-10 mx-auto flex min-h-[430px] w-full max-w-7xl items-center justify-center">
+           <div className="mx-auto w-full max-w-5xl text-center">
+             <p className="mx-auto text-center text-xl font-bold uppercase tracking-[0.28em] text-emerald-400">
+               Nationwide Autonomous Mower Sales
+             </p>
+
+             <h1 className="mx-auto mt-5 max-w-4xl text-center text-4xl font-black leading-[1.08] tracking-tight md:text-6xl">
+               Autonomous lawn care, built on integrity.
+             </h1>
+
+             <p className="mx-auto mt-7 max-w-3xl text-center text-lg leading-8 text-slate-200 md:text-xl">
+               Purchase autonomous mowing equipment nationwide, get help identifying
+               the right system, Get help finding local resources in your area, or add professional 
+               IDS setup and support where regional service is available.
+             </p>
+
+             <div className="mt-8 flex w-full justify-center">
+               <div className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-center text-sm font-semibold text-slate-100 backdrop-blur">
+                 Nationwide Sales • Regional Hands-On Services
+               </div>
+             </div>
+           </div>
+         </div>
+       </section>
+
+        {/* LOCATION AND PATH SELECTOR */}
+        <LocationPathSelector
+          selectedState={selectedState}
+          selectedRegion={selectedRegion}
+          selectedPath={selectedPath}
+          onStateChange={handleStateChange}
+          onRegionChange={handleRegionChange}
+          onPathSelect={setSelectedPath}
+        />
+
+        {/* SELECTED PATH PREVIEW */}
+        <section className="px-6 py-20 md:px-10">
+          <div className="mx-auto max-w-6xl">
+            {activePath ? (
+              <div className="overflow-hidden rounded-[2rem] border border-slate-300 bg-white shadow-xl">
+                <div className="grid lg:grid-cols-[1.15fr_0.85fr]">
+                  <div className="p-8 md:p-12">
+                    <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+                      {activePath.eyebrow}
+                    </p>
+
+                    <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
+                      {activePath.title}
+                    </h2>
+
+                    <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+                      {activePath.description}
+                    </p>
+
+                    <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-950">
+                      Your selected state, region, and customer path will carry
+                      forward into the next stage of the website.
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950 p-8 text-white md:p-12">
+                    <p className="text-sm font-bold uppercase tracking-[0.22em] text-emerald-400">
+                      Current Selection
+                    </p>
+
+                    <div className="mt-7 space-y-5">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+                          State
+                        </p>
+
+                        <p className="mt-1 text-xl font-black">
+                          {selectedState}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+                          Region
+                        </p>
+
+                        <p className="mt-1 text-xl font-black">
+                          {selectedRegion}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+                          Customer Path
+                        </p>
+
+                        <p className="mt-1 text-xl font-black">
+                          {activePath.eyebrow}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled
+                      className="mt-9 w-full cursor-not-allowed rounded-2xl bg-white px-5 py-4 font-bold text-slate-950 opacity-60"
+                    >
+                      Continue — Next Section Coming
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-[2rem] border border-dashed border-slate-400 bg-white px-8 py-14 text-center">
+                <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+                  Choose Your Starting Point
+                </p>
+
+                <h2 className="mt-3 text-3xl font-black text-slate-950">
+                  Select your location and preferred path above.
+                </h2>
+
+                <p className="mx-auto mt-4 max-w-2xl leading-7 text-slate-600">
+                  The next stage changes depending on whether you want to
+                  purchase nationwide, request regional IDS services, or receive
+                  a guided equipment recommendation.
                 </p>
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      <section id="brands" className="border-y border-slate-200 bg-slate-50">
-        <div className="mx-auto max-w-7xl px-6 py-20 md:px-10">
-          <div className="max-w-3xl">
-            <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-              Equipment Options
-            </p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight md:text-5xl">
-              The right system depends on the property. 
-            </h2>
-            <p className="mt-5 text-lg text-slate-600">
-              Not all robotic mowers are built for the same job. We help match
-              the right equipment based on property type, terrain, and
-              performance expectations.
-
-              Take a moment to explore our lineup -- select any system to view 
-              detailed brochures and videos.
-            </p>
-          </div>
-
-          <div className="mt-12 grid gap-8 md:grid-cols-2">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-              <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-                Residential Solutions
-              </p>
-              <h3 className="mt-3 text-2xl font-black">
-                Designed for homeowners and private properties
-              </h3>
-              <p className="mt-4 text-slate-600">
-                Ideal for residential lawns, estates, and properties where
-                consistent appearance and low maintenance effort are the priority.
-              </p>
-
-              <div className="mt-6 space-y-3">
-                <BrandCard
-                  brand={brandMediaMap.luba3}
-                  onClick={() => {
-                    setSelectedBrand(brandMediaMap.luba3);
-                    setShowBrochure(false);
-                  }}
-                />
-                <BrandCard
-                  brand={brandMediaMap.lymow}
-                  onClick={() => {
-                    setSelectedBrand(brandMediaMap.lymow);
-                    setShowBrochure(false);
-                  }}
-                />
-                <BrandCard
-                  brand={brandMediaMap.yarbo}
-                  onClick={() => {
-                    setSelectedBrand(brandMediaMap.yarbo);
-                    setShowBrochure(false);
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm">
-              <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-                Commercial Solutions
-              </p>
-              <h3 className="mt-3 text-2xl font-black">
-                Built for larger properties and higher demand use
-              </h3>
-              <p className="mt-4 text-slate-600">
-                Designed for commercial sites, developments, and larger-scale
-                mowing where durability, coverage, and scalability matter.
-              </p>
-
-              <div className="mt-6 space-y-3">
-                <BrandCard
-                  brand={brandMediaMap.yarbo}
-                  onClick={() => {
-                    setSelectedBrand(brandMediaMap.yarbo);
-                    setShowBrochure(false);
-                  }}
-                />
-                <BrandCard
-                  brand={brandMediaMap.pandag}
-                  onClick={() => {
-                    setSelectedBrand(brandMediaMap.pandag);
-                    setShowBrochure(false);
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="benefits" className="mx-auto max-w-7xl px-6 py-20 md:px-10">
-        <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+      {/* FOOTER */}
+      <footer className="border-t border-slate-800 bg-slate-950 text-slate-300">
+        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-12 md:grid-cols-2 md:px-10">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-              Why property owners are paying attention
-            </p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight md:text-5xl">
-              Better consistency, less hassle, and a cleaner long-term approach.
-            </h2>
-            <p className="mt-5 text-lg text-slate-600">
-              Autonomous mowing is not just a gadget. When it is matched and set
-              up correctly, it becomes a practical upgrade in how a property is
-              maintained and presented.
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {benefits.map((benefit) => (
-              <div
-                key={benefit}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-              >
-                <p className="text-base font-semibold">{benefit}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="contact" className="mx-auto max-w-7xl px-6 py-20 md:px-10">
-        <div className="grid gap-8 rounded-[2rem] bg-slate-100 px-8 py-10 md:px-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
-          <div>
-            <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-              Request information
-            </p>
-            <h2 className="mt-3 text-3xl font-black tracking-tight md:text-5xl">
-              Give us real answers and we’ll stop guessing.
-            </h2>
-            <p className="mt-5 max-w-3xl text-lg text-slate-600">
-              This form is designed to narrow down fit fast, not waste your time with
-              vague yard descriptions and bad assumptions.
-            </p>
-
-            <div className="mt-8 rounded-[1.5rem] bg-slate-950 p-6 text-white shadow-sm">
-              <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-400">
-                Auto suggestion
-              </p>
-              <p className="mt-3 text-lg font-semibold">
-                Top Fit: {recommendation.topFit}
-              </p>
-              <p className="mt-2 text-sm text-slate-300">
-                Also Consider: {recommendation.secondFit}
-              </p>
-              <p className="mt-2 text-sm text-slate-400">
-                Third Option: {recommendation.thirdFit}
-              </p>
-
-              <div className="mt-5 rounded-2xl bg-white/5 p-4 text-sm">
-                <p className="font-semibold text-white">Why:</p>
-                {recommendation.why.length > 0 ? (
-                  <ul className="mt-2 space-y-1 text-slate-300">
-                    {recommendation.why.map((item) => (
-                      <li key={item}>• {item}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-2 text-slate-400">
-                    Fill out more of the form and the recommendation will tighten up.
-                  </p>
-                )}
-              </div>
-
-              {recommendation.salesNote && (
-                <p className="mt-4 text-sm text-amber-300">{recommendation.salesNote}</p>
-              )}
-            </div>
-
-            <div className="mt-6 space-y-2 text-base text-slate-700">
-              <p>
-                <span className="font-bold text-slate-900">Company:</span>{" "}
-                Integrity Distribution Systems
-              </p>
-              <p>
-                <span className="font-bold text-slate-900">Service Area:</span>{" "}
-                Southeast Missouri Region
-              </p>
-              <p>
-                <span className="font-bold text-slate-900">Phone:</span>{" "}
-                (573) 971-7197
-              </p>
-              <p>
-                <span className="font-bold text-slate-900">Email:</span>{" "}
-                IntegrityDistributionSystems@gmail.com
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-[1.5rem] bg-white p-6 shadow-sm">
-            <form className="space-y-8" onSubmit={handleSubmit}>
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">Contact Information</h3>
-                <div className="mt-4 grid gap-4">
-                  <input
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none placeholder:text-slate-400"
-                    placeholder="Name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                  <input
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none placeholder:text-slate-400"
-                    placeholder="Phone"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                  <input
-                    className="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none placeholder:text-slate-400"
-                    placeholder="Email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-
-                  <div>
-                    <p className="mb-3 text-sm font-bold text-slate-900">
-                      Preferred contact method
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-3 text-sm text-slate-700">
-                      {["Call", "Text", "Email"].map((option) => (
-                        <label key={option} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="preferredContactMethod"
-                            value={option}
-                            checked={preferredContactMethod === option}
-                            onChange={(e) =>
-                              setPreferredContactMethod(
-                                e.target.value as "Call" | "Text" | "Email"
-                              )
-                            }
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">Property Details</h3>
-                <div className="mt-4 space-y-6">
-                  <div>
-                    <p className="mb-3 text-sm font-bold text-slate-900">Property type</p>
-                    <div className="grid gap-2 sm:grid-cols-2 text-sm text-slate-700">
-                      {[
-                        "Residential",
-                        "Commercial",
-                        "Subdivision / HOA",
-                        "Large Estate",
-                        "Development / Builder",
-                        "Other",
-                      ].map((option) => (
-                        <label key={option} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="propertyType"
-                            value={option}
-                            checked={propertyType === option}
-                            onChange={(e) =>
-                              setPropertyType(
-                                e.target.value as
-                                  | "Residential"
-                                  | "Commercial"
-                                  | "Subdivision / HOA"
-                                  | "Large Estate"
-                                  | "Development / Builder"
-                                  | "Other"
-                              )
-                            }
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-3 text-sm font-bold text-slate-900">
-                      What are you interested in? (check all that apply)
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2 text-sm text-slate-700">
-                      {interestOptions.map((option) => (
-                        <label key={option} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={interests.includes(option)}
-                            onChange={() => toggleArrayValue(option, setInterests)}
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-3 text-sm font-bold text-slate-900">
-                      Approximate property size
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2 text-sm text-slate-700">
-                      {[
-                        "Under 1 acre",
-                        "1–3 acres",
-                        "3–5 acres",
-                        "5–10 acres",
-                        "10+ acres",
-                      ].map((option) => (
-                        <label key={option} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="propertySize"
-                            value={option}
-                            checked={propertySize === option}
-                            onChange={(e) =>
-                              setPropertySize(
-                                e.target.value as
-                                  | "Under 1 acre"
-                                  | "1–3 acres"
-                                  | "3–5 acres"
-                                  | "5–10 acres"
-                                  | "10+ acres"
-                              )
-                            }
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">Site Conditions</h3>
-                <div className="mt-4 space-y-6">
-                  <div>
-                    <p className="mb-3 text-sm font-bold text-slate-900">
-                      Terrain (check all that apply)
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2 text-sm text-slate-700">
-                      {terrainOptions.map((option) => (
-                        <label key={option} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={terrain.includes(option)}
-                            onChange={() => toggleArrayValue(option, setTerrain)}
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-3 text-sm font-bold text-slate-900">
-                      Obstacles to weed eat around
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-3 text-sm text-slate-700">
-                      {["Couple", "Few", "Many"].map((option) => (
-                        <label key={option} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="obstacleLevel"
-                            value={option}
-                            checked={obstacleLevel === option}
-                            onChange={(e) =>
-                              setObstacleLevel(
-                                e.target.value as "Couple" | "Few" | "Many"
-                              )
-                            }
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-3 text-sm font-bold text-slate-900">
-                      Fence row to weed eat along?
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2 text-sm text-slate-700">
-                      {["Yes", "No"].map((option) => (
-                        <label key={option} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="weedEating"
-                            value={option}
-                            checked={weedEating === option}
-                            onChange={(e) => setWeedEating(e.target.value as "Yes" | "No")}
-                          
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">Product Fit</h3>
-                <div className="mt-4 space-y-6">
-                  <div>
-                    <p className="mb-3 text-sm font-bold text-slate-900">
-                      Priorities (check all that apply)
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2 text-sm text-slate-700">
-                      {priorityOptions.map((option) => (
-                        <label key={option} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={priorities.includes(option)}
-                            onChange={() => toggleArrayValue(option, setPriorities)}
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-3 text-sm font-bold text-slate-900">
-                      Product interest (check all that apply)
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2 text-sm text-slate-700">
-                      {productOptions.map((option) => (
-                        <label key={option} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={productInterest.includes(option)}
-                            onChange={() => toggleArrayValue(option, setProductInterest)}
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-3 text-sm font-bold text-slate-900">
-                      Looking to purchase or finance?
-                    </p>
-                    <div className="grid gap-2 sm:grid-cols-2 text-sm text-slate-700">
-                      {["Purchase", "Finance"].map((option) => (
-                        <label key={option} className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="purchaseType"
-                            value={option}
-                            checked={purchaseType === option}
-                            onChange={(e) =>
-                              setPurchaseType(
-                                e.target.value as "Purchase" | "Finance"
-                              )
-                            }
-                          />
-                          {option}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-xl font-bold text-slate-900">Additional Notes</h3>
-                <textarea
-                  className="mt-4 h-28 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 outline-none placeholder:text-slate-400"
-                  placeholder="Anything else we should know?"
-                  value={extraNotes}
-                  onChange={(e) => setExtraNotes(e.target.value)}
-                />
-              </div>
-
-              {message && (
-                <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-                  {message}
-                </p>
-              )}
-
-              {errorMessage && (
-                <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                  {errorMessage}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full rounded-2xl bg-slate-950 px-5 py-3 font-bold text-white transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {loading ? "Sending..." : "Send Request"}
-              </button>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-10 text-sm text-slate-600 md:flex-row md:items-center md:justify-between md:px-10">
-          <div>
-            <p className="text-base font-black text-slate-900">
+            <p className="text-lg font-black text-white">
               Integrity Distribution Systems
             </p>
-            <p>Advanced autonomous lawn care solutions for modern properties.</p>
+
+            <p className="mt-3 max-w-xl text-sm leading-6">
+              Nationwide autonomous mower sales with professional installation,
+              setup, and ongoing support available throughout the IDS regional
+              service area.
+            </p>
           </div>
 
-          <div className="flex flex-wrap gap-4">
-            <span>Sales</span>
-            <span>Install</span>
-            <span>Setup</span>
-            <span>Service</span>
-            <span>Property Management</span>
+          <div className="md:text-right">
+            <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-400">
+              Regional Service Coverage
+            </p>
+
+            <p className="mt-3 text-sm leading-6">
+              Southern Missouri • Northern Arkansas • Western Kentucky
+              <br />
+              Western Tennessee • Southern Illinois
+            </p>
           </div>
         </div>
       </footer>
-
-      <BrandChoiceModal
-        brand={selectedBrand}
-        onClose={() => {
-          setSelectedBrand(null);
-          setShowBrochure(false);
-        }}
-        onBrochure={() => setShowBrochure(true)}
-      />
-
-      <BrochureModal
-        brand={selectedBrand && showBrochure ? selectedBrand : null}
-        onClose={() => setShowBrochure(false)}
-      />
     </div>
   );
 }
