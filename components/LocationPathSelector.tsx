@@ -16,6 +16,13 @@ type LocationPathSelectorProps = {
   onPathSelect: (path: CustomerPath) => void;
 };
 
+type PathCard = {
+  key: CustomerPath;
+  badge: string;
+  title: string;
+  description: string;
+};
+
 const states = [
   "Alabama",
   "Alaska",
@@ -118,39 +125,25 @@ const pathLabels: Record<CustomerPath, string> = {
 };
 
 function isLocalServiceEligible(state: string, region: string) {
-  if (
-    state === "Missouri" &&
-    [
+  const eligibleLocations: Record<string, string[]> = {
+    Missouri: [
       "Southern Missouri — East",
       "Southern Missouri — West",
-    ].includes(region)
-  ) {
-    return true;
-  }
+    ],
 
-  if (
-    state === "Arkansas" &&
-    [
+    Arkansas: [
       "Northern Arkansas — East",
       "Northern Arkansas — West",
-    ].includes(region)
-  ) {
-    return true;
-  }
+    ],
 
-  if (state === "Kentucky" && region === "Western Kentucky") {
-    return true;
-  }
+    Kentucky: ["Western Kentucky"],
 
-  if (state === "Tennessee" && region === "Western Tennessee") {
-    return true;
-  }
+    Tennessee: ["Western Tennessee"],
 
-  if (state === "Illinois" && region === "Southern Illinois") {
-    return true;
-  }
+    Illinois: ["Southern Illinois"],
+  };
 
-  return false;
+  return eligibleLocations[state]?.includes(region) ?? false;
 }
 
 export default function LocationPathSelector({
@@ -172,33 +165,33 @@ export default function LocationPathSelector({
     ? regionOptionsByState[selectedState] ?? defaultRegions
     : [];
 
-  const pathCards = [
+  const pathCards: PathCard[] = [
     {
-      key: "nationwide" as const,
+      key: "nationwide",
+      badge: "Nationwide",
       title: "Purchase Equipment Nationwide",
       description:
         "Purchase equipment for direct shipment anywhere in the United States. Ideal for customers who prefer self-setup or optional remote guidance.",
-      badge: "Nationwide",
     },
 
     ...(localServiceEligible
       ? [
           {
-            key: "local-services" as const,
+            key: "local-services" as CustomerPath,
+            badge: "Regional Service",
             title: "IDS Local Setup & Support Services",
             description:
-              "Professional installation, setup, and ongoing hands-on support are available within the IDS regional service area.",
-            badge: "Local Service",
+              "Purchase equipment with professional installation, setup, and ongoing hands-on support throughout the IDS regional service area.",
           },
         ]
       : []),
 
     {
-      key: "recommendation" as const,
+      key: "recommendation",
+      badge: "Guided Selection",
       title: "Get Help Choosing the Right System",
       description:
         "Use our guided recommendation process to compare systems based on acreage, terrain, obstacles, maintenance needs, and long-term goals.",
-      badge: "Guided Selection",
     },
   ];
 
@@ -208,6 +201,7 @@ export default function LocationPathSelector({
       className="border-y border-slate-300 bg-slate-100 px-6 py-20 md:px-10"
     >
       <div className="mx-auto max-w-7xl">
+        {/* LOCATION HEADING */}
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
             Start Here
@@ -218,11 +212,12 @@ export default function LocationPathSelector({
           </h2>
 
           <p className="mt-5 text-lg leading-8 text-slate-600">
-            Your location helps us determine which purchasing, installation,
+            Your location helps determine which purchasing, installation,
             setup, and support options are available.
           </p>
         </div>
 
+        {/* LOCATION SELECTION */}
         <div className="mx-auto mt-12 max-w-4xl rounded-[2rem] border border-slate-300 bg-white p-6 shadow-lg md:p-10">
           <div>
             <label
@@ -253,28 +248,29 @@ export default function LocationPathSelector({
               Which region of the state is the property located in?
             </p>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-              {availableRegions.map((region) => {
-                const isSelected = selectedRegion === region;
+            {selectedState ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {availableRegions.map((region) => {
+                  const isSelected = selectedRegion === region;
 
-                return (
-                  <button
-                    key={region}
-                    type="button"
-                    onClick={() => onRegionChange(region)}
-                    className={`rounded-2xl border px-4 py-4 text-sm font-bold transition ${
-                      isSelected
-                        ? "border-emerald-700 bg-emerald-700 text-white shadow-md"
-                        : "border-slate-300 bg-slate-50 text-slate-700 hover:border-emerald-500 hover:bg-white"
-                    }`}
-                  >
-                    {region}
-                  </button>
-                );
-              })}
-            </div>
-
-            {!selectedState && (
+                  return (
+                    <button
+                      key={region}
+                      type="button"
+                      onClick={() => onRegionChange(region)}
+                      aria-pressed={isSelected}
+                      className={`rounded-2xl border px-4 py-4 text-sm font-bold transition ${
+                        isSelected
+                          ? "border-emerald-700 bg-emerald-700 text-white shadow-md"
+                          : "border-slate-300 bg-slate-50 text-slate-700 hover:border-emerald-500 hover:bg-white"
+                      }`}
+                    >
+                      {region}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
               <p className="mt-3 text-sm text-slate-500">
                 Select your state before choosing a region.
               </p>
@@ -282,6 +278,7 @@ export default function LocationPathSelector({
           </div>
         </div>
 
+        {/* CUSTOMER PATH OPTIONS */}
         {locationComplete && (
           <div className="mt-14">
             <div className="mx-auto max-w-3xl text-center">
@@ -296,9 +293,27 @@ export default function LocationPathSelector({
               <p className="mt-4 text-base leading-7 text-slate-600">
                 The options below are based on the location you selected.
               </p>
+
+              <p className="mt-3 text-base font-bold text-slate-900">
+                Select one of the options below to continue.
+              </p>
             </div>
 
-            {!localServiceEligible && (
+            {/* SERVICE ELIGIBILITY NOTICE */}
+            {localServiceEligible ? (
+              <div className="mx-auto mt-8 max-w-4xl rounded-2xl border border-emerald-300 bg-emerald-50 px-5 py-5 text-sm leading-7 text-emerald-950">
+                <p className="font-bold">
+                  Your property is located within the IDS hands-on service
+                  region.
+                </p>
+
+                <p className="mt-2">
+                  Nationwide purchasing, guided product selection, professional
+                  setup, installation, and ongoing local support options are
+                  available.
+                </p>
+              </div>
+            ) : (
               <div className="mx-auto mt-8 max-w-4xl rounded-2xl border border-amber-300 bg-amber-50 px-5 py-5 text-sm leading-7 text-amber-950">
                 <p className="font-bold">
                   Hands-on IDS services are not currently available in your
@@ -313,21 +328,7 @@ export default function LocationPathSelector({
               </div>
             )}
 
-            {localServiceEligible && (
-              <div className="mx-auto mt-8 max-w-4xl rounded-2xl border border-emerald-300 bg-emerald-50 px-5 py-5 text-sm leading-7 text-emerald-950">
-                <p className="font-bold">
-                  Your property is located within the IDS hands-on service
-                  region.
-                </p>
-
-                <p className="mt-2">
-                  Nationwide purchasing, guided product selection, professional
-                  setup, installation, and ongoing local support options are
-                  available.
-                </p>
-              </div>
-            )}
-
+            {/* PATH CARDS */}
             <div
               className={`mx-auto mt-8 grid max-w-6xl gap-6 ${
                 localServiceEligible
@@ -343,6 +344,7 @@ export default function LocationPathSelector({
                     key={path.key}
                     type="button"
                     onClick={() => onPathSelect(path.key)}
+                    aria-pressed={isSelected}
                     className={`group rounded-[2rem] border p-7 text-left transition ${
                       isSelected
                         ? "border-emerald-700 bg-emerald-50 shadow-xl"
@@ -378,9 +380,10 @@ export default function LocationPathSelector({
               })}
             </div>
 
+            {/* PATH CONFIRMATION */}
             {selectedPath && (
               <div className="mx-auto mt-8 max-w-4xl rounded-2xl bg-slate-950 px-6 py-5 text-center text-white shadow-lg">
-                <p className="text-sm uppercase tracking-[0.2em] text-emerald-400">
+                <p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-400">
                   Selected Path
                 </p>
 
