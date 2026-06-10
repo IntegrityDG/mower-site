@@ -1,11 +1,15 @@
 "use client";
 
-export type Region = string;
-
-export type CustomerPath =
-  | "nationwide"
-  | "local-services"
-  | "recommendation";
+import { pathCardsByKey, pathLabels } from "@/lib/customer-paths/path-content";
+import {
+  getRegionOptionsForState,
+  isLocalServiceEligible,
+} from "@/lib/customer-paths/service-eligibility";
+import type {
+  CustomerPath,
+  PathCard,
+  Region,
+} from "@/lib/customer-paths/types";
 
 type LocationPathSelectorProps = {
   selectedState: string;
@@ -14,13 +18,6 @@ type LocationPathSelectorProps = {
   onStateChange: (state: string) => void;
   onRegionChange: (region: Region) => void;
   onPathSelect: (path: CustomerPath) => void;
-};
-
-type PathCard = {
-  key: CustomerPath;
-  badge: string;
-  title: string;
-  description: string;
 };
 
 const states = [
@@ -76,76 +73,6 @@ const states = [
   "Wyoming",
 ];
 
-const defaultRegions = [
-  "Northern",
-  "Central",
-  "Southern",
-  "Eastern",
-  "Western",
-];
-
-const regionOptionsByState: Record<string, string[]> = {
-  Missouri: [
-    "Northern Missouri",
-    "Central Missouri",
-    "Southern Missouri — East",
-    "Southern Missouri — West",
-  ],
-
-  Arkansas: [
-    "Northern Arkansas — East",
-    "Northern Arkansas — West",
-    "Central Arkansas",
-    "Southern Arkansas",
-  ],
-
-  Kentucky: [
-    "Western Kentucky",
-    "Central Kentucky",
-    "Eastern Kentucky",
-  ],
-
-  Tennessee: [
-    "Western Tennessee",
-    "Middle Tennessee",
-    "Eastern Tennessee",
-  ],
-
-  Illinois: [
-    "Northern Illinois",
-    "Central Illinois",
-    "Southern Illinois",
-  ],
-};
-
-const pathLabels: Record<CustomerPath, string> = {
-  nationwide: "Purchase Equipment Nationwide",
-  "local-services": "IDS Local Setup & Support Services",
-  recommendation: "Get Help Choosing the Right System",
-};
-
-function isLocalServiceEligible(state: string, region: string) {
-  const eligibleLocations: Record<string, string[]> = {
-    Missouri: [
-      "Southern Missouri — East",
-      "Southern Missouri — West",
-    ],
-
-    Arkansas: [
-      "Northern Arkansas — East",
-      "Northern Arkansas — West",
-    ],
-
-    Kentucky: ["Western Kentucky"],
-
-    Tennessee: ["Western Tennessee"],
-
-    Illinois: ["Southern Illinois"],
-  };
-
-  return eligibleLocations[state]?.includes(region) ?? false;
-}
-
 export default function LocationPathSelector({
   selectedState,
   selectedRegion,
@@ -162,37 +89,17 @@ export default function LocationPathSelector({
   );
 
   const availableRegions = selectedState
-    ? regionOptionsByState[selectedState] ?? defaultRegions
+    ? getRegionOptionsForState(selectedState)
     : [];
 
   const pathCards: PathCard[] = [
-    {
-      key: "nationwide",
-      badge: "Nationwide",
-      title: "Purchase Equipment Nationwide",
-      description:
-        "Purchase equipment for direct shipment anywhere in the United States. Ideal for customers who prefer self-setup or optional remote guidance.",
-    },
+    pathCardsByKey.nationwide,
 
     ...(localServiceEligible
-      ? [
-          {
-            key: "local-services" as CustomerPath,
-            badge: "Regional Service",
-            title: "IDS Local Setup & Support Services",
-            description:
-              "Purchase equipment with professional installation, setup, and ongoing hands-on support throughout the IDS regional service area.",
-          },
-        ]
+      ? [pathCardsByKey["local-services"]]
       : []),
 
-    {
-      key: "recommendation",
-      badge: "Guided Selection",
-      title: "Get Help Choosing the Right System",
-      description:
-        "Use our guided recommendation process to compare systems based on acreage, terrain, obstacles, maintenance needs, and long-term goals.",
-    },
+    pathCardsByKey.recommendation,
   ];
 
   return (
