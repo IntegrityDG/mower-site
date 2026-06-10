@@ -2,6 +2,7 @@ import type {
   ProductId,
   ProductOptionConfiguration,
   ProductOptionId,
+  QuantityAccessorySelection,
 } from "./types";
 
 export const productOptionsByProductId: Record<
@@ -42,6 +43,7 @@ export const productOptionsByProductId: Record<
       },
     ],
     optionalGroups: [],
+    quantityAccessoryGroups: [],
     includedEquipment: [],
     comingSoonGroups: [],
   },
@@ -109,6 +111,7 @@ export const productOptionsByProductId: Record<
         ],
       },
     ],
+    quantityAccessoryGroups: [],
     includedEquipment: [],
     comingSoonGroups: [],
   },
@@ -116,23 +119,45 @@ export const productOptionsByProductId: Record<
   "pandag-g1": {
     productId: "pandag-g1",
     intro:
-      "The Pandag G1 configuration includes required equipment and is ready for future module additions.",
+      "The Pandag G1 comes standard with a charging cable. Charging docks are optional accessories that charge the machine significantly faster than the included cable and can be added in the quantity needed for the property.",
     requiredGroups: [],
     optionalGroups: [],
+    quantityAccessoryGroups: [
+      {
+        id: "pandag-g1-optional-accessories",
+        title: "Recommended Optional Accessory",
+        description:
+          "Charging docks are separate optional accessories. A dock is strongly recommended for commercial use, large properties, frequent mowing schedules, and faster turnaround. Dock pricing will remain separate from the Pandag G1 base unit when pricing is added.",
+        type: "quantity-accessory",
+        required: false,
+        accessories: [
+          {
+            optionId: "pandag-g1-charging-dock",
+            label: "Pandag G1 Charging Dock",
+            description:
+              "Optional charging dock accessory for faster charging than the included cable. Per-unit dock pricing will be added separately when available.",
+            required: false,
+            minimumQuantity: 0,
+            defaultQuantity: 0,
+            futurePriceReady: true,
+          },
+        ],
+      },
+    ],
     includedEquipment: [
       {
         id: "pandag-g1-included-equipment",
-        title: "Included Required Equipment",
+        title: "Included Equipment",
         description:
-          "This equipment is included in the configured package and cannot be removed.",
+          "Standard equipment included with the Pandag G1 base unit.",
         type: "included",
         required: false,
         options: [
           {
-            id: "pandag-g1-charging-dock",
-            label: "Charging Dock — Included in Configured Package",
+            id: "pandag-g1-charging-cable",
+            label: "Pandag G1 Charging Cable \u2014 Included",
             description:
-              "Required charging equipment included with the configured Pandag G1 package.",
+              "Standard charging cable included with the Pandag G1 base unit.",
             status: "included",
             futurePriceReady: true,
           },
@@ -142,7 +167,7 @@ export const productOptionsByProductId: Record<
     comingSoonGroups: [
       {
         id: "pandag-g1-additional-modules",
-        title: "Additional Modules — Coming Soon",
+        title: "Additional Modules \u2014 Coming Soon",
         description:
           "Future Pandag modules can be added here when final options are available.",
         type: "coming-soon",
@@ -172,6 +197,19 @@ export function getIncludedOptionIds(productId: ProductId): ProductOptionId[] {
   );
 }
 
+export function getDefaultQuantityAccessorySelections(
+  productId: ProductId
+): QuantityAccessorySelection[] {
+  return productOptionsByProductId[productId].quantityAccessoryGroups.flatMap(
+    (group) =>
+      group.accessories
+        .map((accessory) => ({
+          optionId: accessory.optionId,
+          quantity: accessory.defaultQuantity,
+        }))
+  );
+}
+
 export function findProductOptionById(optionId: ProductOptionId) {
   for (const configuration of Object.values(productOptionsByProductId)) {
     const groups = [
@@ -182,10 +220,28 @@ export function findProductOptionById(optionId: ProductOptionId) {
     ];
 
     for (const group of groups) {
-      const option = group.options.find((groupOption) => groupOption.id === optionId);
+      const option = group.options.find(
+        (groupOption) => groupOption.id === optionId
+      );
 
       if (option) {
         return option;
+      }
+    }
+  }
+
+  return null;
+}
+
+export function findQuantityAccessoryById(optionId: ProductOptionId) {
+  for (const configuration of Object.values(productOptionsByProductId)) {
+    for (const group of configuration.quantityAccessoryGroups) {
+      const accessory = group.accessories.find(
+        (groupAccessory) => groupAccessory.optionId === optionId
+      );
+
+      if (accessory) {
+        return accessory;
       }
     }
   }

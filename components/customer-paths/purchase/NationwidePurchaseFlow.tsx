@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 
 import {
   findProductOptionById,
+  findQuantityAccessoryById,
+  getDefaultQuantityAccessorySelections,
   getIncludedOptionIds,
   getProductOptionConfiguration,
 } from "@/lib/products/product-options";
@@ -74,6 +76,7 @@ export default function NationwidePurchaseFlow({
       selectedConfigurationId: "",
       selectedOptionIds: [],
       includedOptionIds: [],
+      quantityAccessorySelections: [],
     });
   const [selectedPurchaseMethod, setSelectedPurchaseMethod] = useState<
     PurchaseMethodKey | ""
@@ -117,14 +120,55 @@ export default function NationwidePurchaseFlow({
     .map((optionId) => findProductOptionById(optionId))
     .filter((option) => option !== null);
 
+  const selectedQuantityAccessories =
+    configurationSelection.quantityAccessorySelections.flatMap((selection) => {
+      if (selection.quantity <= 0) return [];
+
+      const accessory = findQuantityAccessoryById(selection.optionId);
+
+      if (!accessory) return [];
+
+      return [
+        {
+          accessory,
+          quantity: selection.quantity,
+        },
+      ];
+    });
+
+  const requiredOptionGroupsComplete = Boolean(
+    selectedProductConfiguration?.requiredGroups.every((group) =>
+      group.options.some(
+        (option) =>
+          option.id === configurationSelection.selectedConfigurationId
+      )
+    )
+  );
+
+  const requiredQuantityAccessoriesComplete = Boolean(
+    selectedProductConfiguration?.quantityAccessoryGroups.every((group) =>
+      group.accessories.every((accessory) => {
+        if (!accessory.required) return true;
+
+        const selectedQuantity =
+          configurationSelection.quantityAccessorySelections.find(
+            (selection) => selection.optionId === accessory.optionId
+          )?.quantity ?? 0;
+
+        const meetsMinimum = selectedQuantity >= accessory.minimumQuantity;
+        const meetsMaximum =
+          accessory.maximumQuantity === undefined ||
+          selectedQuantity <= accessory.maximumQuantity;
+
+        return meetsMinimum && meetsMaximum;
+      })
+    )
+  );
+
   const productConfigurationComplete = Boolean(
     selectedProductConfiguration &&
-      selectedProductConfiguration.requiredGroups.every((group) =>
-        group.options.some(
-          (option) =>
-            option.id === configurationSelection.selectedConfigurationId
-        )
-      )
+      requiredOptionGroupsComplete &&
+      requiredQuantityAccessoriesComplete
   );
 
   const customerInformationComplete = Boolean(
@@ -161,6 +205,9 @@ export default function NationwidePurchaseFlow({
       selectedConfigurationId: "",
       selectedOptionIds: [],
       includedOptionIds: getIncludedOptionIds(productId),
+      quantityAccessorySelections: getDefaultQuantityAccessorySelections(
+        productId
+      ),
     });
   }
 
@@ -209,6 +256,38 @@ export default function NationwidePurchaseFlow({
       return {
         ...currentSelection,
         selectedOptionIds: [...currentSelection.selectedOptionIds, optionId],
+      };
+    });
+  }
+
+  function handleAccessoryQuantityChange(
+    optionId: ProductOptionId,
+    quantity: number
+  ) {
+    setConfigurationSelection((currentSelection) => {
+      const existingSelection =
+        currentSelection.quantityAccessorySelections.find(
+          (selection) => selection.optionId === optionId
+        );
+
+      if (existingSelection) {
+        return {
+          ...currentSelection,
+          quantityAccessorySelections:
+            currentSelection.quantityAccessorySelections.map((selection) =>
+              selection.optionId === optionId
+                ? { ...selection, quantity }
+                : selection
+            ),
+        };
+      }
+
+      return {
+        ...currentSelection,
+        quantityAccessorySelections: [
+          ...currentSelection.quantityAccessorySelections,
+          { optionId, quantity },
+        ],
       };
     });
   }
@@ -282,6 +361,7 @@ export default function NationwidePurchaseFlow({
           onSelectConfiguration={handleSelectConfiguration}
           onSelectSingleOption={handleSelectSingleOption}
           onToggleOption={handleToggleOption}
+          onChangeAccessoryQuantity={handleAccessoryQuantityChange}
         />
       );
     }
@@ -320,6 +400,8 @@ export default function NationwidePurchaseFlow({
         selectedConfigurationOption={selectedConfigurationOption}
         selectedOptions={selectedOptions}
         includedOptions={includedOptions}
+        selectedQuantityAccessories={selectedQuantityAccessories}
+        comingSoonGroups={selectedProductConfiguration?.comingSoonGroups ?? []}
         purchaseMethodLabel={
           selectedPurchaseMethod
             ? purchaseMethodLabels[selectedPurchaseMethod]

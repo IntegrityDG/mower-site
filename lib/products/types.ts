@@ -6,6 +6,7 @@ export type ProductOptionId =
   | "yarbo-pro-primary-configuration"
   | "yarbo-pro-module-options-placeholder"
   | "yarbo-pro-package-options-placeholder"
+  | "pandag-g1-charging-cable"
   | "pandag-g1-charging-dock"
   | "pandag-g1-additional-modules-placeholder";
 
@@ -28,6 +29,23 @@ export type ProductOption = {
   description: string;
   status: ProductOptionStatus;
   futurePriceReady?: boolean;
+};
+
+export type QuantityAccessoryOption = {
+  optionId: ProductOptionId;
+  label: string;
+  description: string;
+  required: boolean;
+  minimumQuantity: number;
+  defaultQuantity: number;
+  maximumQuantity?: number;
+  unitPriceCents?: number;
+  futurePriceReady?: boolean;
+};
+
+export type QuantityAccessorySelection = {
+  optionId: ProductOptionId;
+  quantity: number;
 };
 
 export type RequiredProductOptionGroup = {
@@ -75,6 +93,15 @@ export type ComingSoonProductOptionGroup = {
   options: ProductOption[];
 };
 
+export type QuantityAccessoryGroup = {
+  id: string;
+  title: string;
+  description: string;
+  type: "quantity-accessory";
+  required: boolean;
+  accessories: QuantityAccessoryOption[];
+};
+
 export type ProductOptionGroup =
   | RequiredProductOptionGroup
   | SingleSelectProductOptionGroup
@@ -90,6 +117,7 @@ export type ProductOptionConfiguration = {
     | SingleSelectProductOptionGroup
     | MultiSelectProductOptionGroup
   )[];
+  quantityAccessoryGroups: QuantityAccessoryGroup[];
   includedEquipment: IncludedEquipmentGroup[];
   comingSoonGroups: ComingSoonProductOptionGroup[];
 };
@@ -98,6 +126,7 @@ export type ProductConfigurationSelection = {
   selectedConfigurationId: ProductOptionId | "";
   selectedOptionIds: ProductOptionId[];
   includedOptionIds: ProductOptionId[];
+  quantityAccessorySelections: QuantityAccessorySelection[];
 };
 
 export type PurchaseMethodKey = "pay-in-full" | "hearth-financing";
