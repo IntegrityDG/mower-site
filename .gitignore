@@ -41,3 +41,9 @@ yarn-error.log*
 next-env.d.ts
 
 public/videos/
+
+catalog-data/
+*.xlsx
+
+catalog-assets/
+supabase/.temp/
