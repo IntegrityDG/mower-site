@@ -233,6 +233,25 @@ create table public.catalog_services (
   check (sale_ends_at is null or sale_starts_at is null or sale_ends_at >= sale_starts_at)
 );
 
+-- Public payment choices for service offerings, including monthly, seasonal, and prepaid options.
+create table public.catalog_service_payment_options (
+  id uuid primary key default gen_random_uuid(),
+  service_id uuid references public.catalog_services(id) on delete cascade,
+  payment_option_slug text not null unique,
+  payment_option_name text not null,
+  billing_type text not null
+    check (billing_type in ('monthly', 'one_time', 'seasonal', 'annual', 'seasonal_prepay', 'quote_required', 'included', 'free')),
+  regular_price_cents integer check (regular_price_cents is null or regular_price_cents >= 0),
+  sale_price_cents integer check (sale_price_cents is null or sale_price_cents >= 0),
+  season_length_months integer check (season_length_months is null or season_length_months >= 0),
+  savings_label text,
+  is_available boolean not null default true,
+  sort_order integer not null default 0,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- Product-to-service availability and product-specific public price overrides.
 create table public.catalog_product_services (
   id uuid primary key default gen_random_uuid(),
@@ -253,6 +272,39 @@ create table public.catalog_product_services (
   updated_at timestamptz not null default now(),
   unique (product_id, service_id),
   check (override_sale_ends_at is null or override_sale_starts_at is null or override_sale_ends_at >= override_sale_starts_at)
+);
+
+-- Approved customer testimonials for homepage, product-page, and service-page use.
+create table public.catalog_testimonials (
+  id uuid primary key default gen_random_uuid(),
+  testimonial_slug text not null unique,
+  customer_display_name text not null,
+  customer_full_name_private text,
+  customer_email_private text,
+  customer_location text,
+  product_id uuid references public.catalog_products(id) on delete set null,
+  service_id uuid references public.catalog_services(id) on delete set null,
+  rating integer check (rating is null or rating between 1 and 5),
+  testimonial_title text,
+  testimonial_text text not null,
+  photo_url text,
+  video_url text,
+  source_type text not null default 'direct_customer'
+    check (source_type in ('direct_customer', 'facebook', 'google_review', 'email', 'text_message', 'other')),
+  source_url text,
+  verification_status text not null default 'unverified'
+    check (verification_status in ('unverified', 'verified_customer', 'verified_purchase', 'verified_service_customer')),
+  permission_status text not null default 'pending'
+    check (permission_status in ('pending', 'approved', 'denied', 'revoked')),
+  public_status text not null default 'draft'
+    check (public_status in ('draft', 'active', 'hidden', 'archived')),
+  show_on_homepage boolean not null default false,
+  show_on_product_page boolean not null default false,
+  sort_order integer not null default 0,
+  testimonial_date date,
+  approved_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 -- Public region labels used to determine local service availability.
@@ -435,8 +487,20 @@ create index catalog_package_items_package_idx
   on public.catalog_package_items (package_id);
 create index catalog_services_public_idx
   on public.catalog_services (public_status, service_category, sort_order);
+create index catalog_service_payment_options_service_idx
+  on public.catalog_service_payment_options (service_id);
 create index catalog_product_services_product_idx
   on public.catalog_product_services (product_id, is_available, sort_order);
+create index catalog_testimonials_product_idx
+  on public.catalog_testimonials (product_id);
+create index catalog_testimonials_service_idx
+  on public.catalog_testimonials (service_id);
+create index catalog_testimonials_public_permission_idx
+  on public.catalog_testimonials (public_status, permission_status);
+create index catalog_testimonials_homepage_idx
+  on public.catalog_testimonials (show_on_homepage, public_status, permission_status, sort_order);
+create index catalog_testimonials_product_page_idx
+  on public.catalog_testimonials (show_on_product_page, product_id, public_status, permission_status, sort_order);
 create index catalog_service_regions_lookup_idx
   on public.catalog_service_regions (state, region_name, public_status);
 create index catalog_price_schedules_window_idx
@@ -479,7 +543,9 @@ alter table public.catalog_variant_options enable row level security;
 alter table public.catalog_packages enable row level security;
 alter table public.catalog_package_items enable row level security;
 alter table public.catalog_services enable row level security;
+alter table public.catalog_service_payment_options enable row level security;
 alter table public.catalog_product_services enable row level security;
+alter table public.catalog_testimonials enable row level security;
 alter table public.catalog_service_regions enable row level security;
 alter table public.catalog_price_schedules enable row level security;
 alter table catalog_private.catalog_internal_pricing enable row level security;
@@ -620,6 +686,18 @@ create policy "Public can read visible services"
   to anon, authenticated
   using (public_status <> 'hidden');
 
+create policy "Public can read available service payment options"
+  on public.catalog_service_payment_options for select
+  to anon, authenticated
+  using (
+    is_available
+    and exists (
+      select 1 from public.catalog_services s
+      where s.id = catalog_service_payment_options.service_id
+        and s.public_status = 'active'
+    )
+  );
+
 create policy "Public can read visible product services"
   on public.catalog_product_services for select
   to anon, authenticated
@@ -635,6 +713,14 @@ create policy "Public can read visible product services"
       where s.id = catalog_product_services.service_id
         and s.public_status <> 'hidden'
     )
+  );
+
+create policy "Public can read approved active testimonials"
+  on public.catalog_testimonials for select
+  to anon, authenticated
+  using (
+    public_status = 'active'
+    and permission_status = 'approved'
   );
 
 create policy "Public can read visible service regions"
@@ -714,6 +800,38 @@ create policy "Public can read visible price schedules"
       )
     )
   );
+
+-- RLS controls which testimonial rows are public; column grants also keep private
+-- customer identity and contact fields out of public Data API responses.
+revoke all on public.catalog_service_payment_options from anon, authenticated;
+grant select on public.catalog_service_payment_options to anon, authenticated;
+
+revoke all on public.catalog_testimonials from anon, authenticated;
+grant select (
+  id,
+  testimonial_slug,
+  customer_display_name,
+  customer_location,
+  product_id,
+  service_id,
+  rating,
+  testimonial_title,
+  testimonial_text,
+  photo_url,
+  video_url,
+  source_type,
+  source_url,
+  verification_status,
+  permission_status,
+  public_status,
+  show_on_homepage,
+  show_on_product_page,
+  sort_order,
+  testimonial_date,
+  approved_at,
+  created_at,
+  updated_at
+) on public.catalog_testimonials to anon, authenticated;
 
 revoke all on schema catalog_private from anon, authenticated;
 revoke all on all tables in schema catalog_private from anon, authenticated;
