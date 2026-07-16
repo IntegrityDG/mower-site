@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import CustomerPathStage from "@/components/customer-paths/CustomerPathStage";
 import LocationPathSelector from "@/components/LocationPathSelector";
@@ -92,6 +93,15 @@ export default function Page() {
               identifying the right system, get help locating local resources for post-sale support, or add professional IDS setup and
               support where regional service is available.
             </p>
+
+            <div className="mt-8 flex w-full justify-center">
+              <Link
+                href="/equipment"
+                className="rounded-2xl bg-emerald-500 px-8 py-4 text-lg font-black text-slate-950 shadow-xl transition hover:bg-emerald-400"
+              >
+                Browse Equipment
+              </Link>
+            </div>
 
             <div className="mt-8 flex w-full justify-center">
               <div className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-center text-sm font-semibold text-slate-100 backdrop-blur">
@@ -190,6 +200,7 @@ export default function Page() {
         </section>
 
         {/* LOCATION AND CUSTOMER PATH */}
+        <div id="location-and-customer-path">
         <LocationPathSelector
           selectedState={selectedState}
           selectedRegion={selectedRegion}
@@ -198,6 +209,7 @@ export default function Page() {
           onRegionChange={handleRegionChange}
           onPathSelect={handlePathSelect}
         />
+        </div>
 
         {/* SELECTED PATH */}
         <CustomerPathStage

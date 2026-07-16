@@ -1,289 +1,262 @@
+import { formatCents, priceLabel } from "@/lib/catalog/pricing";
+import {
+  resolveBuildSelection,
+  resolveServiceSelections,
+} from "@/lib/catalog/selection";
 import type {
-  CustomerInformationValues,
-  ComingSoonProductOptionGroup,
-  ProductCatalogItem,
-  ProductOption,
-  QuantityAccessoryOption,
-} from "@/lib/products/types";
+  CatalogProduct,
+  ProductBuildSelection,
+  ServiceSelection,
+} from "@/lib/catalog/types";
+import type { CustomerInformationValues } from "@/lib/products/types";
 
-type SelectedQuantityAccessory = {
-  accessory: QuantityAccessoryOption;
-  quantity: number;
-};
+type SubmitStatus = "idle" | "submitting" | "success" | "error";
 
 type PurchaseSummaryProps = {
-  selectedProduct: ProductCatalogItem | null;
-  selectedConfigurationOption: ProductOption | null;
-  selectedOptions: ProductOption[];
-  includedOptions: ProductOption[];
-  selectedQuantityAccessories: SelectedQuantityAccessory[];
-  comingSoonGroups: ComingSoonProductOptionGroup[];
+  selectedProduct: CatalogProduct;
+  buildSelection: ProductBuildSelection;
+  serviceSelections: ServiceSelection[];
   purchaseMethodLabel: string;
-  setupPreferenceLabel: string;
   customerInformation: CustomerInformationValues;
+  submitStatus: SubmitStatus;
+  submitError: string;
+  onSubmit: () => void;
 };
 
 function summaryValue(value: string) {
   return value.trim() || "Not provided";
 }
 
-function formatCents(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-  }).format(value / 100);
-}
-
 export default function PurchaseSummary({
   selectedProduct,
-  selectedConfigurationOption,
-  selectedOptions,
-  includedOptions,
-  selectedQuantityAccessories,
-  comingSoonGroups,
+  buildSelection,
+  serviceSelections,
   purchaseMethodLabel,
-  setupPreferenceLabel,
   customerInformation,
+  submitStatus,
+  submitError,
+  onSubmit,
 }: PurchaseSummaryProps) {
-  const selectedCharger =
-    selectedProduct?.id === "lymow-one-plus" ? selectedConfigurationOption : null;
+  const build = resolveBuildSelection(selectedProduct, buildSelection);
+  const serviceSummary = resolveServiceSelections(
+    selectedProduct,
+    serviceSelections
+  );
+  const configuredTotalCents =
+    build.equipmentTotalCents + serviceSummary.serviceTotalCents;
+  const hasUnpricedItems =
+    build.hasUnpricedEquipment || serviceSummary.hasUnpricedServices;
 
   return (
     <div>
       <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-        Order Summary
+        Request Summary
       </p>
 
       <h3 className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
-        Review your nationwide purchase request.
+        Review and submit your equipment request.
       </h3>
 
-      <p className="mt-4 max-w-3xl leading-7 text-slate-600">
-        This summary is not submitted yet. The final request step will be added
-        next.
+      <p className="mt-4 max-w-4xl leading-7 text-slate-600">
+        Nothing is charged through this form. IDS will review availability,
+        shipping, service eligibility, and final pricing before preparing the
+        order.
       </p>
 
       <div className="mt-7 grid gap-5 lg:grid-cols-2">
-        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Selected Product
+            Machine
           </p>
-
-          <p className="mt-2 text-xl font-black text-slate-950">
-            {selectedProduct?.name ?? "Not selected"}
+          <p className="mt-2 text-2xl font-black text-slate-950">
+            {selectedProduct.name}
           </p>
+          <p className="mt-2 leading-7 text-slate-600">
+            {selectedProduct.homepageSummary}
+          </p>
+        </section>
 
-          {selectedProduct && (
-            <p className="mt-3 text-sm font-bold text-slate-700">
-              Quantity: 1
+        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Main Configuration
+          </p>
+          <p className="mt-2 text-2xl font-black text-slate-950">
+            {build.selectedPackage?.name ??
+              build.selectedVariant?.name ??
+              selectedProduct.name}
+          </p>
+          <p className="mt-2 text-xl font-black text-emerald-700">
+            {build.selectedPackage
+              ? priceLabel(build.selectedPackage)
+              : build.selectedVariant
+                ? priceLabel(build.selectedVariant)
+                : priceLabel(selectedProduct)}
+          </p>
+        </section>
+
+        {build.packageIncludedItems.length > 0 && (
+          <section className="rounded-[2rem] border border-emerald-200 bg-emerald-50 p-6">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+              Included in Package
             </p>
-          )}
-        </div>
-
-        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Required Configuration
-          </p>
-
-          <p className="mt-2 text-xl font-black text-slate-950">
-            {selectedConfigurationOption?.label ?? "Not required"}
-          </p>
-        </div>
-
-        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Selected Charger
-          </p>
-
-          <p className="mt-2 text-xl font-black text-slate-950">
-            {selectedCharger?.label ?? "Not applicable"}
-          </p>
-        </div>
-
-        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Selected Modules or Package Options
-          </p>
-
-          {selectedOptions.length ? (
-            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-              {selectedOptions.map((option) => (
-                <p key={option.id}>{option.label}</p>
+            <div className="mt-3 space-y-2 text-sm font-semibold leading-6 text-slate-700">
+              <p>✓ Base machine/core</p>
+              {build.packageIncludedItems.map((item) => (
+                <p key={item.optionId}>
+                  ✓ {item.option?.name ?? "Catalog option"}
+                  {item.quantity > 1 ? ` × ${item.quantity}` : ""}
+                </p>
               ))}
             </div>
-          ) : (
-            <p className="mt-2 text-xl font-black text-slate-950">
-              None selected
-            </p>
-          )}
-        </div>
+          </section>
+        )}
 
-        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Quantity Accessories
+            Added Modules and Accessories
           </p>
-
-          {selectedQuantityAccessories.length ? (
-            <div className="mt-3 space-y-5 text-sm leading-6 text-slate-700">
-              {selectedQuantityAccessories.map(({ accessory, quantity }) => {
-                const subtotalCents =
-                  accessory.unitPriceCents === undefined
-                    ? null
-                    : accessory.unitPriceCents * quantity;
-
-                return (
-                  <div key={accessory.optionId}>
-                    <p className="text-xl font-black text-slate-950">
-                      {accessory.label}
+          {build.selectedOptions.length > 0 ? (
+            <div className="mt-3 space-y-4">
+              {build.selectedOptions.map(({ option, quantity }) => (
+                <div
+                  key={option.id}
+                  className="border-b border-slate-200 pb-3 last:border-0 last:pb-0"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <p className="font-black text-slate-950">
+                      {option.name}
+                      {quantity > 1 ? ` × ${quantity}` : ""}
                     </p>
-
-                    <p className="mt-2">
-                      <span className="font-bold text-slate-950">
-                        Quantity:
-                      </span>{" "}
-                      {quantity}
-                    </p>
-
-                    <p>
-                      <span className="font-bold text-slate-950">
-                        Per-unit price:
-                      </span>{" "}
-                      {accessory.unitPriceCents === undefined
-                        ? "To be confirmed"
-                        : formatCents(accessory.unitPriceCents)}
-                    </p>
-
-                    <p>
-                      <span className="font-bold text-slate-950">
-                        Accessory subtotal:
-                      </span>{" "}
-                      {subtotalCents === null
-                        ? "To be confirmed"
-                        : formatCents(subtotalCents)}
+                    <p className="font-black text-emerald-700">
+                      {option.currentPriceCents === null
+                        ? priceLabel(option)
+                        : formatCents(option.currentPriceCents * quantity)}
                     </p>
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="mt-2 text-xl font-black text-slate-950">
-              None selected
-            </p>
-          )}
-        </div>
-
-        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Included Equipment
-          </p>
-
-          {includedOptions.length ? (
-            <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-              {includedOptions.map((option) => (
-                <p key={option.id}>{option.label}</p>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-2 text-xl font-black text-slate-950">
-              None listed
-            </p>
-          )}
-        </div>
-
-        {comingSoonGroups.length > 0 && (
-          <div className="rounded-[2rem] border border-dashed border-slate-300 bg-slate-50 p-6 lg:col-span-2">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-              Future Modules
-            </p>
-
-            <div className="mt-3 space-y-4 text-sm leading-6 text-slate-700">
-              {comingSoonGroups.map((group) => (
-                <div key={group.id}>
-                  <p className="text-lg font-black text-slate-950">
-                    {group.title}
-                  </p>
-
-                  <p className="mt-2">{group.description}</p>
-
-                  <p className="mt-2 font-bold text-slate-950">
-                    Coming-soon items are not selected and are not included in
-                    pricing.
-                  </p>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="mt-2 text-lg font-black text-slate-950">
+              No additional modules or accessories selected
+            </p>
+          )}
+        </section>
 
-        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6 lg:col-span-2">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Purchase Method
+            Selected Services and Plans
           </p>
+          {serviceSummary.services.length > 0 ? (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              {serviceSummary.services.map(
+                ({ service, paymentOption, priceCents }) => (
+                  <div
+                    key={service.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5"
+                  >
+                    <p className="text-lg font-black text-slate-950">
+                      {service.name}
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-slate-600">
+                      {paymentOption?.name ?? service.billingType.replaceAll("_", " ")}
+                    </p>
+                    <p className="mt-3 text-xl font-black text-emerald-700">
+                      {priceCents === null
+                        ? "Contact for pricing"
+                        : formatCents(priceCents)}
+                    </p>
+                  </div>
+                )
+              )}
+            </div>
+          ) : (
+            <p className="mt-2 text-lg font-black text-slate-950">
+              Equipment-only request
+            </p>
+          )}
+        </section>
 
+        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Purchase Preference
+          </p>
           <p className="mt-2 text-xl font-black text-slate-950">
             {purchaseMethodLabel}
           </p>
-        </div>
+        </section>
 
-        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Setup Preference
-          </p>
-
-          <p className="mt-2 text-xl font-black text-slate-950">
-            {setupPreferenceLabel}
-          </p>
-        </div>
-
-        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
             Customer Contact
           </p>
-
           <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
             <p>
               <span className="font-bold text-slate-950">Name:</span>{" "}
               {summaryValue(customerInformation.fullName)}
             </p>
-
             <p>
               <span className="font-bold text-slate-950">Email:</span>{" "}
               {summaryValue(customerInformation.email)}
             </p>
-
             <p>
               <span className="font-bold text-slate-950">Phone:</span>{" "}
               {summaryValue(customerInformation.phone)}
             </p>
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6 lg:col-span-2">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Shipping Location
-          </p>
-
-          <div className="mt-3 grid gap-4 text-sm leading-6 text-slate-700 md:grid-cols-2">
             <p>
-              <span className="font-bold text-slate-950">State:</span>{" "}
+              <span className="font-bold text-slate-950">Location:</span>{" "}
+              {summaryValue(customerInformation.shippingRegion)},{" "}
               {summaryValue(customerInformation.shippingState)}
             </p>
+          </div>
+        </section>
+      </div>
 
-            <p>
-              <span className="font-bold text-slate-950">Region:</span>{" "}
-              {summaryValue(customerInformation.shippingRegion)}
+      <section className="mt-6 rounded-[2rem] bg-slate-950 p-6 text-white md:p-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">
+              Configured Price Estimate
+            </p>
+            <p className="mt-2 text-4xl font-black">
+              {formatCents(configuredTotalCents)}
+              {hasUnpricedItems ? " + items requiring a quote" : ""}
+            </p>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+              Recurring plan amounts reflect the payment option selected. Taxes,
+              shipping, site-specific labor, and quote-required items are not
+              included until IDS reviews the request.
             </p>
           </div>
         </div>
-      </div>
+      </section>
 
-      <button
-        type="button"
-        disabled
-        className="mt-8 w-full cursor-not-allowed rounded-2xl bg-slate-950 px-5 py-4 font-bold text-white opacity-60"
-      >
-        Submit Purchase Request — Coming Next
-      </button>
+      {submitStatus === "success" ? (
+        <div className="mt-6 rounded-2xl border border-emerald-300 bg-emerald-50 p-6 text-emerald-950">
+          <p className="text-xl font-black">Request submitted successfully.</p>
+          <p className="mt-2 leading-7">
+            IDS received the complete machine, package, module, service, payment,
+            and contact selection.
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={submitStatus === "submitting"}
+          className="mt-8 w-full rounded-2xl bg-emerald-600 px-5 py-5 text-lg font-black text-white shadow-xl transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+        >
+          {submitStatus === "submitting"
+            ? "Submitting Request…"
+            : "Submit Complete Purchase Request"}
+        </button>
+      )}
+
+      {submitStatus === "error" && (
+        <div className="mt-4 rounded-2xl border border-red-300 bg-red-50 px-5 py-4 text-sm font-semibold leading-6 text-red-900">
+          {submitError || "The request could not be submitted. Please try again."}
+        </div>
+      )}
     </div>
   );
 }

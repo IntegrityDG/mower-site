@@ -6,14 +6,18 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:catalog": "tsx scripts/import-catalog.ts",
+    "seed:manufacturer-sources": "tsx scripts/seed-manufacturer-sources.ts",
+    "sync-manufacturer-catalog": "tsx scripts/sync-manufacturer-catalog.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.2",
     "next": "16.1.7",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "resend": "^6.9.4"
+    "resend": "^6.9.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -23,6 +27,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.7",
     "tailwindcss": "^4",
+    "tsx": "^4.23.1",
     "typescript": "^5"
   }
 }

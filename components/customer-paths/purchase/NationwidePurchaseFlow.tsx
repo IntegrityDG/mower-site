@@ -1,22 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import {
-  findProductOptionById,
-  findQuantityAccessoryById,
-  getDefaultQuantityAccessorySelections,
-  getIncludedOptionIds,
-  getProductOptionConfiguration,
-} from "@/lib/products/product-options";
-import { nationwideProducts } from "@/lib/products/product-catalog";
+  productBuildIsComplete,
+  resolveBuildSelection,
+  resolveServiceSelections,
+  selectedOptionNames,
+} from "@/lib/catalog/selection";
+import type {
+  CatalogResponse,
+  CatalogService,
+  ProductBuildSelection,
+  ServiceSelection as SelectedService,
+} from "@/lib/catalog/types";
 import type {
   CustomerInformationValues,
-  ProductConfigurationSelection,
-  ProductId,
-  ProductOptionId,
   PurchaseMethodKey,
-  SetupPreferenceKey,
 } from "@/lib/products/types";
 
 import CustomerInformation from "./CustomerInformation";
@@ -24,7 +24,7 @@ import ProductConfiguration from "./ProductConfiguration";
 import ProductSelection from "./ProductSelection";
 import PurchaseMethod from "./PurchaseMethod";
 import PurchaseSummary from "./PurchaseSummary";
-import SetupPreference from "./SetupPreference";
+import ServiceSelection from "./ServiceSelection";
 
 type NationwidePurchaseFlowProps = {
   selectedState: string;
@@ -35,20 +35,22 @@ type StageKey =
   | "introduction"
   | "product"
   | "configuration"
+  | "services"
   | "purchase"
-  | "setup"
   | "customer"
   | "summary";
+
+type SubmitStatus = "idle" | "submitting" | "success" | "error";
 
 const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
 
 const stages: { key: StageKey; label: string }[] = [
   { key: "introduction", label: "Introduction" },
-  { key: "product", label: "Product" },
-  { key: "configuration", label: "Configuration" },
+  { key: "product", label: "Machine Info" },
+  { key: "configuration", label: "Packages & Options" },
+  { key: "services", label: "Services & Plans" },
   { key: "purchase", label: "Purchase" },
-  { key: "setup", label: "Setup" },
   { key: "customer", label: "Customer" },
   { key: "summary", label: "Summary" },
 ];
@@ -58,31 +60,29 @@ const purchaseMethodLabels: Record<PurchaseMethodKey, string> = {
   "hearth-financing": "Explore financing through Hearth",
 };
 
-const setupPreferenceLabels: Record<SetupPreferenceKey, string> = {
-  "self-setup": "Self setup",
-  "remote-guidance": "Remote setup guidance",
-  "dealer-provider-help":
-    "Help locating an authorized dealer or service provider, when available",
+const emptyBuildSelection: ProductBuildSelection = {
+  variantId: "",
+  packageId: "",
+  optionQuantities: {},
 };
 
 export default function NationwidePurchaseFlow({
   selectedState,
   selectedRegion,
 }: NationwidePurchaseFlowProps) {
+  const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
+  const [catalogError, setCatalogError] = useState("");
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogReloadKey, setCatalogReloadKey] = useState(0);
   const [stageIndex, setStageIndex] = useState(0);
-  const [selectedProductId, setSelectedProductId] = useState<ProductId | "">("");
-  const [configurationSelection, setConfigurationSelection] =
-    useState<ProductConfigurationSelection>({
-      selectedConfigurationId: "",
-      selectedOptionIds: [],
-      includedOptionIds: [],
-      quantityAccessorySelections: [],
-    });
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [buildSelection, setBuildSelection] =
+    useState<ProductBuildSelection>(emptyBuildSelection);
+  const [serviceSelections, setServiceSelections] = useState<SelectedService[]>(
+    []
+  );
   const [selectedPurchaseMethod, setSelectedPurchaseMethod] = useState<
     PurchaseMethodKey | ""
-  >("");
-  const [selectedSetupPreference, setSelectedSetupPreference] = useState<
-    SetupPreferenceKey | ""
   >("");
   const [customerInformation, setCustomerInformation] =
     useState<CustomerInformationValues>({
@@ -92,85 +92,80 @@ export default function NationwidePurchaseFlow({
       shippingState: selectedState,
       shippingRegion: selectedRegion,
     });
+  const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
+  const [submitError, setSubmitError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCatalog() {
+      setCatalogLoading(true);
+      setCatalogError("");
+
+      try {
+        const response = await fetch("/api/catalog", { cache: "no-store" });
+        const payload = (await response.json()) as CatalogResponse & {
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Unable to load the catalog.");
+        }
+
+        if (!cancelled) setCatalog(payload);
+      } catch (error) {
+        if (!cancelled) {
+          setCatalogError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load the catalog."
+          );
+        }
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    }
+
+    void loadCatalog();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogReloadKey]);
+
+  useEffect(() => {
+    setCustomerInformation((currentInformation) => ({
+      ...currentInformation,
+      shippingState: selectedState,
+      shippingRegion: selectedRegion,
+    }));
+  }, [selectedState, selectedRegion]);
 
   const activeStage = stages[stageIndex];
   const isSummaryStage = activeStage.key === "summary";
-
   const selectedProduct = useMemo(
     () =>
-      nationwideProducts.find((product) => product.id === selectedProductId) ??
+      catalog?.products.find((product) => product.id === selectedProductId) ??
       null,
-    [selectedProductId]
+    [catalog, selectedProductId]
   );
 
-  const selectedProductConfiguration = selectedProductId
-    ? getProductOptionConfiguration(selectedProductId)
-    : null;
-
-  const selectedConfigurationOption =
-    configurationSelection.selectedConfigurationId
-      ? findProductOptionById(configurationSelection.selectedConfigurationId)
-      : null;
-
-  const selectedOptions = configurationSelection.selectedOptionIds
-    .map((optionId) => findProductOptionById(optionId))
-    .filter((option) => option !== null);
-
-  const includedOptions = configurationSelection.includedOptionIds
-    .map((optionId) => findProductOptionById(optionId))
-    .filter((option) => option !== null);
-
-  const selectedQuantityAccessories =
-    configurationSelection.quantityAccessorySelections.flatMap((selection) => {
-      if (selection.quantity <= 0) return [];
-
-      const accessory = findQuantityAccessoryById(selection.optionId);
-
-      if (!accessory) return [];
-
-      return [
-        {
-          accessory,
-          quantity: selection.quantity,
-        },
-      ];
-    });
-
-  const requiredOptionGroupsComplete = Boolean(
-    selectedProductConfiguration?.requiredGroups.every((group) =>
-      group.options.some(
-        (option) =>
-          option.id === configurationSelection.selectedConfigurationId
-      )
-    )
+  const buildComplete = Boolean(
+    selectedProduct && productBuildIsComplete(selectedProduct, buildSelection)
   );
-
-  const requiredQuantityAccessoriesComplete = Boolean(
-    selectedProductConfiguration?.quantityAccessoryGroups.every((group) =>
-      group.accessories.every((accessory) => {
-        if (!accessory.required) return true;
-
-        const selectedQuantity =
-          configurationSelection.quantityAccessorySelections.find(
-            (selection) => selection.optionId === accessory.optionId
-          )?.quantity ?? 0;
-
-        const meetsMinimum = selectedQuantity >= accessory.minimumQuantity;
-        const meetsMaximum =
-          accessory.maximumQuantity === undefined ||
-          selectedQuantity <= accessory.maximumQuantity;
-
-        return meetsMinimum && meetsMaximum;
+  const selectedServicesComplete = Boolean(
+    !selectedProduct ||
+      serviceSelections.every((selection) => {
+        const service = selectedProduct.services.find(
+          (item) => item.id === selection.serviceId
+        );
+        if (!service) return false;
+        return (
+          service.paymentOptions.length === 0 ||
+          Boolean(selection.paymentOptionId)
+        );
       })
-    )
   );
-
-  const productConfigurationComplete = Boolean(
-    selectedProductConfiguration &&
-      requiredOptionGroupsComplete &&
-      requiredQuantityAccessoriesComplete
-  );
-
   const customerInformationComplete = Boolean(
     customerInformation.fullName.trim() &&
       (customerInformation.email.trim() || customerInformation.phone.trim()) &&
@@ -181,9 +176,9 @@ export default function NationwidePurchaseFlow({
   const currentStageComplete =
     activeStage.key === "introduction" ||
     (activeStage.key === "product" && Boolean(selectedProductId)) ||
-    (activeStage.key === "configuration" && productConfigurationComplete) ||
+    (activeStage.key === "configuration" && buildComplete) ||
+    (activeStage.key === "services" && selectedServicesComplete) ||
     (activeStage.key === "purchase" && Boolean(selectedPurchaseMethod)) ||
-    (activeStage.key === "setup" && Boolean(selectedSetupPreference)) ||
     (activeStage.key === "customer" && customerInformationComplete) ||
     activeStage.key === "summary";
 
@@ -197,99 +192,111 @@ export default function NationwidePurchaseFlow({
     }));
   }
 
-  function handleProductSelect(productId: ProductId) {
+  function handleProductSelect(productId: string) {
     if (productId === selectedProductId) return;
 
+    const product = catalog?.products.find((item) => item.id === productId);
+    const includedQuantities = Object.fromEntries(
+      product?.optionGroups
+        .flatMap((group) => group.options)
+        .filter((option) => option.isIncluded)
+        .map((option) => [
+          option.id,
+          Math.max(1, option.defaultQuantity, option.minimumQuantity),
+        ]) ?? []
+    );
+
     setSelectedProductId(productId);
-    setConfigurationSelection({
-      selectedConfigurationId: "",
-      selectedOptionIds: [],
-      includedOptionIds: getIncludedOptionIds(productId),
-      quantityAccessorySelections: getDefaultQuantityAccessorySelections(
-        productId
-      ),
+    setBuildSelection({
+      variantId: "",
+      packageId: "",
+      optionQuantities: includedQuantities,
     });
+    setServiceSelections([]);
+    setSubmitStatus("idle");
+    setSubmitError("");
   }
 
-  function handleSelectConfiguration(optionId: ProductOptionId) {
-    setConfigurationSelection((currentSelection) => ({
+  function handleSelectVariant(variantId: string) {
+    setBuildSelection((currentSelection) => ({
       ...currentSelection,
-      selectedConfigurationId: optionId,
+      variantId,
+      optionQuantities: Object.fromEntries(
+        Object.entries(currentSelection.optionQuantities).filter(
+          ([optionId]) =>
+            !selectedProduct?.optionGroups
+              .filter((group) =>
+                group.slug.includes("m1500") || group.slug.includes("m3000")
+              )
+              .flatMap((group) => group.options)
+              .some((option) => option.id === optionId)
+        )
+      ),
     }));
   }
 
-  function handleSelectSingleOption(
-    groupOptionIds: ProductOptionId[],
-    optionId: ProductOptionId
-  ) {
-    setConfigurationSelection((currentSelection) => {
-      const selectedOptionIdsOutsideGroup =
-        currentSelection.selectedOptionIds.filter(
-          (selectedOptionId) => !groupOptionIds.includes(selectedOptionId)
-        );
+  function handleSelectPackage(packageId: string) {
+    const selectedPackage = selectedProduct?.packages.find(
+      (catalogPackage) => catalogPackage.id === packageId
+    );
+    const includedOptionIds = new Set(
+      selectedPackage?.items.map((item) => item.optionId) ?? []
+    );
 
-      if (currentSelection.selectedOptionIds.includes(optionId)) {
-        return {
-          ...currentSelection,
-          selectedOptionIds: selectedOptionIdsOutsideGroup,
-        };
+    setBuildSelection((currentSelection) => ({
+      ...currentSelection,
+      packageId,
+      optionQuantities: Object.fromEntries(
+        Object.entries(currentSelection.optionQuantities).filter(
+          ([optionId]) => !includedOptionIds.has(optionId)
+        )
+      ),
+    }));
+  }
+
+  function handleOptionQuantityChange(optionId: string, quantity: number) {
+    setBuildSelection((currentSelection) => ({
+      ...currentSelection,
+      optionQuantities: {
+        ...currentSelection.optionQuantities,
+        [optionId]: Math.max(0, Math.trunc(quantity)),
+      },
+    }));
+  }
+
+  function handleToggleService(service: CatalogService) {
+    setServiceSelections((currentSelections) => {
+      const isSelected = currentSelections.some(
+        (selection) => selection.serviceId === service.id
+      );
+
+      if (isSelected) {
+        return currentSelections.filter(
+          (selection) => selection.serviceId !== service.id
+        );
       }
 
-      return {
-        ...currentSelection,
-        selectedOptionIds: [...selectedOptionIdsOutsideGroup, optionId],
-      };
+      return [
+        ...currentSelections,
+        {
+          serviceId: service.id,
+          paymentOptionId: service.paymentOptions[0]?.id ?? "",
+        },
+      ];
     });
   }
 
-  function handleToggleOption(optionId: ProductOptionId) {
-    setConfigurationSelection((currentSelection) => {
-      if (currentSelection.selectedOptionIds.includes(optionId)) {
-        return {
-          ...currentSelection,
-          selectedOptionIds: currentSelection.selectedOptionIds.filter(
-            (selectedOptionId) => selectedOptionId !== optionId
-          ),
-        };
-      }
-
-      return {
-        ...currentSelection,
-        selectedOptionIds: [...currentSelection.selectedOptionIds, optionId],
-      };
-    });
-  }
-
-  function handleAccessoryQuantityChange(
-    optionId: ProductOptionId,
-    quantity: number
+  function handleSelectPaymentOption(
+    serviceId: string,
+    paymentOptionId: string
   ) {
-    setConfigurationSelection((currentSelection) => {
-      const existingSelection =
-        currentSelection.quantityAccessorySelections.find(
-          (selection) => selection.optionId === optionId
-        );
-
-      if (existingSelection) {
-        return {
-          ...currentSelection,
-          quantityAccessorySelections:
-            currentSelection.quantityAccessorySelections.map((selection) =>
-              selection.optionId === optionId
-                ? { ...selection, quantity }
-                : selection
-            ),
-        };
-      }
-
-      return {
-        ...currentSelection,
-        quantityAccessorySelections: [
-          ...currentSelection.quantityAccessorySelections,
-          { optionId, quantity },
-        ],
-      };
-    });
+    setServiceSelections((currentSelections) =>
+      currentSelections.map((selection) =>
+        selection.serviceId === serviceId
+          ? { ...selection, paymentOptionId }
+          : selection
+      )
+    );
   }
 
   function goBack() {
@@ -303,6 +310,104 @@ export default function NationwidePurchaseFlow({
     );
   }
 
+  async function submitRequest() {
+    if (!selectedProduct || !selectedPurchaseMethod) return;
+
+    setSubmitStatus("submitting");
+    setSubmitError("");
+
+    const build = resolveBuildSelection(selectedProduct, buildSelection);
+    const services = resolveServiceSelections(
+      selectedProduct,
+      serviceSelections
+    );
+    const primaryConfiguration =
+      build.selectedPackage?.name ??
+      build.selectedVariant?.name ??
+      selectedProduct.name;
+    const extraOptionNames = selectedOptionNames(build.selectedOptions);
+    const serviceNames = services.services.map(({ service, paymentOption }) =>
+      paymentOption
+        ? `${service.name} — ${paymentOption.name}`
+        : service.name
+    );
+    const purchaseMethodLabel = purchaseMethodLabels[selectedPurchaseMethod];
+
+    const requestSummary = [
+      "NATIONWIDE EQUIPMENT PURCHASE REQUEST",
+      `Machine: ${selectedProduct.name}`,
+      `Configuration/package: ${primaryConfiguration}`,
+      build.packageIncludedItems.length
+        ? `Package includes: Base machine/core, ${build.packageIncludedItems
+            .map((item) => item.option?.name ?? "Catalog option")
+            .join(", ")}`
+        : null,
+      extraOptionNames.length
+        ? `Added modules/accessories: ${extraOptionNames.join(", ")}`
+        : "Added modules/accessories: None",
+      serviceNames.length
+        ? `Services/plans: ${serviceNames.join(", ")}`
+        : "Services/plans: Equipment only",
+      `Purchase preference: ${purchaseMethodLabel}`,
+      `Shipping location: ${customerInformation.shippingRegion}, ${customerInformation.shippingState}`,
+      `Configured equipment estimate: $${(
+        build.equipmentTotalCents / 100
+      ).toLocaleString("en-US")}`,
+      `Configured service/plan selection: $${(
+        services.serviceTotalCents / 100
+      ).toLocaleString("en-US")}`,
+      build.hasUnpricedEquipment || services.hasUnpricedServices
+        ? "One or more selected items require final pricing confirmation."
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    try {
+      const response = await fetch("/api/quote-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: customerInformation.fullName,
+          email: customerInformation.email,
+          phone: customerInformation.phone,
+          preferredContactMethod: customerInformation.email
+            ? "Email"
+            : "Phone",
+          propertyType: "Nationwide equipment purchase request",
+          propertySize: `${customerInformation.shippingRegion}, ${customerInformation.shippingState}`,
+          obstacleLevel: null,
+          weedEating: null,
+          purchaseType: purchaseMethodLabel,
+          interests: ["Equipment purchase", ...serviceNames],
+          terrain: [],
+          priorities: ["Catalog configuration request"],
+          productInterest: [
+            selectedProduct.name,
+            primaryConfiguration,
+            ...extraOptionNames,
+          ],
+          autoSuggestion: serviceNames,
+          extraNotes: requestSummary,
+        }),
+      });
+      const payload = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "The request could not be submitted.");
+      }
+
+      setSubmitStatus("success");
+    } catch (error) {
+      setSubmitStatus("error");
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : "The request could not be submitted."
+      );
+    }
+  }
+
   function renderStage() {
     if (activeStage.key === "introduction") {
       return (
@@ -312,27 +417,24 @@ export default function NationwidePurchaseFlow({
           </p>
 
           <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-            Build Your Nationwide Equipment Order
+            Compare machines and build a complete order request.
           </h2>
 
           <div className="mt-5 max-w-4xl space-y-4 text-lg leading-8 text-slate-600">
             <p>
-              Equipment can be shipped directly throughout the United States.
-              Use this path to select a primary system and prepare the next
-              step of your nationwide purchase request.
+              Review detailed information for every machine, choose the exact
+              configuration or package, add compatible modules and accessories,
+              and select any setup or property-management services you need.
             </p>
-
             <p>
-              Hands-on IDS installation is limited to the IDS regional service
-              area. Nationwide customers can still choose self setup, request
-              optional remote setup guidance, or ask for help locating an
-              authorized dealer or service provider when one is available.
+              This process prepares a complete request for IDS review. No
+              payment is collected here, and hands-on services remain subject
+              to regional availability.
             </p>
           </div>
 
           <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-950">
-            Your selected shipping location is {selectedState},{" "}
-            {selectedRegion}. You can review those details before the summary.
+            Selected location: {selectedRegion}, {selectedState}.
           </div>
         </div>
       );
@@ -341,27 +443,34 @@ export default function NationwidePurchaseFlow({
     if (activeStage.key === "product") {
       return (
         <ProductSelection
-          products={nationwideProducts}
+          products={catalog?.products ?? []}
           selectedProductId={selectedProductId}
           onSelectProduct={handleProductSelect}
         />
       );
     }
 
-    if (
-      activeStage.key === "configuration" &&
-      selectedProduct &&
-      selectedProductConfiguration
-    ) {
+    if (activeStage.key === "configuration" && selectedProduct) {
       return (
         <ProductConfiguration
-          productName={selectedProduct.name}
-          configuration={selectedProductConfiguration}
-          selection={configurationSelection}
-          onSelectConfiguration={handleSelectConfiguration}
-          onSelectSingleOption={handleSelectSingleOption}
-          onToggleOption={handleToggleOption}
-          onChangeAccessoryQuantity={handleAccessoryQuantityChange}
+          product={selectedProduct}
+          selection={buildSelection}
+          onSelectVariant={handleSelectVariant}
+          onSelectPackage={handleSelectPackage}
+          onChangeOptionQuantity={handleOptionQuantityChange}
+        />
+      );
+    }
+
+    if (activeStage.key === "services" && selectedProduct) {
+      return (
+        <ServiceSelection
+          product={selectedProduct}
+          selectedServices={serviceSelections}
+          selectedState={selectedState}
+          selectedRegion={selectedRegion}
+          onToggleService={handleToggleService}
+          onSelectPaymentOption={handleSelectPaymentOption}
         />
       );
     }
@@ -376,15 +485,6 @@ export default function NationwidePurchaseFlow({
       );
     }
 
-    if (activeStage.key === "setup") {
-      return (
-        <SetupPreference
-          selectedPreference={selectedSetupPreference}
-          onSelectPreference={setSelectedSetupPreference}
-        />
-      );
-    }
-
     if (activeStage.key === "customer") {
       return (
         <CustomerInformation
@@ -394,26 +494,59 @@ export default function NationwidePurchaseFlow({
       );
     }
 
+    if (selectedProduct) {
+      return (
+        <PurchaseSummary
+          selectedProduct={selectedProduct}
+          buildSelection={buildSelection}
+          serviceSelections={serviceSelections}
+          purchaseMethodLabel={
+            selectedPurchaseMethod
+              ? purchaseMethodLabels[selectedPurchaseMethod]
+              : "Not selected"
+          }
+          customerInformation={customerInformation}
+          submitStatus={submitStatus}
+          submitError={submitError}
+          onSubmit={() => void submitRequest()}
+        />
+      );
+    }
+
+    return null;
+  }
+
+  if (catalogLoading) {
     return (
-      <PurchaseSummary
-        selectedProduct={selectedProduct}
-        selectedConfigurationOption={selectedConfigurationOption}
-        selectedOptions={selectedOptions}
-        includedOptions={includedOptions}
-        selectedQuantityAccessories={selectedQuantityAccessories}
-        comingSoonGroups={selectedProductConfiguration?.comingSoonGroups ?? []}
-        purchaseMethodLabel={
-          selectedPurchaseMethod
-            ? purchaseMethodLabels[selectedPurchaseMethod]
-            : "Not selected"
-        }
-        setupPreferenceLabel={
-          selectedSetupPreference
-            ? setupPreferenceLabels[selectedSetupPreference]
-            : "Not selected"
-        }
-        customerInformation={customerInformation}
-      />
+      <div className="rounded-[2rem] border border-slate-300 bg-white p-10 text-center shadow-xl">
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
+        <p className="mt-5 text-lg font-black text-slate-950">
+          Loading machines, packages, modules, and plans…
+        </p>
+      </div>
+    );
+  }
+
+  if (catalogError || !catalog) {
+    return (
+      <div className="rounded-[2rem] border border-red-300 bg-white p-8 shadow-xl">
+        <p className="text-sm font-bold uppercase tracking-[0.2em] text-red-700">
+          Catalog Could Not Load
+        </p>
+        <h2 className="mt-3 text-2xl font-black text-slate-950">
+          The website could not read the Supabase catalog.
+        </h2>
+        <p className="mt-4 leading-7 text-slate-600">
+          {catalogError || "No catalog data was returned."}
+        </p>
+        <button
+          type="button"
+          onClick={() => setCatalogReloadKey((value) => value + 1)}
+          className="mt-6 rounded-2xl bg-slate-950 px-6 py-4 font-black text-white"
+        >
+          Try Loading Again
+        </button>
+      </div>
     );
   }
 
@@ -426,27 +559,32 @@ export default function NationwidePurchaseFlow({
             const isComplete = index < stageIndex;
 
             return (
-              <div
+              <button
                 key={stage.key}
-                className={`rounded-2xl border px-3 py-3 text-sm font-bold transition ${
+                type="button"
+                onClick={() => {
+                  if (index <= stageIndex) setStageIndex(index);
+                }}
+                disabled={index > stageIndex}
+                className={`rounded-2xl border px-3 py-3 text-left text-sm font-bold transition ${
                   isActive
                     ? "border-emerald-700 bg-emerald-700 text-white"
                     : isComplete
-                      ? "border-slate-950 bg-slate-950 text-white"
-                      : "border-slate-300 bg-white text-slate-600"
+                      ? "border-slate-950 bg-slate-950 text-white hover:bg-slate-800"
+                      : "cursor-not-allowed border-slate-300 bg-white text-slate-600"
                 }`}
               >
                 <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-black text-slate-950">
                   {index + 1}
                 </span>
                 {stage.label}
-              </div>
+              </button>
             );
           })}
         </div>
       </div>
 
-      <div className="p-8 md:p-12">{renderStage()}</div>
+      <div className="p-6 md:p-10 lg:p-12">{renderStage()}</div>
 
       <div className="border-t border-slate-200 bg-slate-50 p-5 md:p-7">
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
