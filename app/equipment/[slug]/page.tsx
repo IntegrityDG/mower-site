@@ -37,7 +37,7 @@ export default function ProductPage({ params }: { params: Promise<{ slug: string
       {optional.length > 0 && <EquipmentList title="Optional attachments and accessories" items={optional} />}
       {!options.length && <p className="mt-5 rounded-2xl bg-white p-6 text-slate-600">No compatible equipment is currently published for this product.</p>}
     </div>
-    <div className="mt-14 rounded-[2rem] bg-slate-950 p-8 text-white sm:p-10"><h2 className="text-3xl font-black">Ready to plan the complete system?</h2><p className="mt-3 max-w-2xl leading-7 text-slate-300">Choose the machine, compatible equipment, and eligible IDS support services in the guided builder. No payment is collected online.</p><Link href="/#location-and-customer-path" className="mt-6 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950">Build Your System</Link></div>
+    <div className="mt-14 rounded-[2rem] bg-slate-950 p-8 text-white sm:p-10"><h2 className="text-3xl font-black">{product.slug === "lymow-one-plus" ? "Ready to Build Your System?" : "Ready to plan the complete system?"}</h2><p className="mt-3 max-w-2xl leading-7 text-slate-300">{product.slug === "lymow-one-plus" ? "Choose your Lymow One Plus configuration, compatible accessories, delivery options, and eligible IDS support services in the guided system builder." : "Choose the machine, compatible equipment, and eligible IDS support services in the guided builder. No payment is collected online."}</p><Link href="/#location-and-customer-path" className="mt-6 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950">Build Your System</Link></div>
     </section></main></div>;
 }
 

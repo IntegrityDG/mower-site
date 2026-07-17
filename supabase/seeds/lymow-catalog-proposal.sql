@@ -1,3 +1,4 @@
+-- Encoding: UTF-8 (no BOM). Preserve all customer-facing Unicode characters exactly.
 -- REVIEWED PROPOSAL. DO NOT EXECUTE UNTIL IDS APPROVES THE CONTENT.
 --
 -- Scope:
@@ -201,7 +202,7 @@ with proposed(
   customer_guidance
 ) as (
   values (
-    'Lymow One Plus combines a 16-inch dual-rotary cutting system, tracked drive, RTK + VSLAM virtual-boundary navigation, and sensor-assisted obstacle avoidance. It is offered in 5A and 10A mower configurations with different charge times and estimated daily mowing coverage.',
+    'Lymow One Plus combines a 16-inch dual-rotary cutting system, tracked drive, RTK + VSLAM virtual-boundary navigation, and sensor-assisted obstacle avoidance.',
     'Lymow One Plus is a virtual-boundary robotic mower for segmented, sloped, uneven, or multi-zone residential lawns. Its tracked drive and 16-inch dual-rotary cutting system support a 1.2–4.0-inch cutting-height range, while RTK + VSLAM navigation, app management for up to 80 zones, AI vision, ultrasonic sensing, automatic recharge, and resume capability support automated mowing across mapped zones. The mower is offered in 5A and 10A configurations with different charge times and manufacturer-stated estimated daily mowing coverage.',
     'Tracked, virtual-boundary robotic mowing',
     'Manufacturer-stated estimated daily mowing coverage: up to 1.1 acres per day with the 5A configuration or up to 1.73 acres per day with the 10A configuration. These figures are daily operating estimates, not whole-property size ratings.',
@@ -297,7 +298,7 @@ The mower is offered in 5A and 10A configurations. Each mower package includes t
       'Property considerations and limitations',
       $section$• Manufacturer-stated estimated daily mowing coverage is up to 1.1 acres per day with the 5A configuration and up to 1.73 acres per day with the 10A configuration. These are daily operating estimates, not maximum lawn-size or whole-property acreage ratings.
 • Maximum slope and coverage are manufacturer-rated figures, and actual results vary with terrain, grass density, weather, routing, and operating conditions.
-• Reliable RTK-guided operation requires a suitable RTK reference-station location. Without RTK, Lymow lists 0.025–0.037 acres of mowing area and up to 10 minutes of mowing time.
+• Reliable RTK-guided operation requires a suitable RTK reference-station location. Without a usable RTK connection, Lymow states that operation is limited to approximately 0.025–0.037 acres and up to 10 minutes of mowing time.
 • The minimum cutting height is 1.2 in.
 • The mower weighs 78.5 lb ±1 lb; access, transport, recovery, and service planning should account for that weight.
 • Map storage of 15 acres is not a daily mowing-capacity or property-size rating.
@@ -310,7 +311,6 @@ The mower is offered in 5A and 10A configurations. Each mower package includes t
       'Specifications',
       $section$Navigation: RTK + VSLAM
 RTK coverage radius: up to 3,200 ft
-Operation without RTK: 0.025–0.037 acres; up to 10 minutes
 Map storage: 15 acres
 Multi-zone management: up to 80 zones
 Connectivity: Bluetooth, Wi-Fi, and 4G
@@ -394,7 +394,7 @@ The separately sold charging adapters, charging cables, and RTK components are r
       null::text,
       'Warranty summary',
       'Warranty',
-      $section$Lymow lists a 3-year limited warranty for Lymow One Plus, excluding tracks and blades; tracks and blades have no warranty. Coverage is tied to the mower serial number and limited to the original purchase country or region. Misuse, modification, improper maintenance, commercial use, unauthorized repair, cosmetic damage, and normal wear are excluded. Customers purchasing through a dealer or retailer should follow that seller's claim process. Full manufacturer terms apply.$section$
+      $section$Lymow provides a 3-year limited warranty for the Lymow One Plus. Tracks, blades, normal wear, misuse, unauthorized repairs, modifications, and commercial use are excluded. Warranty service is tied to the mower’s serial number, original purchaser, and original purchase region. Full manufacturer warranty terms apply.$section$
     )
 ),
 identified_sections as (
@@ -490,24 +490,28 @@ with lymow_product as (
   where slug = 'lymow-one-plus'
     and brand = 'Lymow'
 ),
-proposed_variants(variant_slug, description) as (
+proposed_variants(variant_slug, name, description) as (
   values
     (
       'lymow-one-plus-5a',
+      'Lymow One Plus — 5A Configuration',
       'Lymow One Plus 5A mower configuration. Manufacturer-stated charge time: 150 minutes from 10% to 90%. Manufacturer-stated estimated daily mowing coverage: up to 1.1 acres per day.'
     ),
     (
       'lymow-one-plus-10a',
+      'Lymow One Plus — 10A Configuration',
       'Lymow One Plus 10A mower configuration. Manufacturer-stated charge time: 90 minutes from 10% to 90%. Manufacturer-stated estimated daily mowing coverage: up to 1.73 acres per day.'
     )
 )
 update public.catalog_product_variants variant
-set description = proposed.description,
+set name = proposed.name,
+    description = proposed.description,
     updated_at = now()
 from lymow_product product, proposed_variants proposed
 where variant.product_id = product.id
   and variant.variant_slug = proposed.variant_slug
-  and variant.description is distinct from proposed.description;
+  and row(variant.name, variant.description)
+      is distinct from row(proposed.name, proposed.description);
 
 -- Hide only the two configuration mirrors. Normalize finished customer copy
 -- for active replacement and optional equipment. The track stays visible and

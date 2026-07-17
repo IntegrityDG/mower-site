@@ -81,7 +81,7 @@ export default function EquipmentCatalog() {
                 </div>
                 <h2 className="mt-3 text-2xl font-black text-slate-950">{product.name}</h2>
                 <p className="mt-3 flex-1 leading-7 text-slate-600">{product.homepageSummary ?? product.fullDescription}</p>
-                {product.propertyScale && <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">Best fit: {product.propertyScale}</p>}
+                {product.propertyScale && product.slug !== "lymow-one-plus" && <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">Best fit: {product.propertyScale}</p>}
                 <p className="mt-5 text-xl font-black text-slate-950">{priceLabel(product)}</p>
                 <div className="mt-5 grid grid-cols-2 gap-3">
                   <Link href={`/equipment/${product.slug}`} className="rounded-xl border border-slate-300 px-4 py-3 text-center font-bold hover:border-slate-950">View Details</Link>

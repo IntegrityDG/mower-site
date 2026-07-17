@@ -41,7 +41,7 @@ The text in this section is the exact content proposed by `supabase/seeds/lymow-
 
 #### Homepage summary
 
-Lymow One Plus combines a 16-inch dual-rotary cutting system, tracked drive, RTK + VSLAM virtual-boundary navigation, and sensor-assisted obstacle avoidance. It is offered in 5A and 10A mower configurations with different charge times and estimated daily mowing coverage.
+Lymow One Plus combines a 16-inch dual-rotary cutting system, tracked drive, RTK + VSLAM virtual-boundary navigation, and sensor-assisted obstacle avoidance.
 
 #### Full description
 
@@ -89,7 +89,7 @@ The mower is offered in 5A and 10A configurations. Each mower package includes t
 
 - Manufacturer-stated estimated daily mowing coverage is up to 1.1 acres per day with the 5A configuration and up to 1.73 acres per day with the 10A configuration. These are daily operating estimates, not maximum lawn-size or whole-property acreage ratings.
 - Maximum slope and coverage are manufacturer-rated figures, and actual results vary with terrain, grass density, weather, routing, and operating conditions.
-- Reliable RTK-guided operation requires a suitable RTK reference-station location. Without RTK, Lymow lists 0.025–0.037 acres of mowing area and up to 10 minutes of mowing time.
+- Reliable RTK-guided operation requires a suitable RTK reference-station location. Without a usable RTK connection, Lymow states that operation is limited to approximately 0.025–0.037 acres and up to 10 minutes of mowing time.
 - The minimum cutting height is 1.2 in.
 - The mower weighs 78.5 lb ±1 lb; access, transport, recovery, and service planning should account for that weight.
 - Map storage of 15 acres is not a daily mowing-capacity or property-size rating.
@@ -101,7 +101,6 @@ The mower is offered in 5A and 10A configurations. Each mower package includes t
 | --- | --- |
 | Navigation | RTK + VSLAM |
 | RTK coverage radius | Up to 3,200 ft |
-| Operation without RTK | 0.025–0.037 acres; up to 10 minutes |
 | Map storage | 15 acres |
 | Multi-zone management | Up to 80 zones |
 | Connectivity | Bluetooth, Wi-Fi, and 4G |
@@ -175,14 +174,28 @@ The separately sold charging adapters, charging cables, and RTK components are r
 
 ### Warranty
 
-Lymow lists a 3-year limited warranty for Lymow One Plus, excluding tracks and blades; tracks and blades have no warranty. Coverage is tied to the mower serial number and limited to the original purchase country or region. Misuse, modification, improper maintenance, commercial use, unauthorized repair, cosmetic damage, and normal wear are excluded. Customers purchasing through a dealer or retailer should follow that seller's claim process. Full manufacturer terms apply.
+Lymow provides a 3-year limited warranty for the Lymow One Plus. Tracks, blades, normal wear, misuse, unauthorized repairs, modifications, and commercial use are excluded. Warranty service is tied to the mower’s serial number, original purchaser, and original purchase region. Full manufacturer warranty terms apply.
+
+### Final system-builder CTA
+
+#### Heading
+
+Ready to Build Your System?
+
+#### Body
+
+Choose your Lymow One Plus configuration, compatible accessories, delivery options, and eligible IDS support services in the guided system builder.
+
+#### Primary CTA
+
+Build Your System
 
 ## Variant descriptions
 
-| Variant slug | Proposed description |
-| --- | --- |
-| `lymow-one-plus-5a` | Lymow One Plus 5A mower configuration. Manufacturer-stated charge time: 150 minutes from 10% to 90%. Manufacturer-stated estimated daily mowing coverage: up to 1.1 acres per day. |
-| `lymow-one-plus-10a` | Lymow One Plus 10A mower configuration. Manufacturer-stated charge time: 90 minutes from 10% to 90%. Manufacturer-stated estimated daily mowing coverage: up to 1.73 acres per day. |
+| Variant slug | Proposed public name | Proposed description |
+| --- | --- | --- |
+| `lymow-one-plus-5a` | Lymow One Plus — 5A Configuration | Lymow One Plus 5A mower configuration. Manufacturer-stated charge time: 150 minutes from 10% to 90%. Manufacturer-stated estimated daily mowing coverage: up to 1.1 acres per day. |
+| `lymow-one-plus-10a` | Lymow One Plus — 10A Configuration | Lymow One Plus 10A mower configuration. Manufacturer-stated charge time: 90 minutes from 10% to 90%. Manufacturer-stated estimated daily mowing coverage: up to 1.73 acres per day. |
 
 ## Option changes
 

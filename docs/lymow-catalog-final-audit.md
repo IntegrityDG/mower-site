@@ -1,6 +1,6 @@
 # Revised Lymow Catalog Final Safety Audit
 
-Audit date: 2026-07-15
+Audit date: 2026-07-16
 Status: **review only; SQL not executed; Supabase not modified**
 
 Audited files:
@@ -8,6 +8,10 @@ Audited files:
 - `supabase/seeds/lymow-catalog-proposal.sql`
 - `docs/lymow-catalog-proposal.md`
 - `docs/lymow-page-preview.md`
+
+Reviewed SQL SHA-256: `7F5EB1A339D96234B042421DA67B85B35B0BFD3B71195D18F249F37CED5471BD`
+
+Encoding verification: strict UTF-8 decoding succeeds; the file contains no `â`, `Â`, or `Ã` corruption-prefix characters.
 
 ## Verdict
 
@@ -54,7 +58,7 @@ Every ordinary `UPDATE` has an `IS DISTINCT FROM` predicate covering all semanti
 | `catalog_products` | `homepage_summary`, `full_description`, `capability_level`, `property_scale`, `customer_guidance` |
 | `catalog_product_pages` | `hero_heading`, `hero_subheading` |
 | `catalog_product_page_sections` | `section_type`, `heading`, `body_content`, `is_published` |
-| `catalog_product_variants` | `description` |
+| `catalog_product_variants` | `name`, `description` |
 | `catalog_options` | final calculated `name`, `description`, `public_status` |
 
 Each statement assigns `updated_at=now()` only after its semantic difference predicate passes. Identical values therefore skip the update completely.
@@ -114,6 +118,24 @@ The revised public copy consistently states:
 - 10A: manufacturer-stated estimated daily mowing coverage up to 1.73 acres per day
 
 Both are explicitly described as daily operating estimates rather than maximum lawn size, maximum supported property size, or whole-property acreage recommendations. The 15-acre value is identified only as map-storage capacity.
+
+The equipment catalog summary does not repeat the two acreage figures. The detailed figures remain prominent in Best Fit, the 5A/10A comparison, and property considerations.
+
+### Configuration names
+
+The customer-facing mower variant names are `Lymow One Plus — 5A Configuration` and `Lymow One Plus — 10A Configuration`. The hidden internal charger option slugs remain `lymow-5a-charger` and `lymow-10a-charger`.
+
+### RTK limitation placement
+
+Operation without a usable RTK connection is stated under Property Considerations and Limitations and is removed from the main specifications table.
+
+### Warranty
+
+The customer-facing warranty summary uses the final approved concise wording while retaining the full-manufacturer-terms qualification.
+
+### Final CTA
+
+The reviewed page preview uses `Ready to Build Your System?`, the revised guided-system-builder body copy, and `Build Your System` as the primary CTA. It no longer includes `No payment is collected online.`
 
 ### Footnotes
 
@@ -177,7 +199,7 @@ Counts are based on the read-only current catalog snapshot used by the prior fin
 | `public.catalog_products` | 1 | 0 | Five proposed product-content fields differ. |
 | `public.catalog_product_pages` | 1 | 0 | Hero heading and subheading differ. |
 | `public.catalog_product_page_sections` | 3 | 5 | Three known legacy sections update; five reviewed identities are absent. |
-| `public.catalog_product_variants` | 2 | 0 | Both descriptions differ. |
+| `public.catalog_product_variants` | 2 | 0 | Both public names and descriptions differ. |
 | `public.catalog_options` | 11 | 0 | Ten reviewed configuration/accessory rows plus Straight Blade 2.0 cleanup differ. |
 | `public.catalog_variant_options` | 0 | 2 | Both intended relationships are absent. |
 | **Total** | **18** | **7** | **25 first-run row mutations.** |
@@ -214,7 +236,7 @@ Columns modified or inserted:
 | `catalog_products` | `homepage_summary`, `full_description`, `capability_level`, `property_scale`, `customer_guidance`, `updated_at` |
 | `catalog_product_pages` | `hero_heading`, `hero_subheading`, `updated_at` |
 | `catalog_product_page_sections` | `section_type`, `heading`, `body_content`, `is_published`, `updated_at`; inserts also resolve `product_page_id` and assign safe `sort_order` |
-| `catalog_product_variants` | `description`, `updated_at` |
+| `catalog_product_variants` | `name`, `description`, `updated_at` |
 | `catalog_options` | `name`, `description`, `public_status`, `updated_at` |
 | `catalog_variant_options` | `variant_id`, `option_id`, `relationship_type`, `quantity`, `updated_at` |
 
@@ -238,6 +260,8 @@ Confirmed untouched:
 
 ## Final confirmation
 
+- Reviewed SQL SHA-256: **`7F5EB1A339D96234B042421DA67B85B35B0BFD3B71195D18F249F37CED5471BD`**.
+- SQL encoding: **UTF-8 without BOM; mojibake scan clean**.
 - Revised SQL safe to execute after content approval: **Yes**.
 - First run: **18 updates, 7 inserts** against the audited snapshot.
 - Second run: **0 updates, 0 inserts, 0 timestamp changes**.
@@ -248,3 +272,7 @@ Confirmed untouched:
 - Internal notes in customer fields: **none**.
 - `lymow-tracks-pair`: remains active and customer-visible.
 - Separate charging-selection question: **not created**.
+- Customer-facing configuration names: **`5A Configuration` and `10A Configuration`**.
+- Internal charger option slugs: **unchanged**.
+- Main specifications table: **operation without RTK removed; limitation retained under property considerations**.
+- Final CTA preview: **revised; `Build Your System` remains primary**.

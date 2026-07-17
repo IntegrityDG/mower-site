@@ -1,6 +1,6 @@
 # Mower Site Shutdown Handoff
 
-Checkpoint captured: **2026-07-15 23:12:00 CDT (UTC-05:00, America/Chicago)**
+Checkpoint updated: **2026-07-16 CDT (UTC-05:00, America/Chicago)**
 Project root: `C:\Users\Danie\mower-site`
 Git branch: `catalog-backend`
 Configured upstream: `origin/catalog-backend`
@@ -9,14 +9,18 @@ Configured upstream: `origin/catalog-backend`
 
 The equipment-catalog, purchasing-flow, and manufacturer-monitoring work is saved locally. This handoff is a shutdown checkpoint, not authorization to publish catalog changes.
 
-The revised Lymow proposal is complete and review-only:
+The approved Lymow catalog proposal is complete and applied:
 
-- `supabase/seeds/lymow-catalog-proposal.sql` has **not** been executed.
-- Supabase has **not** been modified by the Lymow proposal.
-- No Lymow candidate has been approved, published, or applied.
-- No manufacturer image has been downloaded or published.
-- The proposal is safe to execute only after final IDS content approval.
-- Reviewed SQL SHA-256: `43C6D34085AA94FE3C825609630CBB84488C9B10AC424D728056C601AF9431D7`.
+- `supabase/seeds/lymow-catalog-proposal.sql` was successfully executed against the configured Supabase project.
+- Executed SQL SHA-256: `7F5EB1A339D96234B042421DA67B85B35B0BFD3B71195D18F249F37CED5471BD`.
+- First execution: **18 updates and 7 inserts**.
+- Immediate second execution: **0 writes**, including no timestamp-only changes.
+- The customer-facing `Lymow One Plus — 5A Configuration` and `Lymow One Plus — 10A Configuration` names were verified.
+- The legacy charger-selection group is suppressed, and both hidden charger mirrors are associated through quantity-1 `defines_variant` relationships.
+- `lymow-tracks-pair` remains active and customer-visible as `Replacement Lymow Track`.
+- Lint, TypeScript, and the production build passed. Lint retains three pre-existing `<img>` optimization warnings in `app/page.tsx`.
+- The existing `public.quote_requests` RLS-disabled warning remains unresolved; no RLS or policy change was made during the Lymow execution.
+- No manufacturer image was downloaded or published.
 
 At handoff creation, the pre-checkpoint Git state was:
 
@@ -260,7 +264,7 @@ Manufacturer breakdown:
 
 All 90 remain pending. None has been approved, rejected, ignored, applied, or published. No image has confirmed dealer-use permission.
 
-## Lymow proposal checkpoint
+## Completed Lymow catalog checkpoint
 
 Proposal files:
 
@@ -277,7 +281,7 @@ Candidate disposition in the proposal:
 
 The SQL uses stable slugs, semantic `IS DISTINCT FROM` guards, transaction/advisory locking, table locks for page-section and relationship races, and conflict-safe variant-option insertion.
 
-Expected first execution against the audited catalog snapshot:
+Verified first execution against the audited catalog snapshot:
 
 | Public table | Updates | Inserts |
 | --- | ---: | ---: |
@@ -289,19 +293,19 @@ Expected first execution against the audited catalog snapshot:
 | `catalog_variant_options` | 0 | 2 |
 | **Total** | **18** | **7** |
 
-Expected immediate second execution:
+Verified immediate second execution:
 
 - 0 updates
 - 0 inserts
 - 0 timestamp-only writes
 
-Proposed `public_status` changes:
+Applied `public_status` changes:
 
 - `lymow-5a-charger`: `active` to `hidden`
 - `lymow-10a-charger`: `active` to `hidden`
 - `lymow-tracks-pair`: remains `active` and customer-visible
 
-Proposed variant-option relationships:
+Inserted variant-option relationships:
 
 - `lymow-one-plus-5a` to `lymow-5a-charger`: `relationship_type='defines_variant'`, `quantity=1`
 - `lymow-one-plus-10a` to `lymow-10a-charger`: `relationship_type='defines_variant'`, `quantity=1`
@@ -383,20 +387,9 @@ Local ZIP-extraction notes `INSTALL.txt` and `UPDATE-INSTRUCTIONS.txt` are devel
 
 ## Exact recommended next task
 
-**Perform final human content approval of `docs/lymow-page-preview.md` against the linked official Lymow product, accessory, and warranty pages. Do not change the database during that review.**
+**Begin Yarbo catalog review and proposal.**
 
-Only after explicit IDS approval should a separate execution task:
-
-1. verify that `supabase/seeds/lymow-catalog-proposal.sql` still has SHA-256 `43C6D34085AA94FE3C825609630CBB84488C9B10AC424D728056C601AF9431D7`;
-2. confirm the current catalog still matches the audited preconditions;
-3. execute the reviewed SQL once;
-4. verify the expected 18 updates and 7 inserts;
-5. confirm the two public-status changes and two `defines_variant` relationships;
-6. execute the same SQL a second time only as an explicit idempotence verification;
-7. confirm zero second-run inserts, updates, and timestamp-only writes;
-8. verify the customer flow has one 5A/10A mower choice and no separate charger question.
-
-Do not begin Yarbo review, Pandag review, checkout, payment, financing, or another product phase before that approval decision.
+Do not begin Pandag, checkout, payment, financing, or demo-scheduling work as part of that task.
 
 ## Important commands
 
@@ -420,7 +413,7 @@ Safety notes:
 - `sync-manufacturer-catalog` is review-only but writes private snapshots, run records, and pending suggestions.
 - `seed:manufacturer-sources` changes private source-target configuration and should run only in an explicitly authorized task.
 - `import:catalog` changes catalog data and should not be run casually.
-- There is intentionally no generic handoff command for executing the Lymow SQL. Verify and obtain approval first.
+- The approved Lymow SQL has been executed and verified; do not execute it again unless a separately authorized audit requires it.
 - Never echo or inspect `.env.local` while recording terminal output.
 
 ## Important files
