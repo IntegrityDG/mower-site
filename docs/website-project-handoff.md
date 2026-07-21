@@ -16,6 +16,7 @@ The approved Lymow catalog proposal is complete and applied:
 - First execution: **18 updates and 7 inserts**.
 - Immediate second execution: **0 writes**, including no timestamp-only changes.
 - The customer-facing `Lymow One Plus — 5A Configuration` and `Lymow One Plus — 10A Configuration` names were verified.
+- The approved Lymow One Plus Best Fit `customer_guidance` correction was permanently applied on 2026-07-21 using the reviewed `supabase/seeds/lymow-best-fit-guidance.sql` logic with `COMMIT`: first execution updated 1 row, the immediate second execution updated 0 rows, and the live value is `Small to large residential and commercial properties with tight spaces, narrow passages, and complex layouts`.
 - The legacy charger-selection group is suppressed, and both hidden charger mirrors are associated through quantity-1 `defines_variant` relationships.
 - `lymow-tracks-pair` remains active and customer-visible as `Replacement Lymow Track`.
 - Lint, TypeScript, and the production build passed. Lint retains three pre-existing `<img>` optimization warnings in `app/page.tsx`.
