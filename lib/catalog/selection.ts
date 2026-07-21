@@ -4,6 +4,13 @@ import type {
   ProductBuildSelection,
   ServiceSelection,
 } from "./types";
+import {
+  isYarboModuleOption,
+  isYarboProduct,
+  selectedYarboIndividualModules,
+  yarboCoreIsSelected,
+  yarboHasIndividualSelection,
+} from "./yarbo";
 
 
 function optionGroupIsBuiltIntoVariant(
@@ -29,6 +36,11 @@ export function resolveBuildSelection(
   product: CatalogProduct,
   selection: ProductBuildSelection
 ) {
+  const yarboProduct = isYarboProduct(product);
+  const yarboIndividualMode =
+    yarboProduct && selection.purchaseMode === "individual-equipment";
+  const yarboCompleteSystemMode =
+    yarboProduct && selection.purchaseMode === "complete-system";
   const selectedVariant =
     product.variants.find((variant) => variant.id === selection.variantId) ??
     null;
@@ -45,32 +57,43 @@ export function resolveBuildSelection(
     product.variants.flatMap((variant) => variant.definingOptionIds)
   );
 
-  const selectedOptions = allProductOptions(product)
-    .map((option) => ({
-      option,
-      quantity: selection.optionQuantities[option.id] ?? 0,
-    }))
+  const selectedOptions = (
+    yarboIndividualMode
+      ? selectedYarboIndividualModules(product, selection)
+      : allProductOptions(product).map((option) => ({
+          option,
+          quantity: selection.optionQuantities[option.id] ?? 0,
+        }))
+  )
     .filter(
       ({ option, quantity }) =>
         quantity > 0 &&
         !option.isIncluded &&
+        !yarboCompleteSystemMode &&
         !packageIncludedOptionIds.has(option.id) &&
-        !definingOptionIds.has(option.id)
+        !definingOptionIds.has(option.id) &&
+        (!yarboIndividualMode || isYarboModuleOption(option))
     );
 
   const includedOptions = allProductOptions(product).filter(
     (option) => option.isIncluded
   );
 
-  const baseItem = selectedPackage ?? selectedVariant ?? product;
+  const includeBaseProduct =
+    !yarboIndividualMode || yarboCoreIsSelected(selection);
+  const baseItem = selectedPackage ?? selectedVariant ?? (includeBaseProduct ? product : null);
   const priceItems = [
-    {
-      name: selectedPackage?.name ?? selectedVariant?.name ?? product.name,
-      quantity: 1,
-      priceCents: baseItem.currentPriceCents,
-      contactForPricing:
-        baseItem.contactForPricing || !baseItem.showPublicPrice,
-    },
+    ...(baseItem
+      ? [
+          {
+            name: selectedPackage?.name ?? selectedVariant?.name ?? product.name,
+            quantity: 1,
+            priceCents: baseItem.currentPriceCents,
+            contactForPricing:
+              baseItem.contactForPricing || !baseItem.showPublicPrice,
+          },
+        ]
+      : []),
     ...selectedOptions.map(({ option, quantity }) => ({
       name: option.name,
       quantity,
@@ -91,11 +114,16 @@ export function resolveBuildSelection(
   return {
     selectedVariant,
     selectedPackage,
+    selectedBaseProduct: includeBaseProduct ? product : null,
     selectedOptions,
     includedOptions,
     packageIncludedItems: selectedPackage?.items ?? [],
+    priceItems,
     equipmentTotalCents,
     hasUnpricedEquipment,
+    isYarboIndividualEquipment: yarboIndividualMode,
+    isYarboCompleteSystem: yarboCompleteSystemMode,
+    yarboCoreSelected: yarboIndividualMode && yarboCoreIsSelected(selection),
   };
 }
 
@@ -178,6 +206,18 @@ export function productBuildIsComplete(
   product: CatalogProduct,
   selection: ProductBuildSelection
 ) {
+  if (isYarboProduct(product)) {
+    if (selection.purchaseMode === "complete-system") {
+      return Boolean(selection.packageId);
+    }
+
+    if (selection.purchaseMode === "individual-equipment") {
+      return yarboHasIndividualSelection(product, selection);
+    }
+
+    return false;
+  }
+
   const variantComplete =
     product.variants.length === 0 || Boolean(selection.variantId);
   const packageComplete =

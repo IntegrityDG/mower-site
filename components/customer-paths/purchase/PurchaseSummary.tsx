@@ -8,6 +8,13 @@ import type {
   ProductBuildSelection,
   ServiceSelection,
 } from "@/lib/catalog/types";
+import {
+  YARBO_CORE_ABSENT_NOTICE,
+  YARBO_INCLUDED_PLATFORM_EQUIPMENT,
+  isYarboProduct,
+  yarboOptionDisplayName,
+  yarboPackageDisplayName,
+} from "@/lib/catalog/yarbo";
 import type { CustomerInformationValues } from "@/lib/products/types";
 
 type SubmitStatus = "idle" | "submitting" | "success" | "error";
@@ -25,6 +32,14 @@ type PurchaseSummaryProps = {
 
 function summaryValue(value: string) {
   return value.trim() || "Not provided";
+}
+
+function optionLinePrice(
+  option: CatalogProduct["ungroupedOptions"][number],
+  quantity: number
+) {
+  if (option.currentPriceCents === null) return priceLabel(option);
+  return formatCents(option.currentPriceCents * quantity);
 }
 
 export default function PurchaseSummary({
@@ -46,6 +61,7 @@ export default function PurchaseSummary({
     build.equipmentTotalCents + serviceSummary.serviceTotalCents;
   const hasUnpricedItems =
     build.hasUnpricedEquipment || serviceSummary.hasUnpricedServices;
+  const selectedProductIsYarbo = isYarboProduct(selectedProduct);
 
   return (
     <div>
@@ -63,154 +79,23 @@ export default function PurchaseSummary({
         order.
       </p>
 
-      <div className="mt-7 grid gap-5 lg:grid-cols-2">
-        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Machine
-          </p>
-          <p className="mt-2 text-2xl font-black text-slate-950">
-            {selectedProduct.name}
-          </p>
-          <p className="mt-2 leading-7 text-slate-600">
-            {selectedProduct.homepageSummary}
-          </p>
-        </section>
-
-        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Main Configuration
-          </p>
-          <p className="mt-2 text-2xl font-black text-slate-950">
-            {build.selectedPackage?.name ??
-              build.selectedVariant?.name ??
-              selectedProduct.name}
-          </p>
-          <p className="mt-2 text-xl font-black text-emerald-700">
-            {build.selectedPackage
-              ? priceLabel(build.selectedPackage)
-              : build.selectedVariant
-                ? priceLabel(build.selectedVariant)
-                : priceLabel(selectedProduct)}
-          </p>
-        </section>
-
-        {build.packageIncludedItems.length > 0 && (
-          <section className="rounded-[2rem] border border-emerald-200 bg-emerald-50 p-6">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
-              Included in Package
-            </p>
-            <div className="mt-3 space-y-2 text-sm font-semibold leading-6 text-slate-700">
-              <p>✓ Base machine/core</p>
-              {build.packageIncludedItems.map((item) => (
-                <p key={item.optionId}>
-                  ✓ {item.option?.name ?? "Catalog option"}
-                  {item.quantity > 1 ? ` × ${item.quantity}` : ""}
-                </p>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Added Modules and Accessories
-          </p>
-          {build.selectedOptions.length > 0 ? (
-            <div className="mt-3 space-y-4">
-              {build.selectedOptions.map(({ option, quantity }) => (
-                <div
-                  key={option.id}
-                  className="border-b border-slate-200 pb-3 last:border-0 last:pb-0"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <p className="font-black text-slate-950">
-                      {option.name}
-                      {quantity > 1 ? ` × ${quantity}` : ""}
-                    </p>
-                    <p className="font-black text-emerald-700">
-                      {option.currentPriceCents === null
-                        ? priceLabel(option)
-                        : formatCents(option.currentPriceCents * quantity)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-2 text-lg font-black text-slate-950">
-              No additional modules or accessories selected
-            </p>
-          )}
-        </section>
-
-        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6 lg:col-span-2">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Selected Services and Plans
-          </p>
-          {serviceSummary.services.length > 0 ? (
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              {serviceSummary.services.map(
-                ({ service, paymentOption, priceCents }) => (
-                  <div
-                    key={service.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-5"
-                  >
-                    <p className="text-lg font-black text-slate-950">
-                      {service.name}
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-slate-600">
-                      {paymentOption?.name ?? service.billingType.replaceAll("_", " ")}
-                    </p>
-                    <p className="mt-3 text-xl font-black text-emerald-700">
-                      {priceCents === null
-                        ? "Contact for pricing"
-                        : formatCents(priceCents)}
-                    </p>
-                  </div>
-                )
-              )}
-            </div>
-          ) : (
-            <p className="mt-2 text-lg font-black text-slate-950">
-              Equipment-only request
-            </p>
-          )}
-        </section>
-
-        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Purchase Preference
-          </p>
-          <p className="mt-2 text-xl font-black text-slate-950">
-            {purchaseMethodLabel}
-          </p>
-        </section>
-
-        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-            Customer Contact
-          </p>
-          <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
-            <p>
-              <span className="font-bold text-slate-950">Name:</span>{" "}
-              {summaryValue(customerInformation.fullName)}
-            </p>
-            <p>
-              <span className="font-bold text-slate-950">Email:</span>{" "}
-              {summaryValue(customerInformation.email)}
-            </p>
-            <p>
-              <span className="font-bold text-slate-950">Phone:</span>{" "}
-              {summaryValue(customerInformation.phone)}
-            </p>
-            <p>
-              <span className="font-bold text-slate-950">Location:</span>{" "}
-              {summaryValue(customerInformation.shippingRegion)},{" "}
-              {summaryValue(customerInformation.shippingState)}
-            </p>
-          </div>
-        </section>
-      </div>
+      {selectedProductIsYarbo ? (
+        <YarboSummaryGrid
+          selectedProduct={selectedProduct}
+          build={build}
+          serviceSummary={serviceSummary}
+          purchaseMethodLabel={purchaseMethodLabel}
+          customerInformation={customerInformation}
+        />
+      ) : (
+        <StandardSummaryGrid
+          selectedProduct={selectedProduct}
+          build={build}
+          serviceSummary={serviceSummary}
+          purchaseMethodLabel={purchaseMethodLabel}
+          customerInformation={customerInformation}
+        />
+      )}
 
       <section className="mt-6 rounded-[2rem] bg-slate-950 p-6 text-white md:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -247,7 +132,7 @@ export default function PurchaseSummary({
           className="mt-8 w-full rounded-2xl bg-emerald-600 px-5 py-5 text-lg font-black text-white shadow-xl transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
           {submitStatus === "submitting"
-            ? "Submitting Request…"
+            ? "Submitting Request..."
             : "Submit Complete Purchase Request"}
         </button>
       )}
@@ -258,5 +143,335 @@ export default function PurchaseSummary({
         </div>
       )}
     </div>
+  );
+}
+
+function YarboSummaryGrid({
+  selectedProduct,
+  build,
+  serviceSummary,
+  purchaseMethodLabel,
+  customerInformation,
+}: {
+  selectedProduct: CatalogProduct;
+  build: ReturnType<typeof resolveBuildSelection>;
+  serviceSummary: ReturnType<typeof resolveServiceSelections>;
+  purchaseMethodLabel: string;
+  customerInformation: CustomerInformationValues;
+}) {
+  const selectedPackage = build.selectedPackage;
+  const modulesWithoutCore =
+    build.isYarboIndividualEquipment &&
+    !build.yarboCoreSelected &&
+    build.selectedOptions.length > 0;
+
+  return (
+    <div className="mt-7 grid gap-5 lg:grid-cols-2">
+      <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+          Request Type
+        </p>
+        <p className="mt-2 text-2xl font-black text-slate-950">
+          {selectedPackage ? "Complete Yarbo System" : "Individual Yarbo Equipment"}
+        </p>
+        <p className="mt-2 leading-7 text-slate-600">
+          {selectedPackage
+            ? "Package price is used as the complete system price."
+            : "Standalone line-item pricing is used for each selected item."}
+        </p>
+      </section>
+
+      {selectedPackage ? (
+        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Complete System
+          </p>
+          <p className="mt-2 text-2xl font-black text-slate-950">
+            {yarboPackageDisplayName(selectedPackage)}
+          </p>
+          <p className="mt-2 text-xl font-black text-emerald-700">
+            {priceLabel(selectedPackage)}
+          </p>
+          <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
+            No separate Core charge and no separate package-item module charges.
+          </p>
+        </section>
+      ) : (
+        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Individual Equipment Lines
+          </p>
+          <div className="mt-3 space-y-4">
+            {build.yarboCoreSelected && (
+              <div className="border-b border-slate-200 pb-3">
+                <div className="flex items-start justify-between gap-4">
+                  <p className="font-black text-slate-950">{selectedProduct.name}</p>
+                  <p className="font-black text-emerald-700">
+                    {priceLabel(selectedProduct)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {build.selectedOptions.map(({ option, quantity }) => (
+              <div
+                key={option.id}
+                className="border-b border-slate-200 pb-3 last:border-0 last:pb-0"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-black text-slate-950">
+                      {yarboOptionDisplayName(option)}
+                      {quantity > 1 ? ` x ${quantity}` : ""}
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-amber-800">
+                      Module only — requires a Yarbo Core to operate.
+                    </p>
+                  </div>
+                  <p className="font-black text-emerald-700">
+                    {optionLinePrice(option, quantity)}
+                  </p>
+                </div>
+              </div>
+            ))}
+
+            {!build.yarboCoreSelected && build.selectedOptions.length === 0 && (
+              <p className="text-lg font-black text-slate-950">
+                No individual equipment selected
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {selectedPackage && (
+        <section className="rounded-[2rem] border border-emerald-200 bg-emerald-50 p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+            Included in Package
+          </p>
+          <div className="mt-3 space-y-2 text-sm font-semibold leading-6 text-slate-700">
+            {YARBO_INCLUDED_PLATFORM_EQUIPMENT.map((item) => (
+              <p key={item}>{item}</p>
+            ))}
+            {build.packageIncludedItems.map((item) => (
+              <p key={item.optionId}>
+                {item.option ? yarboOptionDisplayName(item.option) : "Yarbo module"}
+                {item.quantity > 1 ? ` x ${item.quantity}` : ""}
+              </p>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {modulesWithoutCore && (
+        <section className="rounded-[2rem] border border-amber-200 bg-amber-50 p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-800">
+            Core Required
+          </p>
+          <p className="mt-2 text-sm font-bold leading-6 text-amber-950">
+            {YARBO_CORE_ABSENT_NOTICE}
+          </p>
+        </section>
+      )}
+
+      <ServicesSummary serviceSummary={serviceSummary} />
+      <PurchaseAndCustomerSummary
+        purchaseMethodLabel={purchaseMethodLabel}
+        customerInformation={customerInformation}
+      />
+    </div>
+  );
+}
+
+function StandardSummaryGrid({
+  selectedProduct,
+  build,
+  serviceSummary,
+  purchaseMethodLabel,
+  customerInformation,
+}: {
+  selectedProduct: CatalogProduct;
+  build: ReturnType<typeof resolveBuildSelection>;
+  serviceSummary: ReturnType<typeof resolveServiceSelections>;
+  purchaseMethodLabel: string;
+  customerInformation: CustomerInformationValues;
+}) {
+  return (
+    <div className="mt-7 grid gap-5 lg:grid-cols-2">
+      <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+          Machine
+        </p>
+        <p className="mt-2 text-2xl font-black text-slate-950">
+          {selectedProduct.name}
+        </p>
+        <p className="mt-2 leading-7 text-slate-600">
+          {selectedProduct.homepageSummary}
+        </p>
+      </section>
+
+      <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+          Main Configuration
+        </p>
+        <p className="mt-2 text-2xl font-black text-slate-950">
+          {build.selectedPackage?.name ??
+            build.selectedVariant?.name ??
+            selectedProduct.name}
+        </p>
+        <p className="mt-2 text-xl font-black text-emerald-700">
+          {build.selectedPackage
+            ? priceLabel(build.selectedPackage)
+            : build.selectedVariant
+              ? priceLabel(build.selectedVariant)
+              : priceLabel(selectedProduct)}
+        </p>
+      </section>
+
+      {build.packageIncludedItems.length > 0 && (
+        <section className="rounded-[2rem] border border-emerald-200 bg-emerald-50 p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+            Included in Package
+          </p>
+          <div className="mt-3 space-y-2 text-sm font-semibold leading-6 text-slate-700">
+            <p>Base machine/core</p>
+            {build.packageIncludedItems.map((item) => (
+              <p key={item.optionId}>
+                {item.option?.name ?? "Catalog option"}
+                {item.quantity > 1 ? ` x ${item.quantity}` : ""}
+              </p>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+          Added Modules and Accessories
+        </p>
+        {build.selectedOptions.length > 0 ? (
+          <div className="mt-3 space-y-4">
+            {build.selectedOptions.map(({ option, quantity }) => (
+              <div
+                key={option.id}
+                className="border-b border-slate-200 pb-3 last:border-0 last:pb-0"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <p className="font-black text-slate-950">
+                    {option.name}
+                    {quantity > 1 ? ` x ${quantity}` : ""}
+                  </p>
+                  <p className="font-black text-emerald-700">
+                    {optionLinePrice(option, quantity)}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-lg font-black text-slate-950">
+            No additional modules or accessories selected
+          </p>
+        )}
+      </section>
+
+      <ServicesSummary serviceSummary={serviceSummary} />
+      <PurchaseAndCustomerSummary
+        purchaseMethodLabel={purchaseMethodLabel}
+        customerInformation={customerInformation}
+      />
+    </div>
+  );
+}
+
+function ServicesSummary({
+  serviceSummary,
+}: {
+  serviceSummary: ReturnType<typeof resolveServiceSelections>;
+}) {
+  return (
+    <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6 lg:col-span-2">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+        Selected Services and Plans
+      </p>
+      {serviceSummary.services.length > 0 ? (
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {serviceSummary.services.map(({ service, paymentOption, priceCents }) => (
+            <div
+              key={service.id}
+              className="rounded-2xl border border-slate-200 bg-white p-5"
+            >
+              <p className="text-lg font-black text-slate-950">
+                {service.name}
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-600">
+                {paymentOption?.name ?? service.billingType.replaceAll("_", " ")}
+              </p>
+              <p className="mt-3 text-xl font-black text-emerald-700">
+                {priceCents === null ? "Contact for pricing" : formatCents(priceCents)}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-lg font-black text-slate-950">
+          Equipment-only request
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PurchaseAndCustomerSummary({
+  purchaseMethodLabel,
+  customerInformation,
+}: {
+  purchaseMethodLabel: string;
+  customerInformation: CustomerInformationValues;
+}) {
+  return (
+    <>
+      <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+          Purchase Preference
+        </p>
+        <p className="mt-2 text-xl font-black text-slate-950">
+          {purchaseMethodLabel}
+        </p>
+      </section>
+
+      <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+          Customer Contact
+        </p>
+        <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700">
+          <p>
+            <span className="font-bold text-slate-950">Name:</span>{" "}
+            {summaryValue(customerInformation.fullName)}
+          </p>
+          <p>
+            <span className="font-bold text-slate-950">Email:</span>{" "}
+            {summaryValue(customerInformation.email)}
+          </p>
+          <p>
+            <span className="font-bold text-slate-950">Phone:</span>{" "}
+            {summaryValue(customerInformation.phone)}
+          </p>
+          <p>
+            <span className="font-bold text-slate-950">Address:</span>{" "}
+            {summaryValue(customerInformation.shippingAddress)}
+          </p>
+          <p>
+            <span className="font-bold text-slate-950">ZIP:</span>{" "}
+            {summaryValue(customerInformation.shippingZip)}
+          </p>
+          <p>
+            <span className="font-bold text-slate-950">Service location:</span>{" "}
+            {summaryValue(customerInformation.shippingRegion)},{" "}
+            {summaryValue(customerInformation.shippingState)}
+          </p>
+        </div>
+      </section>
+    </>
   );
 }

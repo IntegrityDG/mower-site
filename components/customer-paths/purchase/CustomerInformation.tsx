@@ -14,6 +14,12 @@ export default function CustomerInformation({
 }: CustomerInformationProps) {
   const hasName = Boolean(values.fullName.trim());
   const hasContact = Boolean(values.email.trim() || values.phone.trim());
+  const hasLocation = Boolean(
+    values.shippingAddress.trim() &&
+      values.shippingZip.trim() &&
+      values.shippingState.trim() &&
+      values.shippingRegion.trim()
+  );
 
   return (
     <div>
@@ -22,13 +28,12 @@ export default function CustomerInformation({
       </p>
 
       <h3 className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
-        Add contact and shipping details.
+        Add contact details and confirm the delivery location.
       </h3>
 
       <p className="mt-4 max-w-3xl leading-7 text-slate-600">
-        Your selected homepage location is carried into this request. Provide
-        your name and at least one contact method so the next step can be
-        prepared.
+        Provide your name and at least one contact method. You can also confirm
+        or adjust the delivery or installation address before submitting.
       </p>
 
       <div className="mt-7 grid gap-6 md:grid-cols-2">
@@ -77,6 +82,45 @@ export default function CustomerInformation({
           />
         </div>
 
+        <div className="md:col-span-2">
+          <label
+            className="text-base font-bold text-slate-950"
+            htmlFor="shipping-address"
+          >
+            Delivery or installation address
+          </label>
+
+          <input
+            id="shipping-address"
+            type="text"
+            value={values.shippingAddress}
+            onChange={(event) =>
+              onChange("shippingAddress", event.target.value)
+            }
+            className={inputClassName}
+            autoComplete="street-address"
+          />
+        </div>
+
+        <div>
+          <label
+            className="text-base font-bold text-slate-950"
+            htmlFor="shipping-zip"
+          >
+            ZIP code
+          </label>
+
+          <input
+            id="shipping-zip"
+            type="text"
+            value={values.shippingZip}
+            onChange={(event) => onChange("shippingZip", event.target.value)}
+            className={inputClassName}
+            autoComplete="postal-code"
+            inputMode="numeric"
+          />
+        </div>
+
         <div>
           <label
             className="text-base font-bold text-slate-950"
@@ -95,7 +139,7 @@ export default function CustomerInformation({
           />
         </div>
 
-        <div className="md:col-span-2">
+        <div>
           <label
             className="text-base font-bold text-slate-950"
             htmlFor="shipping-region"
@@ -117,6 +161,13 @@ export default function CustomerInformation({
         <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950">
           Full name is required. Please provide either an email address or a
           phone number before continuing.
+        </div>
+      )}
+
+      {!hasLocation && (
+        <div className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950">
+          Delivery or installation address, ZIP code, state, and service-area
+          region are required before submitting.
         </div>
       )}
     </div>

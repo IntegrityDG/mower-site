@@ -10,6 +10,25 @@ import type {
   CatalogProduct,
   ProductBuildSelection,
 } from "@/lib/catalog/types";
+import {
+  YARBO_CORE_ABSENT_NOTICE,
+  YARBO_CORE_EQUIPMENT_DESCRIPTION,
+  YARBO_INCLUDED_PLATFORM_EQUIPMENT,
+  YARBO_MODULE_ONLY_NOTICE,
+  YARBO_PACKAGE_GROUPS,
+  groupYarboPackages,
+  isYarboProduct,
+  selectedYarboIndividualModules,
+  yarboCoreIsSelected,
+  yarboIndividualModules,
+  yarboOptionDisplayName,
+  yarboPackageBestFit,
+  yarboPackageDisplayName,
+  yarboPackageModuleNames,
+  yarboPackageMowerType,
+  type YarboPackageGroupKey,
+  type YarboPurchaseMode,
+} from "@/lib/catalog/yarbo";
 
 type ProductConfigurationProps = {
   product: CatalogProduct;
@@ -17,6 +36,8 @@ type ProductConfigurationProps = {
   onSelectVariant: (variantId: string) => void;
   onSelectPackage: (packageId: string) => void;
   onChangeOptionQuantity: (optionId: string, quantity: number) => void;
+  onSelectPurchaseMode: (mode: YarboPurchaseMode) => void;
+  onToggleBaseProduct: (selected: boolean) => void;
 };
 
 const packageFilters = [
@@ -31,7 +52,8 @@ const packageFilters = [
 function packageMatchesFilter(catalogPackage: CatalogPackage, filter: string) {
   if (filter === "all") return true;
 
-  const searchable = `${catalogPackage.name} ${catalogPackage.description ?? ""}`.toLowerCase();
+  const searchable =
+    `${catalogPackage.name} ${catalogPackage.description ?? ""}`.toLowerCase();
 
   if (filter === "pro") return searchable.includes("pro");
   if (filter === "mower") {
@@ -69,7 +91,6 @@ function groupAppliesToVariant(
   return true;
 }
 
-
 function optionGroupIsBuiltIntoVariant(
   product: CatalogProduct,
   group: CatalogOptionGroup
@@ -94,7 +115,428 @@ export default function ProductConfiguration({
   onSelectVariant,
   onSelectPackage,
   onChangeOptionQuantity,
+  onSelectPurchaseMode,
+  onToggleBaseProduct,
 }: ProductConfigurationProps) {
+  if (isYarboProduct(product)) {
+    return (
+      <YarboConfiguration
+        product={product}
+        selection={selection}
+        onSelectPackage={onSelectPackage}
+        onChangeOptionQuantity={onChangeOptionQuantity}
+        onSelectPurchaseMode={onSelectPurchaseMode}
+        onToggleBaseProduct={onToggleBaseProduct}
+      />
+    );
+  }
+
+  return (
+    <StandardProductConfiguration
+      product={product}
+      selection={selection}
+      onSelectVariant={onSelectVariant}
+      onSelectPackage={onSelectPackage}
+      onChangeOptionQuantity={onChangeOptionQuantity}
+    />
+  );
+}
+
+function YarboConfiguration({
+  product,
+  selection,
+  onSelectPackage,
+  onChangeOptionQuantity,
+  onSelectPurchaseMode,
+  onToggleBaseProduct,
+}: Omit<ProductConfigurationProps, "onSelectVariant">) {
+  const [activeGroup, setActiveGroup] = useState<
+    YarboPackageGroupKey | "all"
+  >("all");
+  const groupedPackages = groupYarboPackages(product.packages);
+  const visibleGroups =
+    activeGroup === "all"
+      ? groupedPackages
+      : groupedPackages.filter((group) => group.key === activeGroup);
+  const modules = yarboIndividualModules(product);
+  const coreSelected = yarboCoreIsSelected(selection);
+  const selectedModules = selectedYarboIndividualModules(product, selection);
+  const modulesWithoutCore = selectedModules.length > 0 && !coreSelected;
+  const individualMode = selection.purchaseMode === "individual-equipment";
+  const completeMode = selection.purchaseMode === "complete-system";
+
+  function selectPackage(packageId: string) {
+    onSelectPurchaseMode("complete-system");
+    onSelectPackage(packageId);
+  }
+
+  function toggleCore() {
+    onSelectPurchaseMode("individual-equipment");
+    onToggleBaseProduct(!coreSelected);
+  }
+
+  function toggleModule(option: CatalogOption) {
+    const selected = selectedModules.some(
+      ({ option: selectedOption }) => selectedOption.id === option.id
+    );
+
+    onSelectPurchaseMode("individual-equipment");
+    onChangeOptionQuantity(option.id, selected ? 0 : 1);
+  }
+
+  return (
+    <div>
+      <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+        Yarbo Equipment
+      </p>
+
+      <h3 className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
+        Choose a complete system or individual Yarbo equipment.
+      </h3>
+
+      <p className="mt-4 max-w-4xl leading-7 text-slate-600">
+        Complete systems use the selected package price. Individual equipment
+        requests price the Yarbo Core and each selected module as separate
+        standalone lines.
+      </p>
+
+      <div className="mt-7 grid gap-4 md:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => onSelectPurchaseMode("complete-system")}
+          aria-pressed={completeMode}
+          className={`rounded-[2rem] border p-5 text-left transition ${
+            completeMode
+              ? "border-emerald-700 bg-emerald-50 shadow-lg"
+              : "border-slate-300 bg-white hover:border-emerald-500"
+          }`}
+        >
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+            Complete Yarbo Systems
+          </p>
+          <p className="mt-2 text-xl font-black text-slate-950">
+            Core plus included modules in one package price
+          </p>
+          <p className="mt-2 leading-6 text-slate-600">
+            Choose one of the active Yarbo packages. Package-item modules are
+            included in the package price and are not charged separately.
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSelectPurchaseMode("individual-equipment")}
+          aria-pressed={individualMode}
+          className={`rounded-[2rem] border p-5 text-left transition ${
+            individualMode
+              ? "border-emerald-700 bg-emerald-50 shadow-lg"
+              : "border-slate-300 bg-white hover:border-emerald-500"
+          }`}
+        >
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+            Individual Yarbo Equipment
+          </p>
+          <p className="mt-2 text-xl font-black text-slate-950">
+            Select Core and modules manually
+          </p>
+          <p className="mt-2 leading-6 text-slate-600">
+            Choose Yarbo Core, one or more modules, or both. Manual selections
+            are not converted into package discounts.
+          </p>
+        </button>
+      </div>
+
+      <section id="complete-yarbo-systems" className="mt-9">
+        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-5 md:p-7">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+                Complete Yarbo Systems
+              </p>
+              <h4 className="mt-2 text-2xl font-black text-slate-950">
+                Choose one complete package.
+              </h4>
+              <p className="mt-2 max-w-4xl leading-7 text-slate-600">
+                {YARBO_CORE_EQUIPMENT_DESCRIPTION} Package prices are shown as
+                current catalog package prices without calculated savings.
+              </p>
+            </div>
+            <span className="w-fit rounded-full bg-slate-950 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white">
+              {product.packages.length} packages
+            </span>
+          </div>
+
+          <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
+            <button
+              type="button"
+              onClick={() => setActiveGroup("all")}
+              className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold transition ${
+                activeGroup === "all"
+                  ? "bg-slate-950 text-white"
+                  : "border border-slate-300 bg-white text-slate-700 hover:border-emerald-500"
+              }`}
+            >
+              All Systems
+            </button>
+            {YARBO_PACKAGE_GROUPS.map((group) => (
+              <button
+                key={group.key}
+                type="button"
+                onClick={() => setActiveGroup(group.key)}
+                className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold transition ${
+                  activeGroup === group.key
+                    ? "bg-slate-950 text-white"
+                    : "border border-slate-300 bg-white text-slate-700 hover:border-emerald-500"
+                }`}
+              >
+                {group.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-7 space-y-8">
+            {visibleGroups.map((group) => (
+              <div key={group.key}>
+                <div className="mb-4">
+                  <h5 className="text-xl font-black text-slate-950">
+                    {group.label}
+                  </h5>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    {group.description}
+                  </p>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-2">
+                  {group.packages.map((catalogPackage) => {
+                    const isSelected = catalogPackage.id === selection.packageId;
+                    const moduleNames = yarboPackageModuleNames(catalogPackage);
+
+                    return (
+                      <button
+                        key={catalogPackage.id}
+                        type="button"
+                        onClick={() => selectPackage(catalogPackage.id)}
+                        aria-pressed={isSelected}
+                        className={`rounded-[1.5rem] border p-5 text-left transition ${
+                          isSelected
+                            ? "border-emerald-700 bg-white shadow-lg"
+                            : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
+                              Complete System
+                            </p>
+                            <h6 className="mt-2 text-xl font-black text-slate-950">
+                              {yarboPackageDisplayName(catalogPackage)}
+                            </h6>
+                          </div>
+                          <p className="text-xl font-black text-emerald-700">
+                            {priceLabel(catalogPackage)}
+                          </p>
+                        </div>
+
+                        {catalogPackage.description && (
+                          <p className="mt-3 leading-6 text-slate-600">
+                            {catalogPackage.description.replaceAll(
+                              "Leaf Blower",
+                              "Blower"
+                            )}
+                          </p>
+                        )}
+
+                        <div className="mt-4 grid gap-4 border-t border-slate-200 pt-4 text-sm sm:grid-cols-2">
+                          <div>
+                            <p className="font-black text-slate-950">
+                              Mower distinction
+                            </p>
+                            <p className="mt-1 text-slate-600">
+                              {yarboPackageMowerType(catalogPackage)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="font-black text-slate-950">
+                              Best fit
+                            </p>
+                            <p className="mt-1 text-slate-600">
+                              {yarboPackageBestFit(catalogPackage)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 border-t border-emerald-200 pt-4">
+                          <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">
+                            Included Equipment
+                          </p>
+                          <ul className="mt-2 space-y-1 text-sm font-semibold text-slate-700">
+                            {YARBO_INCLUDED_PLATFORM_EQUIPMENT.map((item) => (
+                              <li key={`${catalogPackage.id}-${item}`}>
+                                {item}
+                              </li>
+                            ))}
+                            {moduleNames.map((name) => (
+                              <li key={`${catalogPackage.id}-${name}`}>
+                                {name}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="individual-yarbo-equipment" className="mt-8">
+        <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-5 md:p-7">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+                Individual Yarbo Equipment
+              </p>
+              <h4 className="mt-2 text-2xl font-black text-slate-950">
+                Select standalone Yarbo equipment.
+              </h4>
+              <p className="mt-2 max-w-4xl leading-7 text-slate-600">
+                Individual selections use standalone product and module prices.
+                Existing Yarbo owners can request modules without adding a
+                second Core.
+              </p>
+            </div>
+            <span className="w-fit rounded-full bg-slate-950 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white">
+              Max one each
+            </span>
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <button
+              type="button"
+              onClick={toggleCore}
+              aria-pressed={coreSelected}
+              className={`rounded-[1.5rem] border p-5 text-left transition ${
+                coreSelected && individualMode
+                  ? "border-emerald-700 bg-white shadow-lg"
+                  : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
+                    Core Platform
+                  </p>
+                  <h5 className="mt-2 text-xl font-black text-slate-950">
+                    Yarbo Core
+                  </h5>
+                  <p className="mt-2 leading-6 text-slate-600">
+                    The base Yarbo platform for customers assembling a custom
+                    system or purchasing the Core by itself.
+                  </p>
+                </div>
+                <span
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-sm font-black ${
+                    coreSelected && individualMode
+                      ? "border-emerald-700 bg-emerald-700 text-white"
+                      : "border-slate-400 bg-white text-transparent"
+                  }`}
+                >
+                  ✓
+                </span>
+              </div>
+              <p className="mt-4 text-lg font-black text-emerald-700">
+                {priceLabel(product)}
+              </p>
+            </button>
+
+            {modules.map((option) => {
+              const isSelected = selectedModules.some(
+                ({ option: selectedOption }) => selectedOption.id === option.id
+              );
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => toggleModule(option)}
+                  aria-pressed={isSelected}
+                  className={`rounded-[1.5rem] border p-5 text-left transition ${
+                    isSelected && individualMode
+                      ? "border-emerald-700 bg-white shadow-lg"
+                      : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
+                        Module Only
+                      </p>
+                      <h5 className="mt-2 text-xl font-black text-slate-950">
+                        {yarboOptionDisplayName(option)}
+                      </h5>
+                      <p className="mt-2 leading-6 text-slate-600">
+                        {option.description?.replaceAll(
+                          "Leaf Blower",
+                          "Blower"
+                        ) ?? "Compatible Yarbo module."}
+                      </p>
+                    </div>
+                    <span
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-sm font-black ${
+                        isSelected && individualMode
+                          ? "border-emerald-700 bg-emerald-700 text-white"
+                          : "border-slate-400 bg-white text-transparent"
+                      }`}
+                    >
+                      ✓
+                    </span>
+                  </div>
+                  <p className="mt-4 text-lg font-black text-emerald-700">
+                    {priceLabel(option)}
+                  </p>
+                  <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-950">
+                    {YARBO_MODULE_ONLY_NOTICE}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {individualMode && !coreSelected && selectedModules.length === 0 && (
+            <p className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-bold leading-6 text-amber-950">
+              Select Yarbo Core, at least one module, or a complete system
+              package before continuing.
+            </p>
+          )}
+
+          {modulesWithoutCore && (
+            <p className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-bold leading-6 text-amber-950">
+              {YARBO_CORE_ABSENT_NOTICE}
+            </p>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function StandardProductConfiguration({
+  product,
+  selection,
+  onSelectVariant,
+  onSelectPackage,
+  onChangeOptionQuantity,
+}: Pick<
+  ProductConfigurationProps,
+  | "product"
+  | "selection"
+  | "onSelectVariant"
+  | "onSelectPackage"
+  | "onChangeOptionQuantity"
+>) {
   const [packageFilter, setPackageFilter] = useState("all");
 
   const selectedVariant =
@@ -431,11 +873,11 @@ export default function ProductConfiguration({
                         Included Equipment
                       </p>
                       <div className="mt-2 space-y-1 text-sm font-semibold text-slate-700">
-                        <p>✓ Yarbo Core</p>
+                        <p>{product.name}</p>
                         {catalogPackage.items.map((item) => (
                           <p key={`${catalogPackage.id}-${item.optionId}`}>
-                            ✓ {item.option?.name ?? "Catalog option"}
-                            {item.quantity > 1 ? ` × ${item.quantity}` : ""}
+                            {item.option?.name ?? "Catalog option"}
+                            {item.quantity > 1 ? ` x ${item.quantity}` : ""}
                           </p>
                         ))}
                       </div>
@@ -458,7 +900,7 @@ export default function ProductConfiguration({
             Selected Package
           </p>
           <p className="mt-2 text-xl font-black text-slate-950">
-            {selectedPackage.name} — {priceLabel(selectedPackage)}
+            {selectedPackage.name} - {priceLabel(selectedPackage)}
           </p>
           <p className="mt-2 leading-7 text-slate-700">
             Modules already included in this package are marked below and will
@@ -503,7 +945,7 @@ export default function ProductConfiguration({
                         className="rounded-2xl border border-emerald-200 bg-white p-5"
                       >
                         <p className="font-black text-slate-950">
-                          ✓ {option.name}
+                          {option.name}
                         </p>
                         <p className="mt-2 text-sm leading-6 text-slate-600">
                           {option.description}

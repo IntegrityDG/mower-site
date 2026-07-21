@@ -2,22 +2,38 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { formatCents } from "@/lib/catalog/pricing";
 import {
   productBuildIsComplete,
   resolveBuildSelection,
   resolveServiceSelections,
   selectedOptionNames,
 } from "@/lib/catalog/selection";
+import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import type {
+  CatalogProduct,
   CatalogResponse,
   CatalogService,
   ProductBuildSelection,
   ServiceSelection as SelectedService,
 } from "@/lib/catalog/types";
+import {
+  getRegionOptionsForState,
+  isLocalServiceEligible,
+} from "@/lib/customer-paths/service-eligibility";
 import type {
   CustomerInformationValues,
   PurchaseMethodKey,
 } from "@/lib/products/types";
+import {
+  YARBO_CORE_ABSENT_NOTICE,
+  YARBO_INCLUDED_PLATFORM_EQUIPMENT,
+  isYarboModuleOption,
+  isYarboProduct,
+  yarboOptionDisplayName,
+  yarboPackageDisplayName,
+  type YarboPurchaseMode,
+} from "@/lib/catalog/yarbo";
 
 import CustomerInformation from "./CustomerInformation";
 import ProductConfiguration from "./ProductConfiguration";
@@ -27,14 +43,15 @@ import PurchaseSummary from "./PurchaseSummary";
 import ServiceSelection from "./ServiceSelection";
 
 type NationwidePurchaseFlowProps = {
-  selectedState: string;
-  selectedRegion: string;
+  selectedState?: string;
+  selectedRegion?: string;
 };
 
 type StageKey =
-  | "introduction"
   | "product"
   | "configuration"
+  | "review"
+  | "location"
   | "services"
   | "purchase"
   | "customer"
@@ -46,19 +63,76 @@ const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
 
 const stages: { key: StageKey; label: string }[] = [
-  { key: "introduction", label: "Introduction" },
-  { key: "product", label: "Machine Info" },
-  { key: "configuration", label: "Packages & Options" },
-  { key: "services", label: "Services & Plans" },
-  { key: "purchase", label: "Purchase" },
-  { key: "customer", label: "Customer" },
-  { key: "summary", label: "Summary" },
+  { key: "product", label: "Browse Equipment" },
+  { key: "configuration", label: "Select Equipment" },
+  { key: "review", label: "Review Equipment" },
+  { key: "location", label: "Availability" },
+  { key: "services", label: "Eligible Services" },
+  { key: "purchase", label: "Subtotal & Financing" },
+  { key: "customer", label: "Contact" },
+  { key: "summary", label: "Request" },
 ];
 
 const purchaseMethodLabels: Record<PurchaseMethodKey, string> = {
   "pay-in-full": "Pay in full",
   "hearth-financing": "Explore financing through Hearth",
 };
+
+const quoteSubmitErrorMessage =
+  "Unable to submit this request right now. Please try again or contact IDS directly.";
+
+const states = [
+  "Alabama",
+  "Alaska",
+  "Arizona",
+  "Arkansas",
+  "California",
+  "Colorado",
+  "Connecticut",
+  "Delaware",
+  "Florida",
+  "Georgia",
+  "Hawaii",
+  "Idaho",
+  "Illinois",
+  "Indiana",
+  "Iowa",
+  "Kansas",
+  "Kentucky",
+  "Louisiana",
+  "Maine",
+  "Maryland",
+  "Massachusetts",
+  "Michigan",
+  "Minnesota",
+  "Mississippi",
+  "Missouri",
+  "Montana",
+  "Nebraska",
+  "Nevada",
+  "New Hampshire",
+  "New Jersey",
+  "New Mexico",
+  "New York",
+  "North Carolina",
+  "North Dakota",
+  "Ohio",
+  "Oklahoma",
+  "Oregon",
+  "Pennsylvania",
+  "Rhode Island",
+  "South Carolina",
+  "South Dakota",
+  "Tennessee",
+  "Texas",
+  "Utah",
+  "Vermont",
+  "Virginia",
+  "Washington",
+  "West Virginia",
+  "Wisconsin",
+  "Wyoming",
+];
 
 const emptyBuildSelection: ProductBuildSelection = {
   variantId: "",
@@ -67,9 +141,9 @@ const emptyBuildSelection: ProductBuildSelection = {
 };
 
 export default function NationwidePurchaseFlow({
-  selectedState,
-  selectedRegion,
-}: NationwidePurchaseFlowProps) {
+  selectedState = "",
+  selectedRegion = "",
+}: NationwidePurchaseFlowProps = {}) {
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [catalogError, setCatalogError] = useState("");
   const [catalogLoading, setCatalogLoading] = useState(true);
@@ -89,6 +163,8 @@ export default function NationwidePurchaseFlow({
       fullName: "",
       email: "",
       phone: "",
+      shippingAddress: "",
+      shippingZip: "",
       shippingState: selectedState,
       shippingRegion: selectedRegion,
     });
@@ -103,14 +179,7 @@ export default function NationwidePurchaseFlow({
       setCatalogError("");
 
       try {
-        const response = await fetch("/api/catalog", { cache: "no-store" });
-        const payload = (await response.json()) as CatalogResponse & {
-          error?: string;
-        };
-
-        if (!response.ok) {
-          throw new Error(payload.error ?? "Unable to load the catalog.");
-        }
+        const payload = await fetchCatalog();
 
         if (!cancelled) setCatalog(payload);
       } catch (error) {
@@ -149,14 +218,42 @@ export default function NationwidePurchaseFlow({
       null,
     [catalog, selectedProductId]
   );
+  const locationComplete = Boolean(
+    customerInformation.shippingAddress.trim() &&
+      customerInformation.shippingZip.trim() &&
+      customerInformation.shippingState.trim() &&
+      customerInformation.shippingRegion.trim()
+  );
+  const localServiceEligible =
+    locationComplete &&
+    isLocalServiceEligible(
+      customerInformation.shippingState,
+      customerInformation.shippingRegion
+    );
+  const availableServices = useMemo(
+    () =>
+      selectedProduct?.services.filter(
+        (service) => !service.requiresLocalService || localServiceEligible
+      ) ?? [],
+    [selectedProduct, localServiceEligible]
+  );
+  const eligibleServiceSelections = useMemo(() => {
+    const availableServiceIds = new Set(
+      availableServices.map((service) => service.id)
+    );
+
+    return serviceSelections.filter((selection) =>
+      availableServiceIds.has(selection.serviceId)
+    );
+  }, [availableServices, serviceSelections]);
 
   const buildComplete = Boolean(
     selectedProduct && productBuildIsComplete(selectedProduct, buildSelection)
   );
   const selectedServicesComplete = Boolean(
     !selectedProduct ||
-      serviceSelections.every((selection) => {
-        const service = selectedProduct.services.find(
+      eligibleServiceSelections.every((selection) => {
+        const service = availableServices.find(
           (item) => item.id === selection.serviceId
         );
         if (!service) return false;
@@ -168,19 +265,41 @@ export default function NationwidePurchaseFlow({
   );
   const customerInformationComplete = Boolean(
     customerInformation.fullName.trim() &&
-      (customerInformation.email.trim() || customerInformation.phone.trim()) &&
-      customerInformation.shippingState.trim() &&
-      customerInformation.shippingRegion.trim()
+      (customerInformation.email.trim() || customerInformation.phone.trim())
   );
 
   const currentStageComplete =
-    activeStage.key === "introduction" ||
     (activeStage.key === "product" && Boolean(selectedProductId)) ||
     (activeStage.key === "configuration" && buildComplete) ||
+    (activeStage.key === "review" && buildComplete) ||
+    (activeStage.key === "location" && locationComplete) ||
     (activeStage.key === "services" && selectedServicesComplete) ||
     (activeStage.key === "purchase" && Boolean(selectedPurchaseMethod)) ||
-    (activeStage.key === "customer" && customerInformationComplete) ||
+    (activeStage.key === "customer" &&
+      customerInformationComplete &&
+      locationComplete) ||
     activeStage.key === "summary";
+
+  useEffect(() => {
+    if (!selectedProduct) return;
+
+    const availableServiceIds = new Set(
+      availableServices.map((service) => service.id)
+    );
+
+    setServiceSelections((currentSelections) =>
+      currentSelections.filter((selection) =>
+        availableServiceIds.has(selection.serviceId)
+      )
+    );
+  }, [
+    availableServices,
+    customerInformation.shippingAddress,
+    customerInformation.shippingRegion,
+    customerInformation.shippingState,
+    customerInformation.shippingZip,
+    selectedProduct,
+  ]);
 
   function updateCustomerInformation(
     field: keyof CustomerInformationValues,
@@ -190,6 +309,16 @@ export default function NationwidePurchaseFlow({
       ...currentInformation,
       [field]: value,
     }));
+
+    if (
+      field === "shippingAddress" ||
+      field === "shippingZip" ||
+      field === "shippingState" ||
+      field === "shippingRegion"
+    ) {
+      setSubmitStatus("idle");
+      setSubmitError("");
+    }
   }
 
   function handleProductSelect(productId: string) {
@@ -239,6 +368,18 @@ export default function NationwidePurchaseFlow({
     const selectedPackage = selectedProduct?.packages.find(
       (catalogPackage) => catalogPackage.id === packageId
     );
+
+    if (selectedProduct && isYarboProduct(selectedProduct)) {
+      setBuildSelection((currentSelection) => ({
+        ...currentSelection,
+        packageId,
+        purchaseMode: "complete-system",
+        includeBaseProduct: false,
+        optionQuantities: {},
+      }));
+      return;
+    }
+
     const includedOptionIds = new Set(
       selectedPackage?.items.map((item) => item.optionId) ?? []
     );
@@ -255,16 +396,73 @@ export default function NationwidePurchaseFlow({
   }
 
   function handleOptionQuantityChange(optionId: string, quantity: number) {
+    const option = selectedProduct
+      ? [
+          ...selectedProduct.optionGroups.flatMap((group) => group.options),
+          ...selectedProduct.ungroupedOptions,
+        ].find((item) => item.id === optionId)
+      : null;
+    const maximum =
+      selectedProduct &&
+      option &&
+      isYarboProduct(selectedProduct) &&
+      isYarboModuleOption(option)
+        ? 1
+        : option?.maximumQuantity ?? Number.POSITIVE_INFINITY;
+    const normalizedQuantity = Math.min(
+      maximum,
+      Math.max(0, Math.trunc(quantity))
+    );
+
     setBuildSelection((currentSelection) => ({
       ...currentSelection,
+      ...(selectedProduct && isYarboProduct(selectedProduct)
+        ? { packageId: "", purchaseMode: "individual-equipment" as const }
+        : {}),
       optionQuantities: {
         ...currentSelection.optionQuantities,
-        [optionId]: Math.max(0, Math.trunc(quantity)),
+        [optionId]: normalizedQuantity,
       },
     }));
   }
 
+  function handleSelectPurchaseMode(mode: YarboPurchaseMode) {
+    setBuildSelection((currentSelection) => ({
+      ...currentSelection,
+      packageId: mode === "complete-system" ? currentSelection.packageId : "",
+      purchaseMode: mode,
+      includeBaseProduct:
+        mode === "individual-equipment"
+          ? Boolean(currentSelection.includeBaseProduct)
+          : false,
+      optionQuantities:
+        mode === "individual-equipment"
+          ? currentSelection.optionQuantities
+          : {},
+    }));
+  }
+
+  function handleToggleBaseProduct(selected: boolean) {
+    setBuildSelection((currentSelection) => ({
+      ...currentSelection,
+      packageId: "",
+      purchaseMode: "individual-equipment",
+      includeBaseProduct: selected,
+    }));
+  }
+
   function handleToggleService(service: CatalogService) {
+    if (
+      service.requiresLocalService &&
+      (!locationComplete || !localServiceEligible)
+    ) {
+      return;
+    }
+
+    if (!availableServices.some((item) => item.id === service.id)) {
+      return;
+    }
+
     setServiceSelections((currentSelections) => {
       const isSelected = currentSelections.some(
         (selection) => selection.serviceId === service.id
@@ -311,7 +509,7 @@ export default function NationwidePurchaseFlow({
   }
 
   async function submitRequest() {
-    if (!selectedProduct || !selectedPurchaseMethod) return;
+    if (!selectedProduct || !selectedPurchaseMethod || !locationComplete) return;
 
     setSubmitStatus("submitting");
     setSubmitError("");
@@ -319,13 +517,48 @@ export default function NationwidePurchaseFlow({
     const build = resolveBuildSelection(selectedProduct, buildSelection);
     const services = resolveServiceSelections(
       selectedProduct,
-      serviceSelections
+      eligibleServiceSelections
     );
-    const primaryConfiguration =
+    const selectedProductIsYarbo = isYarboProduct(selectedProduct);
+    const selectedYarboPackage = selectedProductIsYarbo
+      ? build.selectedPackage
+      : null;
+    const yarboIndividualItems = selectedProductIsYarbo
+      ? [
+          ...(build.yarboCoreSelected ? [selectedProduct.name] : []),
+          ...build.selectedOptions.map(({ option, quantity }) =>
+            quantity > 1
+              ? `${yarboOptionDisplayName(option)} x ${quantity}`
+              : yarboOptionDisplayName(option)
+          ),
+        ]
+      : [];
+    const yarboIncludedPackageItems = selectedYarboPackage
+      ? [
+          ...YARBO_INCLUDED_PLATFORM_EQUIPMENT,
+          ...build.packageIncludedItems.map((item) =>
+            item.option ? yarboOptionDisplayName(item.option) : "Yarbo module"
+          ),
+        ]
+      : [];
+    const yarboModulesWithoutCore =
+      selectedProductIsYarbo &&
+      build.isYarboIndividualEquipment &&
+      !build.yarboCoreSelected &&
+      build.selectedOptions.length > 0;
+    const defaultConfiguration =
       build.selectedPackage?.name ??
       build.selectedVariant?.name ??
       selectedProduct.name;
-    const extraOptionNames = selectedOptionNames(build.selectedOptions);
+    const primaryConfiguration =
+      selectedYarboPackage
+        ? yarboPackageDisplayName(selectedYarboPackage)
+        : selectedProductIsYarbo && build.isYarboIndividualEquipment
+          ? "Individual Yarbo Equipment"
+          : defaultConfiguration;
+    const extraOptionNames = selectedProductIsYarbo
+      ? yarboIndividualItems
+      : selectedOptionNames(build.selectedOptions);
     const serviceNames = services.services.map(({ service, paymentOption }) =>
       paymentOption
         ? `${service.name} — ${paymentOption.name}`
@@ -334,21 +567,37 @@ export default function NationwidePurchaseFlow({
     const purchaseMethodLabel = purchaseMethodLabels[selectedPurchaseMethod];
 
     const requestSummary = [
-      "NATIONWIDE EQUIPMENT PURCHASE REQUEST",
+      selectedProductIsYarbo
+        ? selectedYarboPackage
+          ? "YARBO COMPLETE SYSTEM REQUEST"
+          : "YARBO INDIVIDUAL EQUIPMENT REQUEST"
+        : "NATIONWIDE EQUIPMENT PURCHASE REQUEST",
       `Machine: ${selectedProduct.name}`,
-      `Configuration/package: ${primaryConfiguration}`,
-      build.packageIncludedItems.length
-        ? `Package includes: Base machine/core, ${build.packageIncludedItems
-            .map((item) => item.option?.name ?? "Catalog option")
-            .join(", ")}`
+      selectedYarboPackage
+        ? `Complete system: ${primaryConfiguration}`
+        : `Configuration/package: ${primaryConfiguration}`,
+      selectedYarboPackage
+        ? `Included equipment: ${yarboIncludedPackageItems.join(", ")}`
+        : build.packageIncludedItems.length
+          ? `Package includes: Base machine/core, ${build.packageIncludedItems
+              .map((item) => item.option?.name ?? "Catalog option")
+              .join(", ")}`
+          : null,
+      selectedYarboPackage
+        ? "No separate Core charge or package-item module charges are included."
         : null,
-      extraOptionNames.length
-        ? `Added modules/accessories: ${extraOptionNames.join(", ")}`
-        : "Added modules/accessories: None",
+      selectedProductIsYarbo && build.isYarboIndividualEquipment
+        ? `Selected individual equipment: ${yarboIndividualItems.join(", ")}`
+        : extraOptionNames.length
+          ? `Added modules/accessories: ${extraOptionNames.join(", ")}`
+          : "Added modules/accessories: None",
+      yarboModulesWithoutCore ? YARBO_CORE_ABSENT_NOTICE : null,
       serviceNames.length
         ? `Services/plans: ${serviceNames.join(", ")}`
         : "Services/plans: Equipment only",
       `Purchase preference: ${purchaseMethodLabel}`,
+      `Delivery or installation address: ${customerInformation.shippingAddress}`,
+      `ZIP code: ${customerInformation.shippingZip}`,
       `Shipping location: ${customerInformation.shippingRegion}, ${customerInformation.shippingState}`,
       `Configured equipment estimate: $${(
         build.equipmentTotalCents / 100
@@ -375,26 +624,41 @@ export default function NationwidePurchaseFlow({
             ? "Email"
             : "Phone",
           propertyType: "Nationwide equipment purchase request",
-          propertySize: `${customerInformation.shippingRegion}, ${customerInformation.shippingState}`,
+          propertySize: `${customerInformation.shippingAddress}, ${customerInformation.shippingRegion}, ${customerInformation.shippingState} ${customerInformation.shippingZip}`,
           obstacleLevel: null,
           weedEating: null,
           purchaseType: purchaseMethodLabel,
           interests: ["Equipment purchase", ...serviceNames],
           terrain: [],
           priorities: ["Catalog configuration request"],
-          productInterest: [
-            selectedProduct.name,
-            primaryConfiguration,
-            ...extraOptionNames,
-          ],
+          productInterest: selectedProductIsYarbo
+            ? [selectedProduct.name, primaryConfiguration, ...yarboIndividualItems]
+            : [
+                selectedProduct.name,
+                primaryConfiguration,
+                ...extraOptionNames,
+              ],
           autoSuggestion: serviceNames,
           extraNotes: requestSummary,
         }),
       });
-      const payload = (await response.json()) as { error?: string };
+      const contentType = response.headers.get("content-type") ?? "";
+      const isJson = contentType.toLowerCase().includes("application/json");
+
+      if (!isJson) {
+        throw new Error(quoteSubmitErrorMessage);
+      }
+
+      let payload: { error?: string };
+
+      try {
+        payload = (await response.json()) as { error?: string };
+      } catch {
+        throw new Error(quoteSubmitErrorMessage);
+      }
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "The request could not be submitted.");
+        throw new Error(payload.error ?? quoteSubmitErrorMessage);
       }
 
       setSubmitStatus("success");
@@ -409,37 +673,6 @@ export default function NationwidePurchaseFlow({
   }
 
   function renderStage() {
-    if (activeStage.key === "introduction") {
-      return (
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-            Nationwide Purchasing
-          </p>
-
-          <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-            Compare machines and build a complete order request.
-          </h2>
-
-          <div className="mt-5 max-w-4xl space-y-4 text-lg leading-8 text-slate-600">
-            <p>
-              Review detailed information for every machine, choose the exact
-              configuration or package, add compatible modules and accessories,
-              and select any setup or property-management services you need.
-            </p>
-            <p>
-              This process prepares a complete request for IDS review. No
-              payment is collected here, and hands-on services remain subject
-              to regional availability.
-            </p>
-          </div>
-
-          <div className="mt-8 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-950">
-            Selected location: {selectedRegion}, {selectedState}.
-          </div>
-        </div>
-      );
-    }
-
     if (activeStage.key === "product") {
       return (
         <ProductSelection
@@ -458,6 +691,28 @@ export default function NationwidePurchaseFlow({
           onSelectVariant={handleSelectVariant}
           onSelectPackage={handleSelectPackage}
           onChangeOptionQuantity={handleOptionQuantityChange}
+          onSelectPurchaseMode={handleSelectPurchaseMode}
+          onToggleBaseProduct={handleToggleBaseProduct}
+        />
+      );
+    }
+
+    if (activeStage.key === "review" && selectedProduct) {
+      return (
+        <EquipmentSelectionReview
+          selectedProduct={selectedProduct}
+          buildSelection={buildSelection}
+        />
+      );
+    }
+
+    if (activeStage.key === "location") {
+      return (
+        <LocationAvailabilityCheck
+          values={customerInformation}
+          locationComplete={locationComplete}
+          localServiceEligible={localServiceEligible}
+          onChange={updateCustomerInformation}
         />
       );
     }
@@ -466,9 +721,11 @@ export default function NationwidePurchaseFlow({
       return (
         <ServiceSelection
           product={selectedProduct}
-          selectedServices={serviceSelections}
-          selectedState={selectedState}
-          selectedRegion={selectedRegion}
+          availableServices={availableServices}
+          selectedServices={eligibleServiceSelections}
+          selectedState={customerInformation.shippingState}
+          selectedRegion={customerInformation.shippingRegion}
+          localServiceEligible={localServiceEligible}
           onToggleService={handleToggleService}
           onSelectPaymentOption={handleSelectPaymentOption}
         />
@@ -499,7 +756,7 @@ export default function NationwidePurchaseFlow({
         <PurchaseSummary
           selectedProduct={selectedProduct}
           buildSelection={buildSelection}
-          serviceSelections={serviceSelections}
+          serviceSelections={eligibleServiceSelections}
           purchaseMethodLabel={
             selectedPurchaseMethod
               ? purchaseMethodLabels[selectedPurchaseMethod]
@@ -553,7 +810,7 @@ export default function NationwidePurchaseFlow({
   return (
     <div className="overflow-hidden rounded-[2rem] border border-slate-300 bg-white shadow-xl">
       <div className="border-b border-slate-200 bg-slate-50 p-5 md:p-7">
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
           {stages.map((stage, index) => {
             const isActive = index === stageIndex;
             const isComplete = index < stageIndex;
@@ -609,6 +866,279 @@ export default function NationwidePurchaseFlow({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function EquipmentSelectionReview({
+  selectedProduct,
+  buildSelection,
+}: {
+  selectedProduct: CatalogProduct;
+  buildSelection: ProductBuildSelection;
+}) {
+  const build = resolveBuildSelection(selectedProduct, buildSelection);
+  const selectedProductIsYarbo = isYarboProduct(selectedProduct);
+  const selectedTitle =
+    selectedProductIsYarbo && build.selectedPackage
+      ? yarboPackageDisplayName(build.selectedPackage)
+      : build.selectedPackage?.name ??
+        build.selectedVariant?.name ??
+        (build.isYarboIndividualEquipment
+          ? "Individual Yarbo Equipment"
+          : selectedProduct.name);
+
+  return (
+    <div>
+      <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+        Equipment Review
+      </p>
+
+      <h3 className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
+        Review the equipment selection before checking availability.
+      </h3>
+
+      <p className="mt-4 max-w-4xl leading-7 text-slate-600">
+        Your machine, package, attachment, accessory, or individual equipment
+        selection is saved. Next, enter the delivery or installation location so
+        IDS can show only services available for that location.
+      </p>
+
+      <div className="mt-7 grid gap-5 lg:grid-cols-2">
+        <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+            Selected Equipment
+          </p>
+          <p className="mt-2 text-2xl font-black text-slate-950">
+            {selectedTitle}
+          </p>
+          <p className="mt-2 leading-7 text-slate-600">
+            {selectedProduct.name}
+          </p>
+          <p className="mt-4 text-2xl font-black text-emerald-700">
+            {formatCents(build.equipmentTotalCents)}
+            {build.hasUnpricedEquipment ? " + quote-required items" : ""}
+          </p>
+        </section>
+
+        <section className="rounded-[2rem] border border-emerald-200 bg-emerald-50 p-6">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+            Pricing Behavior
+          </p>
+          <p className="mt-2 leading-7 text-slate-700">
+            {selectedProductIsYarbo && build.selectedPackage
+              ? "Complete Yarbo systems use the selected package price only. The Core and package-item module prices are not added separately."
+              : selectedProductIsYarbo && build.isYarboIndividualEquipment
+                ? "Individual Yarbo equipment uses standalone line-item prices for the Core and selected modules."
+                : "Equipment pricing uses the selected machine, package, variant, and visible add-on lines."}
+          </p>
+        </section>
+
+        {build.priceItems.length > 0 && (
+          <section className="rounded-[2rem] border border-slate-300 bg-white p-6 lg:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+              Visible Equipment Lines
+            </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {build.priceItems.map((item) => (
+                <div
+                  key={item.name}
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <p className="font-black text-slate-950">
+                      {item.name}
+                      {item.quantity > 1 ? ` x ${item.quantity}` : ""}
+                    </p>
+                    <p className="font-black text-emerald-700">
+                      {item.priceCents === null
+                        ? "Contact for pricing"
+                        : formatCents(item.priceCents * item.quantity)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {build.selectedPackage && build.packageIncludedItems.length > 0 && (
+          <section className="rounded-[2rem] border border-slate-300 bg-white p-6 lg:col-span-2">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+              Included Package Equipment
+            </p>
+            <div className="mt-3 grid gap-2 text-sm font-semibold leading-6 text-slate-700 md:grid-cols-2">
+              {selectedProductIsYarbo &&
+                YARBO_INCLUDED_PLATFORM_EQUIPMENT.map((item) => (
+                  <p key={item}>{item}</p>
+                ))}
+              {build.packageIncludedItems.map((item) => (
+                <p key={item.optionId}>
+                  {item.option
+                    ? selectedProductIsYarbo
+                      ? yarboOptionDisplayName(item.option)
+                      : item.option.name
+                    : "Catalog option"}
+                  {item.quantity > 1 ? ` x ${item.quantity}` : ""}
+                </p>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LocationAvailabilityCheck({
+  values,
+  locationComplete,
+  localServiceEligible,
+  onChange,
+}: {
+  values: CustomerInformationValues;
+  locationComplete: boolean;
+  localServiceEligible: boolean;
+  onChange: (field: keyof CustomerInformationValues, value: string) => void;
+}) {
+  const availableRegions = values.shippingState
+    ? getRegionOptionsForState(values.shippingState)
+    : [];
+
+  return (
+    <div>
+      <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+        Check service and delivery availability
+      </p>
+
+      <h3 className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
+        Enter the installation or delivery address.
+      </h3>
+
+      <p className="mt-4 max-w-4xl leading-7 text-slate-600">
+        Enter the installation or delivery address so we can show the services
+        available for your location. Equipment sales and remote support may be
+        available nationwide.
+      </p>
+
+      <div className="mt-7 grid gap-6 md:grid-cols-2">
+        <div className="md:col-span-2">
+          <label
+            className="text-base font-bold text-slate-950"
+            htmlFor="availability-address"
+          >
+            Delivery or installation address
+          </label>
+          <input
+            id="availability-address"
+            type="text"
+            value={values.shippingAddress}
+            onChange={(event) =>
+              onChange("shippingAddress", event.target.value)
+            }
+            className="mt-3 w-full rounded-2xl border border-slate-300 bg-white px-4 py-4 text-base text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            autoComplete="street-address"
+          />
+        </div>
+
+        <div>
+          <label
+            className="text-base font-bold text-slate-950"
+            htmlFor="availability-zip"
+          >
+            ZIP code
+          </label>
+          <input
+            id="availability-zip"
+            type="text"
+            value={values.shippingZip}
+            onChange={(event) => onChange("shippingZip", event.target.value)}
+            className="mt-3 w-full rounded-2xl border border-slate-300 bg-white px-4 py-4 text-base text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            autoComplete="postal-code"
+            inputMode="numeric"
+          />
+        </div>
+
+        <div>
+          <label
+            className="text-base font-bold text-slate-950"
+            htmlFor="availability-state"
+          >
+            State
+          </label>
+          <select
+            id="availability-state"
+            value={values.shippingState}
+            onChange={(event) => {
+              onChange("shippingState", event.target.value);
+              onChange("shippingRegion", "");
+            }}
+            className="mt-3 w-full rounded-2xl border border-slate-300 bg-white px-4 py-4 text-base text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            autoComplete="address-level1"
+          >
+            <option value="">Choose a state</option>
+            {states.map((state) => (
+              <option key={state} value={state}>
+                {state}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="md:col-span-2">
+          <p className="text-base font-bold text-slate-950">
+            Service area region
+          </p>
+          {values.shippingState ? (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {availableRegions.map((region) => {
+                const selected = values.shippingRegion === region;
+
+                return (
+                  <button
+                    key={region}
+                    type="button"
+                    onClick={() => onChange("shippingRegion", region)}
+                    aria-pressed={selected}
+                    className={`rounded-2xl border px-4 py-4 text-sm font-bold transition ${
+                      selected
+                        ? "border-emerald-700 bg-emerald-700 text-white shadow-md"
+                        : "border-slate-300 bg-slate-50 text-slate-700 hover:border-emerald-500 hover:bg-white"
+                    }`}
+                  >
+                    {region}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-slate-500">
+              Choose a state to see service-area regions.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {locationComplete && (
+        <div
+          className={`mt-7 rounded-2xl border px-5 py-4 text-sm font-semibold leading-6 ${
+            localServiceEligible
+              ? "border-emerald-200 bg-emerald-50 text-emerald-950"
+              : "border-amber-200 bg-amber-50 text-amber-950"
+          }`}
+        >
+          {localServiceEligible
+            ? "Professional installation, deployment, delivery support, and local service plans can be shown for this location."
+            : "Local-only installation, deployment, delivery support, and service plans will not be shown for this location. Equipment sales and remote support may still be available nationwide."}
+        </div>
+      )}
+
+      {!locationComplete && (
+        <div className="mt-7 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-semibold leading-6 text-amber-950">
+          Enter the address, ZIP code, state, and service-area region before
+          continuing to services.
+        </div>
+      )}
     </div>
   );
 }

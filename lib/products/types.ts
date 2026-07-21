@@ -140,6 +140,8 @@ export type CustomerInformationValues = {
   fullName: string;
   email: string;
   phone: string;
+  shippingAddress: string;
+  shippingZip: string;
   shippingState: string;
   shippingRegion: string;
 };

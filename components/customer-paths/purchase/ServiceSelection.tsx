@@ -9,9 +9,11 @@ import type {
 
 type ServiceSelectionProps = {
   product: CatalogProduct;
+  availableServices: CatalogService[];
   selectedServices: SelectedService[];
   selectedState: string;
   selectedRegion: string;
+  localServiceEligible: boolean;
   onToggleService: (service: CatalogService) => void;
   onSelectPaymentOption: (serviceId: string, paymentOptionId: string) => void;
 };
@@ -24,16 +26,21 @@ function billingLabel(billingType: string) {
 
 export default function ServiceSelection({
   product,
+  availableServices,
   selectedServices,
   selectedState,
   selectedRegion,
+  localServiceEligible,
   onToggleService,
   onSelectPaymentOption,
 }: ServiceSelectionProps) {
-  const recurringServices = product.services.filter(
+  const hiddenLocalServices = product.services.filter(
+    (service) => service.requiresLocalService && !localServiceEligible
+  );
+  const recurringServices = availableServices.filter(
     (service) => service.paymentOptions.length > 0
   );
-  const oneTimeServices = product.services.filter(
+  const oneTimeServices = availableServices.filter(
     (service) => service.paymentOptions.length === 0
   );
 
@@ -105,9 +112,8 @@ export default function ServiceSelection({
 
         {service.requiresLocalService && (
           <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
-            Hands-on availability must be confirmed for {selectedRegion},{" "}
-            {selectedState}. Selecting it adds an availability request; it does
-            not guarantee service outside the IDS service area.
+            This hands-on service is shown because the checked delivery or
+            installation location is eligible: {selectedRegion}, {selectedState}.
           </div>
         )}
 
@@ -191,10 +197,24 @@ export default function ServiceSelection({
       </h3>
 
       <p className="mt-4 max-w-4xl leading-7 text-slate-600">
-        Services are optional. Nationwide customers can choose remote guidance,
-        while hands-on deployment, care, storage, and property-management
-        services require regional availability confirmation.
+        Services are optional. This list is filtered for the delivery or
+        installation location you entered, so local-only delivery,
+        installation, deployment, and service plans are shown only when they
+        are available for that location.
       </p>
+
+      {localServiceEligible ? (
+        <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold leading-6 text-emerald-950">
+          Professional installation and local support are available for{" "}
+          {selectedRegion}, {selectedState}.
+        </div>
+      ) : (
+        <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-semibold leading-6 text-amber-950">
+          Professional installation and local support are not shown for this
+          location. Equipment sales and remote support may still be available
+          nationwide.
+        </div>
+      )}
 
       {recurringServices.length > 0 && (
         <section className="mt-8">
@@ -230,10 +250,19 @@ export default function ServiceSelection({
         </section>
       )}
 
-      {product.services.length === 0 && (
+      {hiddenLocalServices.length > 0 && (
+        <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-sm leading-6 text-slate-700">
+          {hiddenLocalServices.length} local-only service{" "}
+          {hiddenLocalServices.length === 1 ? "option is" : "options are"} not
+          shown because the current delivery or installation location is
+          outside the IDS local service area.
+        </div>
+      )}
+
+      {availableServices.length === 0 && (
         <div className="mt-8 rounded-2xl border border-slate-300 bg-slate-50 p-6 text-slate-700">
-          No services are currently linked to this machine. You can still
-          continue with an equipment-only request.
+          No eligible services are currently available for this machine and
+          location. You can still continue with an equipment-only request.
         </div>
       )}
     </div>

@@ -1,30 +1,35 @@
 import { Resend } from "resend";
 
-const apiKey = process.env.RESEND_API_KEY;
+let resend: Resend | null = null;
 
-if (!apiKey) {
-  throw new Error("RESEND_API_KEY is missing.");
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY is missing.");
+  }
+
+  resend ??= new Resend(apiKey);
+
+  return resend;
 }
 
-const resend = new Resend(apiKey);
-
 export async function sendLeadEmail(content: string) {
-  console.log("sendLeadEmail called");
-  console.log("NOTIFY_EMAIL:", process.env.NOTIFY_EMAIL);
+  const notifyEmail = process.env.NOTIFY_EMAIL;
 
-  const result = await resend.emails.send({
+  if (!notifyEmail) {
+    throw new Error("NOTIFY_EMAIL is missing.");
+  }
+
+  const result = await getResendClient().emails.send({
     from: "onboarding@resend.dev",
-    to: process.env.NOTIFY_EMAIL!,
+    to: notifyEmail,
     subject: "New Mower Lead",
     text: content,
   });
 
-  console.log("Resend raw result:", result);
-
   if ("error" in result && result.error) {
-    throw new Error(
-      `Resend error: ${result.error.message || JSON.stringify(result.error)}`
-    );
+    throw new Error("Resend failed to send lead email.");
   }
 
   return result;

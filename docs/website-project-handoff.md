@@ -1,6 +1,6 @@
 # Mower Site Shutdown Handoff
 
-Checkpoint updated: **2026-07-16 CDT (UTC-05:00, America/Chicago)**
+Checkpoint updated: **2026-07-20 CDT (UTC-05:00, America/Chicago)**
 Project root: `C:\Users\Danie\mower-site`
 Git branch: `catalog-backend`
 Configured upstream: `origin/catalog-backend`
@@ -125,7 +125,7 @@ Important equipment and purchasing components:
 
 - `components/equipment/CatalogHeader.tsx` — catalog introduction and builder CTA.
 - `components/equipment/EquipmentCatalog.tsx` — product cards and name-classified equipment tabs.
-- `components/customer-paths/purchase/NationwidePurchaseFlow.tsx` — seven-stage quote-oriented system builder.
+- `components/customer-paths/purchase/NationwidePurchaseFlow.tsx` — browse-first quote-oriented equipment request flow.
 - `components/customer-paths/purchase/ProductSelection.tsx` — mower selection.
 - `components/customer-paths/purchase/ProductConfiguration.tsx` — required variant plus compatible option selection.
 - `components/customer-paths/purchase/ProductDetailsModal.tsx` — in-builder catalog details.
@@ -141,23 +141,74 @@ Catalog header, product-card, product-detail, “Ask a Question,” and compatib
 
 `/#location-and-customer-path`
 
-That anchor returns the customer to the homepage location/path gate. It does not preserve the originating product or accessory, so the customer must select the machine again.
+That anchor returns the customer to the homepage equipment request flow. The customer can browse and select equipment before entering a delivery or installation address. The originating product or accessory is not preserved from external catalog CTAs yet, so the customer must select the machine again inside the request flow.
 
-Only the Nationwide path currently launches the working builder. Local Services and Guided Recommendation end at a disabled “Continue — Next Section Coming” placeholder.
+The old region-first homepage gate is no longer customer-facing. `LocationPathSelector` and the local-services/recommendation placeholder path components remain in the codebase, but the homepage now prioritizes equipment browsing, featured machines, complete systems/packages, installation/support information, and the browse-first request flow.
 
-The Nationwide flow has seven stages:
+The request flow has eight stages:
 
-1. Introduction
-2. Machine Info
-3. Packages & Options
-4. Services & Plans
-5. Purchase
-6. Customer
-7. Summary
+1. Browse Equipment
+2. Select Equipment
+3. Review Equipment
+4. Availability
+5. Eligible Services
+6. Subtotal & Financing
+7. Contact
+8. Request
+
+The Availability stage collects delivery or installation address, ZIP code, state, and service-area region after equipment selection. Service eligibility is recalculated from that location before services are shown.
+
+Local-only delivery, installation, deployment, on-site setup, service agreements, property-management plans, demonstrations, travel, and mileage-based services are filtered out unless `isLocalServiceEligible` confirms the checked location is in the IDS local service area. If the customer changes the address/ZIP/state/region after selecting services, ineligible local service selections are pruned and do not remain in totals or request submission payloads.
 
 It submits a quote request through `/api/quote-request`; it does not take online payment. The related security migration is `supabase/migrations/20260715_secure_quote_requests.sql` and must be applied before public deployment of the quote-request flow.
 
 For Lymow, the customer chooses the 5A or 10A mower variant. The application suppresses the legacy `lymow-charger-config` group, treats it as satisfied by the selected variant, and filters `defines_variant` options from selectable/priced add-ons. No second charger question is intended.
+
+### Yarbo frontend merchandising and purchase structure
+
+The approved Yarbo frontend structure is implemented locally without SQL execution, without Supabase modification, without pricing changes, and without package-item relationship changes.
+
+Yarbo now has two customer paths in the purchase flow:
+
+1. Complete Yarbo Systems
+2. Individual Yarbo Equipment
+
+Complete Yarbo Systems:
+
+- All 23 active Yarbo packages are displayed.
+- Packages are grouped in frontend logic as Mowing Systems, Mower Pro Systems, Snow Systems, Cleanup and Trimming Systems, Multi-Season Systems, and Full Property-Care Systems.
+- Grouping is inferred from stable Yarbo package slugs, package-item module relationships, and fallback package/module naming logic in `lib/catalog/yarbo.ts`.
+- The selected package current price is the complete system equipment price.
+- The Yarbo Core product price is not added separately.
+- Package-item module prices are not added separately.
+- Package cards and summaries show Yarbo Core, Core charging equipment, Core navigation/RTK equipment, and included modules as included equipment.
+- Package savings claims are disabled. Do not display "Save" amounts until IDS approves package-price comparison rules.
+
+Individual Yarbo Equipment:
+
+- Customers can request Yarbo Core only, modules only, Yarbo Core plus modules, or multiple different modules together.
+- The flow does not require a package for individual Yarbo equipment.
+- Manual individual selections are not converted into packages and do not receive package discounts.
+- Individual pricing is line-item based: Yarbo Core uses the product current price when selected, and modules use their option current prices.
+- Module quantities are clamped to one in frontend state.
+- Duplicate order lines for the same module are prevented by the option-quantity map and 0/1 toggle UI.
+- Standard Lawn Mower Module and Lawn Mower Pro Module are not blocked from being selected together as individual equipment.
+- Module cards and summary lines show: Module only — requires a Yarbo Core to operate.
+- If modules are selected without Core, the flow and summary show: Yarbo Core is not included. These modules require an existing Yarbo Core to operate.
+
+Yarbo equipment page behavior:
+
+- `/equipment/yarbo` renders a Yarbo-specific page with platform introduction, Complete Yarbo Systems, package category navigation, Individual Yarbo Equipment, Core-required ownership guidance, warranty/support guidance, and purchase/request CTAs.
+- The Yarbo page does not use "Build Your System" wording for its own CTAs. It routes customers to complete systems or individual equipment first, then to the homepage browse-first equipment request flow.
+- Public catalog module cards use the approved customer-facing "Blower Module" wording and show the Core-required warning.
+
+Remaining Yarbo work:
+
+- Do not execute `supabase/seeds/yarbo-catalog-proposal.sql` without separate IDS approval.
+- The SQL proposal remains review-only and must be revised/approved separately before any database copy/status/quantity updates are applied.
+- IDS still needs to confirm all 23 package prices are intentional complete-system prices including exactly one Yarbo Core, all listed modules, Core charging equipment, and Core navigation/RTK equipment.
+- Savings claims remain disabled until IDS approves whether savings should compare against regular retail, active standalone sale prices, or an explicit stored savings field.
+- Snow Plow Blade and Tow Hitch remain hidden until IDS separately approves compatibility, sales classification, package relationships, and use cases.
 
 ## Manufacturer sync architecture
 
@@ -353,16 +404,16 @@ The first sandboxed build attempt failed only because Google Fonts could not be 
 
 - This checkpoint is a coherent work-in-progress snapshot, **not a public-release approval**.
 - `lib/catalog/pricing.ts` formats currency with zero fractional digits, so cent-priced items such as `$29.99` display rounded. Preserve cents before public release.
-- `/api/catalog` currently returns raw Supabase query error messages to the client. Log detailed failures server-side and return a generic public error before release.
-- The shared server-only Supabase client uses the privileged server credential for both catalog reads and quote writes. The key is not exposed, but RLS is bypassed inside those routes; route validation is therefore the trust boundary.
+- `/api/catalog` uses the Supabase anon key for public catalog reads and returns a generic JSON error if the catalog cannot load.
+- Quote-request writes still use the server-side service-role client inside `/api/quote-request`; route validation is therefore the trust boundary.
 - `/api/quote-request` has no CAPTCHA/rate limit, and free-form notes/selection arrays need explicit abuse-size review before deployment.
 - Required service/option flags and option-group maximum selections are not fully enforced. Current code can treat an empty service set as complete and labels services optional.
-- Package cards contain a hardcoded “Yarbo Core” included-item label, which becomes incorrect if another brand gains packages.
+- Generic non-Yarbo package cards continue to use the shared package layout and show the selected product name as the included base line; Yarbo uses a Yarbo-specific included-equipment list.
 - Package items can fall back to a generic “Catalog option” label when they reference an option excluded from the active API normalization.
 - A contact-priced-only build can display `$0 + items requiring a quote`, which should be replaced with clearer contact-pricing language before release.
-- Equipment CTAs do not preserve the product/accessory selection when returning to the homepage builder gate.
+- Equipment CTAs do not preserve the product/accessory selection when returning to the homepage equipment request flow.
 - “Ask a Question” and “Add when building your system” currently use the same builder anchor.
-- Local Services and Guided Recommendation are placeholder paths; only Nationwide is operational.
+- Legacy Local Services and Guided Recommendation placeholder components remain in the codebase but are no longer customer-facing entry points on the homepage.
 - `/equipment/[slug]` is client-only and does not return a server 404 for an unknown slug.
 - Catalog and detail views refetch the full dynamic catalog without pagination or caching.
 - Option category placement is inferred from the option name.
@@ -387,9 +438,9 @@ Local ZIP-extraction notes `INSTALL.txt` and `UPDATE-INSTRUCTIONS.txt` are devel
 
 ## Exact recommended next task
 
-**Begin Yarbo catalog review and proposal.**
+**Yarbo approval follow-up.**
 
-Do not begin Pandag, checkout, payment, financing, or demo-scheduling work as part of that task.
+Review the implemented Yarbo frontend behavior with IDS, confirm package price composition for all 23 complete systems, revise or approve the review-only Yarbo SQL separately if database copy/status/quantity updates should be applied, and keep savings claims disabled until IDS approves exact savings rules.
 
 ## Important commands
 

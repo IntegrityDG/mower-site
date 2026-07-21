@@ -150,6 +150,8 @@ export type ProductBuildSelection = {
   variantId: string;
   packageId: string;
   optionQuantities: Record<string, number>;
+  purchaseMode?: "complete-system" | "individual-equipment";
+  includeBaseProduct?: boolean;
 };
 
 export type ServiceSelection = {

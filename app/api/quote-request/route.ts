@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseServiceClient } from "@/lib/supabase";
 import { sendLeadEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
@@ -41,28 +41,30 @@ export async function POST(req: Request) {
       );
     }
 
-    const { error } = await supabase.from("quote_requests").insert([
-      {
-        name,
-        phone,
-        email,
-        contact: phone || email,
-        preferred_contact_method: preferredContactMethod,
-        property_type: propertyType,
-        interests: interests.length ? interests : null,
-        property_size: propertySize,
-        terrain: terrain.length ? terrain : null,
-        obstacle_level: obstacleLevel,
-        fence_row: weedEating,
-        priorities: priorities.length ? priorities : null,
-        product_interest: productInterest.length ? productInterest : null,
-        purchase_type: purchaseType,
-        extra_notes: extraNotes,
-        auto_suggestion: autoSuggestion.length ? autoSuggestion : null,
-        property_details: extraNotes,
-        status: "new",
-      },
-    ]);
+    const { error } = await getSupabaseServiceClient()
+      .from("quote_requests")
+      .insert([
+        {
+          name,
+          phone,
+          email,
+          contact: phone || email,
+          preferred_contact_method: preferredContactMethod,
+          property_type: propertyType,
+          interests: interests.length ? interests : null,
+          property_size: propertySize,
+          terrain: terrain.length ? terrain : null,
+          obstacle_level: obstacleLevel,
+          fence_row: weedEating,
+          priorities: priorities.length ? priorities : null,
+          product_interest: productInterest.length ? productInterest : null,
+          purchase_type: purchaseType,
+          extra_notes: extraNotes,
+          auto_suggestion: autoSuggestion.length ? autoSuggestion : null,
+          property_details: extraNotes,
+          status: "new",
+        },
+      ]);
 
     if (error) {
       console.error("Supabase error:", error);
@@ -97,9 +99,7 @@ export async function POST(req: Request) {
       .join("\n");
 
     try {
-      console.log("About to send email...");
       await sendLeadEmail(summary);
-      console.log("Email send finished.");
     } catch (emailError) {
       console.error("Email error:", emailError);
     }

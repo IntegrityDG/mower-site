@@ -7,7 +7,7 @@ import type {
   CatalogResponse,
   CatalogService,
 } from "@/lib/catalog/types";
-import { supabase } from "@/lib/supabase";
+import { getSupabaseCatalogClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +64,8 @@ function ensureData<T>(
 
 export async function GET() {
   try {
+    const supabase = getSupabaseCatalogClient();
+
     const [
       productsResult,
       variantsResult,
@@ -377,15 +379,22 @@ export async function GET() {
       },
     });
   } catch (error) {
-    console.error("Catalog API error:", error);
+    if (process.env.NODE_ENV === "development") {
+      console.error("Catalog API error:", error);
+    } else {
+      console.error("Catalog API error");
+    }
+
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to load the product catalog.",
+        error: "The equipment catalog is temporarily unavailable.",
       },
-      { status: 500 }
+      {
+        status: 503,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   }
 }

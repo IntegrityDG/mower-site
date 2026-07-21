@@ -1,48 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import CustomerPathStage from "@/components/customer-paths/CustomerPathStage";
-import LocationPathSelector from "@/components/LocationPathSelector";
-import type { CustomerPath, Region } from "@/lib/customer-paths/types";
+import NationwidePurchaseFlow from "@/components/customer-paths/purchase/NationwidePurchaseFlow";
 
 const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
 
 export default function Page() {
-  const [selectedState, setSelectedState] = useState("");
-  const [selectedRegion, setSelectedRegion] = useState<Region>("");
-  const [selectedPath, setSelectedPath] = useState<CustomerPath | "">("");
-
-  function handleStateChange(state: string) {
-    setSelectedState(state);
-    setSelectedRegion("");
-    setSelectedPath("");
-  }
-
-  function handleRegionChange(region: Region) {
-    setSelectedRegion(region);
-    setSelectedPath("");
-  }
-
-  function handlePathSelect(path: CustomerPath) {
-    setSelectedPath(path);
-  }
-
-  useEffect(() => {
-    if (!selectedPath) return;
-
-    const scrollTimer = window.setTimeout(() => {
-      document.getElementById("selected-path-section")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }, 150);
-
-    return () => window.clearTimeout(scrollTimer);
-  }, [selectedPath]);
-
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950">
       {/* HEADER */}
@@ -199,24 +164,135 @@ export default function Page() {
           </div>
         </section>
 
-        {/* LOCATION AND CUSTOMER PATH */}
-        <div id="location-and-customer-path">
-        <LocationPathSelector
-          selectedState={selectedState}
-          selectedRegion={selectedRegion}
-          selectedPath={selectedPath}
-          onStateChange={handleStateChange}
-          onRegionChange={handleRegionChange}
-          onPathSelect={handlePathSelect}
-        />
-        </div>
+        {/* FEATURED EQUIPMENT */}
+        <section className="bg-white px-6 py-20 md:px-10">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+                  Featured Machines
+                </p>
+                <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
+                  Browse equipment before checking availability.
+                </h2>
+                <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+                  Compare residential equipment, commercial equipment, complete
+                  systems, packages, attachments, accessories, and individual
+                  equipment first. Location is checked after you select what you
+                  want to review.
+                </p>
+              </div>
+              <Link
+                href="/equipment"
+                className="rounded-2xl bg-slate-950 px-7 py-4 text-center font-black text-white transition hover:bg-emerald-700"
+              >
+                Browse Equipment Catalog
+              </Link>
+            </div>
 
-        {/* SELECTED PATH */}
-        <CustomerPathStage
-          selectedState={selectedState}
-          selectedRegion={selectedRegion}
-          selectedPath={selectedPath}
-        />
+            <div className="mt-10 grid gap-6 lg:grid-cols-3">
+              {[
+                {
+                  label: "Residential Equipment",
+                  title: "Lymow One Plus",
+                  text: "Tracked virtual-boundary mowing for complex residential lawns, with configurations and compatible equipment available to review before location entry.",
+                  href: "/equipment/lymow-one-plus",
+                },
+                {
+                  label: "Complete Systems and Packages",
+                  title: "Yarbo",
+                  text: "A modular outdoor platform with Complete Yarbo Systems and Individual Yarbo Equipment shown as separate customer paths.",
+                  href: "/equipment/yarbo",
+                },
+                {
+                  label: "Commercial Equipment",
+                  title: "Pandag G1",
+                  text: "Commercial autonomous mowing equipment for larger and more demanding properties, preserved as a browsable catalog option.",
+                  href: "/equipment/pandag-g1",
+                },
+              ].map((item) => (
+                <article
+                  key={item.title}
+                  className="rounded-[2rem] border border-slate-200 bg-slate-50 p-7"
+                >
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
+                    {item.label}
+                  </p>
+                  <h3 className="mt-4 text-2xl font-black text-slate-950">
+                    {item.title}
+                  </h3>
+                  <p className="mt-4 leading-7 text-slate-600">{item.text}</p>
+                  <Link
+                    href={item.href}
+                    className="mt-6 inline-flex font-black text-emerald-700 hover:text-emerald-600"
+                  >
+                    View Details -&gt;
+                  </Link>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* INSTALLATION AND SUPPORT */}
+        <section className="border-y border-slate-300 bg-slate-100 px-6 py-20 md:px-10">
+          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.95fr_1.05fr]">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+                Installation and Support
+              </p>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
+                Services appear only after the location check.
+              </h2>
+              <p className="mt-5 text-lg leading-8 text-slate-600">
+                Professional installation and local support are available within
+                our service area. Equipment sales and remote support may be
+                available nationwide.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {[
+                "Browse public equipment without entering a ZIP.",
+                "Select a machine, package, module, attachment, or accessory.",
+                "Enter the delivery or installation address after selection.",
+                "See only eligible delivery, deployment, installation, and service-plan options.",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-2xl border border-slate-300 bg-white p-5 font-bold leading-7 text-slate-700"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* EQUIPMENT REQUEST FLOW */}
+        <section
+          id="location-and-customer-path"
+          className="scroll-mt-6 px-6 py-20 md:px-10"
+        >
+          <div className="mx-auto max-w-6xl">
+            <div className="mx-auto mb-10 max-w-3xl text-center">
+              <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
+                Request Information
+              </p>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
+                Start with equipment, then check service and delivery
+                availability.
+              </h2>
+              <p className="mt-5 text-lg leading-8 text-slate-600">
+                The request flow keeps equipment browsing first. Location is
+                used later to determine which local services, delivery options,
+                setup options, and support plans can be shown.
+              </p>
+            </div>
+
+            <NationwidePurchaseFlow />
+          </div>
+        </section>
       </main>
 
       {/* FOOTER */}
