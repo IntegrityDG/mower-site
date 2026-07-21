@@ -124,6 +124,10 @@ export default function EquipmentCatalog() {
         <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {catalog.products.map((product) => {
             const yarboProduct = isYarboProduct(product);
+            const bestFitGuidance =
+              product.slug === "lymow-one-plus"
+                ? product.customerGuidance
+                : product.propertyScale ?? product.customerGuidance;
 
             return (
               <article
@@ -149,9 +153,9 @@ export default function EquipmentCatalog() {
                   <p className="mt-3 flex-1 leading-7 text-slate-600">
                     {product.homepageSummary ?? product.fullDescription}
                   </p>
-                  {product.propertyScale && product.slug !== "lymow-one-plus" && (
+                  {bestFitGuidance && (
                     <p className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-900">
-                      Best fit: {product.propertyScale}
+                      Best fit: {bestFitGuidance}
                     </p>
                   )}
                   <div className="mt-5">
