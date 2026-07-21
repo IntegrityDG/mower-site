@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
 import type {
   CatalogOption,
@@ -332,9 +333,10 @@ function YarboConfiguration({
                               {yarboPackageDisplayName(catalogPackage)}
                             </h6>
                           </div>
-                          <p className="text-xl font-black text-emerald-700">
-                            {priceLabel(catalogPackage)}
-                          </p>
+                          <YarboPriceDisplay
+                            item={catalogPackage}
+                            priceClassName="text-xl font-black text-emerald-700"
+                          />
                         </div>
 
                         {catalogPackage.description && (
@@ -447,9 +449,11 @@ function YarboConfiguration({
                   ✓
                 </span>
               </div>
-              <p className="mt-4 text-lg font-black text-emerald-700">
-                {priceLabel(product)}
-              </p>
+              <YarboPriceDisplay
+                item={product}
+                className="mt-4"
+                priceClassName="text-lg font-black text-emerald-700"
+              />
             </button>
 
             {modules.map((option) => {
@@ -494,9 +498,11 @@ function YarboConfiguration({
                       ✓
                     </span>
                   </div>
-                  <p className="mt-4 text-lg font-black text-emerald-700">
-                    {priceLabel(option)}
-                  </p>
+                  <YarboPriceDisplay
+                    item={option}
+                    className="mt-4"
+                    priceClassName="text-lg font-black text-emerald-700"
+                  />
                   <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-950">
                     {YARBO_MODULE_ONLY_NOTICE}
                   </p>

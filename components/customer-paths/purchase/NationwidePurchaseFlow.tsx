@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import { formatCents } from "@/lib/catalog/pricing";
 import {
   productBuildIsComplete,
@@ -950,11 +951,18 @@ function EquipmentSelectionReview({
                       {item.name}
                       {item.quantity > 1 ? ` x ${item.quantity}` : ""}
                     </p>
-                    <p className="font-black text-emerald-700">
-                      {item.priceCents === null
-                        ? "Contact for pricing"
-                        : formatCents(item.priceCents * item.quantity)}
-                    </p>
+                    {selectedProductIsYarbo ? (
+                      <YarboPriceDisplay
+                        item={item}
+                        priceClassName="font-black text-emerald-700"
+                      />
+                    ) : (
+                      <p className="font-black text-emerald-700">
+                        {item.priceCents === null
+                          ? "Contact for pricing"
+                          : formatCents(item.priceCents * item.quantity)}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}

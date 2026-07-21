@@ -100,8 +100,14 @@ export function resolveBuildSelection(
             name: baseItemName,
             quantity: 1,
             priceCents: baseItem.currentPriceCents,
+            regularPriceCents: baseItem.regularPriceCents,
+            salePriceCents: baseItem.salePriceCents,
+            currentPriceCents: baseItem.currentPriceCents,
+            showPublicPrice: baseItem.showPublicPrice,
             contactForPricing:
               baseItem.contactForPricing || !baseItem.showPublicPrice,
+            promotionLabel: baseItem.promotionLabel,
+            saleIsActive: baseItem.saleIsActive,
           },
         ]
       : []),
@@ -109,8 +115,14 @@ export function resolveBuildSelection(
       name: yarboIndividualMode ? yarboOptionDisplayName(option) : option.name,
       quantity,
       priceCents: option.currentPriceCents,
+      regularPriceCents: option.regularPriceCents,
+      salePriceCents: option.salePriceCents,
+      currentPriceCents: option.currentPriceCents,
+      showPublicPrice: option.showPublicPrice,
       contactForPricing:
         option.contactForPricing || !option.showPublicPrice,
+      promotionLabel: option.promotionLabel,
+      saleIsActive: option.saleIsActive,
     })),
   ];
 

@@ -13,6 +13,8 @@ import {
   yarboOptionDisplayName,
 } from "@/lib/catalog/yarbo";
 
+import YarboPriceDisplay from "./YarboPriceDisplay";
+
 type Filter =
   | "all"
   | "mowers"
@@ -156,9 +158,17 @@ export default function EquipmentCatalog() {
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
                       Starting at
                     </p>
-                    <p className="mt-1 text-2xl font-black text-slate-950">
-                      {priceLabel(product)}
-                    </p>
+                    {yarboProduct ? (
+                      <YarboPriceDisplay
+                        item={product}
+                        className="mt-1"
+                        priceClassName="text-2xl font-black text-slate-950"
+                      />
+                    ) : (
+                      <p className="mt-1 text-2xl font-black text-slate-950">
+                        {priceLabel(product)}
+                      </p>
+                    )}
                   </div>
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <Link
@@ -211,9 +221,16 @@ export default function EquipmentCatalog() {
                   </p>
                 )}
                 <div className="mt-5 flex items-center justify-between gap-4">
-                  <span className="font-black text-slate-950">
-                    {priceLabel(option)}
-                  </span>
+                  {yarboModule ? (
+                    <YarboPriceDisplay
+                      item={option}
+                      priceClassName="font-black text-slate-950"
+                    />
+                  ) : (
+                    <span className="font-black text-slate-950">
+                      {priceLabel(option)}
+                    </span>
+                  )}
                   <Link
                     href={`/equipment/${product.slug}#compatible-equipment`}
                     className="font-bold text-emerald-700 hover:text-emerald-600"

@@ -73,46 +73,32 @@ These rows are still incomplete in the current database snapshot, but IDS has no
 
 ## Yarbo Comparison Pricing Review
 
-Yarbo comparison display rule requested by IDS: when two approved current prices exist, show `Yarbo Everyday Price` crossed out and `IDS Everyday Price` emphasized. Do not use `Contact for Pricing` as a fallback. Inactive sale values are not treated as current IDS comparison prices without separate IDS approval.
+IDS has now approved a complete Yarbo 2026 everyday-pricing schedule for all active public Yarbo physical records: 1 product, 5 module/individual-equipment options, and 23 complete-system packages.
 
-Yarbo physical rows with comparison-ready regular plus active sale/IDS price: 5.
+Policy now approved for Yarbo physical records:
 
-| Brand | Record type | Stable slug | Customer-facing name | Regular price | IDS/sale price | Public-price visibility | Price complete? | Physical product? | Make an Offer allowed? | IDS pricing decision |
-| --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- |
-| Yarbo | Option | `yarbo-mower-module` | Lawn Mower Module (Optional Modules) | $1,299.00 | $899.00 active | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price ready: use regular as Yarbo Everyday Price and active sale/IDS as IDS Everyday Price if IDS approves labels. |
-| Yarbo | Option | `yarbo-lawn-mower-pro-module` | Lawn Mower Pro Module (Optional Modules) | $2,299.00 | $1,799.00 active | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price ready: use regular as Yarbo Everyday Price and active sale/IDS as IDS Everyday Price if IDS approves labels. |
-| Yarbo | Option | `yarbo-leaf-blower-module` | Leaf Blower Module (Optional Modules) | $1,099.00 | $949.00 active | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price ready: use regular as Yarbo Everyday Price and active sale/IDS as IDS Everyday Price if IDS approves labels. |
-| Yarbo | Option | `yarbo-snow-blower-module` | Snow Blower Module (Optional Modules) | $1,299.00 | $1,199.00 active | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price ready: use regular as Yarbo Everyday Price and active sale/IDS as IDS Everyday Price if IDS approves labels. |
-| Yarbo | Option | `yarbo-trimmer-module` | Trimmer Package (Optional Modules) | $799.00 | $699.00 active | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price ready: use regular as Yarbo Everyday Price and active sale/IDS as IDS Everyday Price if IDS approves labels. |
+- `regular_price_cents` is Yarbo Standard MSRP.
+- `sale_price_cents` is IDS Everyday Price.
+- `sale_starts_at`, `sale_ends_at`, and `promotion_label` should be null.
+- The IDS price is permanent everyday pricing, not a temporary sale.
+- When MSRP is higher than IDS price, customer-facing UI should show `Yarbo Everyday Price` crossed out and `IDS Everyday Price` emphasized.
+- When MSRP and IDS price are identical, UI should show one clean price and should not claim savings.
 
-Yarbo physical rows requiring IDS comparison-pricing review: 24.
+Review-ready artifact: `docs/yarbo-everyday-pricing-2026.md`.
 
-| Brand | Record type | Stable slug | Customer-facing name | Regular price | IDS/sale price | Public-price visibility | Price complete? | Physical product? | Make an Offer allowed? | IDS pricing decision |
-| --- | --- | --- | --- | ---: | ---: | --- | --- | --- | --- | --- |
-| Yarbo | Product | `yarbo` | Yarbo Core | $3,999.00 | $3,799.00 inactive | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price needs IDS review: sale/IDS value exists but is not currently active, so only the regular price is the current public price. |
-| Yarbo | Package | `yarbo-snow-blower` | Yarbo Snow Blower | $4,999.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-lawn-mower` | Yarbo Lawn Mower | $4,999.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-lawn-mower-pro` | Yarbo Lawn Mower Pro | $5,999.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-leaf-blower` | Yarbo Leaf Blower | $4,799.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-trimmer` | Yarbo Trimmer | $4,549.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-leaf-blower-trimmer` | Yarbo Leaf Blower + Trimmer Package | $5,549.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-lawn-mower-trimmer` | Yarbo Lawn Mower + Trimmer Package | $5,749.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-snow-blower-trimmer` | Yarbo Snow Blower + Trimmer Package | $5,749.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-lawn-mower-pro-trimmer` | Yarbo Lawn Mower Pro + Trimmer Package | $6,749.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-snow-lawn` | Yarbo Snow Blower + Lawn Mower | $6,199.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-snow-leaf` | Yarbo Snow Blower + Leaf Blower | $5,999.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-lawn-leaf` | Yarbo Lawn Mower + Leaf Blower | $5,999.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-snow-lawn-trimmer` | Yarbo Snow Blower + Lawn Mower + Trimmer Package | $6,749.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-snow-leaf-trimmer` | Yarbo Snow Blower + Leaf Blower + Trimmer Package | $6,549.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-lawn-leaf-trimmer` | Yarbo Lawn Mower + Leaf Blower + Trimmer Package | $6,549.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-pro-snow` | Yarbo Lawn Mower Pro + Snow Blower | $7,199.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-pro-leaf` | Yarbo Lawn Mower Pro + Leaf Blower | $6,999.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-pro-snow-trimmer` | Yarbo Lawn Mower Pro + Snow Blower + Trimmer Package | $7,749.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-pro-leaf-trimmer` | Yarbo Lawn Mower Pro + Leaf Blower + Trimmer Package | $7,549.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-lawn-snow-leaf` | Yarbo Lawn Mower + Snow Blower + Blower | $6,999.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-pro-snow-leaf` | Yarbo Lawn Mower Pro + Snow Blower + Blower | $7,999.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-lawn-snow-leaf-trimmer` | Yarbo Lawn Mower + Snow Blower + Blower + Trimmer Package | $7,749.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
-| Yarbo | Package | `yarbo-pro-snow-leaf-trimmer` | Yarbo Lawn Mower Pro + Snow Blower + Blower + Trimmer Package | $8,749.00 | None | show=true; contact=false | Yes | Yes | Yes | Yarbo comparison price incomplete: only one approved current price exists. IDS must approve second comparison price or approve one-price presentation before comparison UI. |
+Review-only SQL proposal: `supabase/seeds/yarbo-everyday-pricing-2026.sql`.
+
+Current local mapping result:
+
+- Expected targets: 29.
+- Matched local targets: 29.
+- Unmatched records: none.
+- Ambiguous records: none.
+- Equal MSRP/IDS rows: 11.
+- IDS-lower-than-MSRP rows: 18.
+- Proposed first dry-run updates against the current snapshot: 29 total rows, consisting of 1 `catalog_products` row, 5 `catalog_options` rows, and 23 `catalog_packages` rows.
+
+This update supersedes the earlier finding that only five Yarbo option rows were comparison-ready and that 24 Yarbo rows required a second IDS pricing decision. The remaining full active public pricing matrix below still reflects the current database snapshot at the time of the audit; the new Yarbo SQL proposal has not been executed.
 
 ## Full Active Public Pricing Matrix
 

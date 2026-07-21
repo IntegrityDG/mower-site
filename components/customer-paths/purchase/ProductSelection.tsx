@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { priceLabel } from "@/lib/catalog/pricing";
 import type { CatalogProduct } from "@/lib/catalog/types";
+import { isYarboProduct } from "@/lib/catalog/yarbo";
+import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 
 import ProductDetailsModal from "./ProductDetailsModal";
 
@@ -70,9 +72,16 @@ export default function ProductSelection({
                 >
                   {isSelected ? "Selected" : product.capabilityLevel ?? "Machine"}
                 </span>
-                <span className="text-sm font-black text-emerald-700">
-                  {priceLabel(product)}
-                </span>
+                {isYarboProduct(product) ? (
+                  <YarboPriceDisplay
+                    item={product}
+                    priceClassName="text-sm font-black text-emerald-700"
+                  />
+                ) : (
+                  <span className="text-sm font-black text-emerald-700">
+                    {priceLabel(product)}
+                  </span>
+                )}
               </div>
 
               <h4 className="mt-4 text-2xl font-black text-slate-950">

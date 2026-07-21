@@ -1,3 +1,4 @@
+import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
 import {
   resolveBuildSelection,
@@ -189,9 +190,11 @@ function YarboSummaryGrid({
           <p className="mt-2 text-2xl font-black text-slate-950">
             {yarboPackageDisplayName(selectedPackage)}
           </p>
-          <p className="mt-2 text-xl font-black text-emerald-700">
-            {priceLabel(selectedPackage)}
-          </p>
+          <YarboPriceDisplay
+            item={selectedPackage}
+            className="mt-2"
+            priceClassName="text-xl font-black text-emerald-700"
+          />
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
             No separate Core charge and no separate package-item module charges.
           </p>
@@ -206,9 +209,10 @@ function YarboSummaryGrid({
               <div className="border-b border-slate-200 pb-3">
                 <div className="flex items-start justify-between gap-4">
                   <p className="font-black text-slate-950">{selectedProduct.name}</p>
-                  <p className="font-black text-emerald-700">
-                    {priceLabel(selectedProduct)}
-                  </p>
+                  <YarboPriceDisplay
+                    item={selectedProduct}
+                    priceClassName="font-black text-emerald-700"
+                  />
                 </div>
               </div>
             )}
@@ -228,9 +232,10 @@ function YarboSummaryGrid({
                       Module only — requires a Yarbo Core to operate.
                     </p>
                   </div>
-                  <p className="font-black text-emerald-700">
-                    {optionLinePrice(option, quantity)}
-                  </p>
+                  <YarboPriceDisplay
+                    item={option}
+                    priceClassName="font-black text-emerald-700"
+                  />
                 </div>
               </div>
             ))}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
 import CatalogHeader from "@/components/equipment/CatalogHeader";
+import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import { priceLabel } from "@/lib/catalog/pricing";
 import type { CatalogOption, CatalogProduct } from "@/lib/catalog/types";
@@ -199,9 +200,10 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
                               {yarboPackageDisplayName(catalogPackage)}
                             </h4>
                           </div>
-                          <p className="text-xl font-black text-emerald-700">
-                            {priceLabel(catalogPackage)}
-                          </p>
+                          <YarboPriceDisplay
+                            item={catalogPackage}
+                            priceClassName="text-xl font-black text-emerald-700"
+                          />
                         </div>
                         {catalogPackage.description && (
                           <p className="mt-3 leading-7 text-slate-600">
@@ -293,9 +295,11 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
                   The base robot platform for complete Yarbo systems or a
                   manually assembled Core-plus-module request.
                 </p>
-                <p className="mt-4 text-xl font-black text-emerald-700">
-                  {priceLabel(product)}
-                </p>
+                <YarboPriceDisplay
+                  item={product}
+                  className="mt-4"
+                  priceClassName="text-xl font-black text-emerald-700"
+                />
               </article>
 
               {modules.map((option) => (
@@ -313,9 +317,11 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
                     {option.description?.replaceAll("Leaf Blower", "Blower") ??
                       "Compatible Yarbo module."}
                   </p>
-                  <p className="mt-4 text-xl font-black text-emerald-700">
-                    {priceLabel(option)}
-                  </p>
+                  <YarboPriceDisplay
+                    item={option}
+                    className="mt-4"
+                    priceClassName="text-xl font-black text-emerald-700"
+                  />
                   <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-950">
                     {YARBO_MODULE_ONLY_NOTICE}
                   </p>

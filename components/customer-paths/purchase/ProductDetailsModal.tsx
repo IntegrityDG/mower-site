@@ -2,8 +2,10 @@
 
 import { useEffect } from "react";
 
+import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
 import type { CatalogProduct } from "@/lib/catalog/types";
+import { isYarboProduct } from "@/lib/catalog/yarbo";
 
 type ProductDetailsModalProps = {
   product: CatalogProduct;
@@ -79,9 +81,17 @@ export default function ProductDetailsModal({
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
                 Starting Price
               </p>
-              <p className="mt-2 text-3xl font-black text-slate-950">
-                {priceLabel(product)}
-              </p>
+              {isYarboProduct(product) ? (
+                <YarboPriceDisplay
+                  item={product}
+                  className="mt-2"
+                  priceClassName="text-3xl font-black text-slate-950"
+                />
+              ) : (
+                <p className="mt-2 text-3xl font-black text-slate-950">
+                  {priceLabel(product)}
+                </p>
+              )}
               {product.packages.length > 0 && (
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   Package pricing includes the base platform and listed package
