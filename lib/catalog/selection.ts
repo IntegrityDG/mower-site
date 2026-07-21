@@ -10,6 +10,7 @@ import {
   selectedYarboIndividualModules,
   yarboCoreIsSelected,
   yarboHasIndividualSelection,
+  yarboOptionDisplayName,
 } from "./yarbo";
 
 
@@ -41,13 +42,15 @@ export function resolveBuildSelection(
     yarboProduct && selection.purchaseMode === "individual-equipment";
   const yarboCompleteSystemMode =
     yarboProduct && selection.purchaseMode === "complete-system";
-  const selectedVariant =
-    product.variants.find((variant) => variant.id === selection.variantId) ??
-    null;
-  const selectedPackage =
-    product.packages.find(
-      (catalogPackage) => catalogPackage.id === selection.packageId
-    ) ?? null;
+  const selectedVariant = yarboProduct
+    ? null
+    : product.variants.find((variant) => variant.id === selection.variantId) ??
+      null;
+  const selectedPackage = yarboIndividualMode
+    ? null
+    : product.packages.find(
+        (catalogPackage) => catalogPackage.id === selection.packageId
+      ) ?? null;
   const packageIncludedOptionIds = new Set(
     selectedPackage?.items
       .filter((item) => item.includedInPackagePrice)
@@ -79,14 +82,22 @@ export function resolveBuildSelection(
     (option) => option.isIncluded
   );
 
-  const includeBaseProduct =
-    !yarboIndividualMode || yarboCoreIsSelected(selection);
-  const baseItem = selectedPackage ?? selectedVariant ?? (includeBaseProduct ? product : null);
+  const yarboCoreSelected =
+    yarboIndividualMode && yarboCoreIsSelected(selection);
+  const includeBaseProduct = !yarboIndividualMode || yarboCoreSelected;
+  const baseItem = yarboIndividualMode
+    ? yarboCoreSelected
+      ? product
+      : null
+    : selectedPackage ?? selectedVariant ?? (includeBaseProduct ? product : null);
+  const baseItemName = yarboIndividualMode
+    ? product.name
+    : selectedPackage?.name ?? selectedVariant?.name ?? product.name;
   const priceItems = [
     ...(baseItem
       ? [
           {
-            name: selectedPackage?.name ?? selectedVariant?.name ?? product.name,
+            name: baseItemName,
             quantity: 1,
             priceCents: baseItem.currentPriceCents,
             contactForPricing:
@@ -95,7 +106,7 @@ export function resolveBuildSelection(
         ]
       : []),
     ...selectedOptions.map(({ option, quantity }) => ({
-      name: option.name,
+      name: yarboIndividualMode ? yarboOptionDisplayName(option) : option.name,
       quantity,
       priceCents: option.currentPriceCents,
       contactForPricing:
@@ -123,7 +134,7 @@ export function resolveBuildSelection(
     hasUnpricedEquipment,
     isYarboIndividualEquipment: yarboIndividualMode,
     isYarboCompleteSystem: yarboCompleteSystemMode,
-    yarboCoreSelected: yarboIndividualMode && yarboCoreIsSelected(selection),
+    yarboCoreSelected: yarboIndividualMode ? yarboCoreSelected : undefined,
   };
 }
 

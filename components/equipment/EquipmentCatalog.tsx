@@ -152,9 +152,14 @@ export default function EquipmentCatalog() {
                       Best fit: {product.propertyScale}
                     </p>
                   )}
-                  <p className="mt-5 text-xl font-black text-slate-950">
-                    {priceLabel(product)}
-                  </p>
+                  <div className="mt-5">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                      Starting at
+                    </p>
+                    <p className="mt-1 text-2xl font-black text-slate-950">
+                      {priceLabel(product)}
+                    </p>
+                  </div>
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <Link
                       href={`/equipment/${product.slug}`}
