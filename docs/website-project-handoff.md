@@ -167,7 +167,7 @@ For Lymow, the customer chooses the 5A or 10A mower variant. The application sup
 
 ### Yarbo frontend merchandising and purchase structure
 
-The approved Yarbo frontend structure is implemented locally without SQL execution, without Supabase modification, and without package-item relationship changes. A later review task added Yarbo-only customer-facing comparison-price display and a review-only 2026 Yarbo everyday-pricing SQL proposal; that SQL has not been executed.
+The approved Yarbo frontend structure is implemented without package-item relationship changes. The 2026 Yarbo everyday-pricing schedule was permanently applied on 2026-07-23 after a rollback-protected dry run: the first execution updated 29 rows, immediate verification matched all 29 exactly, and the second guarded execution updated 0 rows. Yarbo-only customer-facing comparison-price display remains in place.
 
 Yarbo now has two customer paths in the purchase flow:
 
@@ -207,9 +207,10 @@ Remaining Yarbo work:
 
 - Do not execute `supabase/seeds/yarbo-catalog-proposal.sql` without separate IDS approval.
 - The SQL proposal remains review-only and must be revised/approved separately before any database copy/status/quantity updates are applied.
-- Do not execute `supabase/seeds/yarbo-everyday-pricing-2026.sql` without separate IDS approval. It is review-only, targets 29 Yarbo physical records, uses stable slugs and package-item validation, and ends with `ROLLBACK`.
+- `supabase/seeds/yarbo-everyday-pricing-2026.sql` remains the rollback-protected audit artifact. Its approved 29-row schedule was applied permanently on 2026-07-23 using the hash-guarded runner; do not execute another permanent run without separate IDS approval.
 - IDS has approved the 2026 Yarbo everyday-pricing schedule: MSRP in `regular_price_cents`, IDS Everyday Price in `sale_price_cents`, no sale dates, and no promotion label. The approved schedule is documented in `docs/yarbo-everyday-pricing-2026.md`.
 - Savings claims remain disabled. The approved frontend language is comparison pricing only: `Yarbo Everyday Price` crossed out when higher and `IDS Everyday Price` emphasized. Equal MSRP/IDS rows show one clean price.
+- Application verification on 2026-07-23 passed for the live catalog API, lint (0 errors; 3 existing image warnings), TypeScript, and the production build.
 - Snow Plow Blade and Tow Hitch remain hidden until IDS separately approves compatibility, sales classification, package relationships, and use cases.
 
 ## Manufacturer sync architecture
@@ -442,7 +443,7 @@ Local ZIP-extraction notes `INSTALL.txt` and `UPDATE-INSTRUCTIONS.txt` are devel
 
 **Yarbo approval follow-up.**
 
-Review the implemented Yarbo frontend behavior with IDS, then separately approve or revise the two review-only Yarbo SQL proposals. `yarbo-everyday-pricing-2026.sql` handles the approved 29-row physical pricing schedule and still ends with `ROLLBACK`; `yarbo-catalog-proposal.sql` handles copy/status/quantity merchandising changes. Keep savings claims disabled and use only the approved comparison labels.
+Review the implemented Yarbo frontend behavior with IDS. The approved 29-row physical pricing schedule is live and verified; `yarbo-everyday-pricing-2026.sql` remains rollback-protected for audit and idempotency checks. `yarbo-catalog-proposal.sql` still handles separate copy/status/quantity merchandising changes and remains review-only. Keep savings claims disabled and use only the approved comparison labels.
 
 ## Important commands
 

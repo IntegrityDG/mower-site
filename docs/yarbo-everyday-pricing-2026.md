@@ -143,6 +143,20 @@ Frontend adjustment made for this review:
 - Individual modules use their own option `currentPriceCents`.
 - Package-item module prices are not added separately.
 
-## Stop Point
+## Permanent Application
 
-This is a review-ready pricing proposal only. SQL was not executed, Supabase was not modified, and no permanent database write was made.
+Applied to the linked Supabase project on 2026-07-23 after a rollback-protected dry run.
+
+- First permanent execution: 29 updates (`1` product, `5` options, `23` packages).
+- Immediate verification: all 29 targets matched exactly once, were active Yarbo records, and contained the approved MSRP and IDS Everyday Price values.
+- Missing targets: 0.
+- Duplicate targets: 0.
+- Unrelated or inactive matches: 0.
+- Second guarded permanent execution: 0 updates and 29 already-correct/no-op rows.
+- Live `/api/catalog` verification: passed for Yarbo Core, Standard Lawn Mower Module, Lawn Mower package, Snow Blower package, and Lawn Mower Pro + Snow Blower + Blower + Trimmer package.
+- Package verification: the API returned 23 Yarbo packages and 5 modules; representative package-item counts remained 1, 1, and 4 with stored package prices used directly.
+- Lint: passed with 0 errors and 3 existing `@next/next/no-img-element` warnings in `app/page.tsx`.
+- TypeScript: `npx.cmd tsc --noEmit` passed.
+- Production build: passed after allowing the build to fetch Geist and Geist Mono from Google Fonts.
+
+The review seed remains rollback-protected and ends with `ROLLBACK`. The permanent runner is hash-guarded and derives the approved COMMIT statement from that reviewed seed without changing its 29 targets.
