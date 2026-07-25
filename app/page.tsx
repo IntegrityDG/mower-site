@@ -14,8 +14,8 @@ const hearthFinancingUrl =
 
 const featuredMachineImages: Record<string, string> = {
   "lymow-one-plus": "/images/featured-machines/lymow-one-plus.jpg",
-  yarbo: "/images/featured-machines/yarbo-mower.png",
-  "pandag-g1": "/images/featured-machines/pandag-g1.avif",
+  yarbo: "/images/featured-machines/yarbo-mower.jpg",
+  "pandag-g1": "/images/featured-machines/pandag-g1.jpg",
 };
 
 function FeaturedMachineImage({
@@ -34,14 +34,14 @@ function FeaturedMachineImage({
   ].find((candidate) => candidate && !failedImageUrls.includes(candidate));
 
   return (
-    <div className="flex h-56 w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 sm:h-64">
+    <div className="flex aspect-[16/10] w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {imageUrl ? (
         // The homepage uses dedicated local imagery with catalog media as fallback.
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={imageUrl}
           alt={product?.imageAlt ?? productName}
-          className="h-full w-full object-contain"
+          className="h-full w-full object-cover object-center"
           onError={() =>
             setFailedImageUrls((failedUrls) =>
               failedUrls.includes(imageUrl)
