@@ -1,15 +1,69 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import NationwidePurchaseFlow from "@/components/customer-paths/purchase/NationwidePurchaseFlow";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
+import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
+import type { CatalogProduct } from "@/lib/catalog/types";
 
 const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
 
+function FeaturedMachineImage({
+  product,
+  productName,
+}: {
+  product: CatalogProduct | undefined;
+  productName: string;
+}) {
+  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
+  const imageFailed = product?.imageUrl === failedImageUrl;
+
+  return (
+    <div className="flex h-56 w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 sm:h-64">
+      {product && !imageFailed ? (
+        // Catalog and product pages intentionally support dynamic media URLs.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={product.imageUrl}
+          alt={product.imageAlt}
+          className="h-full w-full object-contain"
+          onError={() => setFailedImageUrl(product.imageUrl)}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-emerald-50 px-6 text-center">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
+              Integrity Distribution Systems
+            </p>
+            <p className="mt-3 text-xl font-black text-slate-950">
+              {productName}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Page() {
+  const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetchCatalog({ signal: controller.signal })
+      .then((catalog) => setCatalogProducts(catalog.products))
+      .catch(() => {
+        // Featured cards retain their branded placeholders if catalog loading fails.
+      });
+
+    return () => controller.abort();
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950">
       {/* HEADER */}
@@ -195,65 +249,78 @@ export default function Page() {
             <div className="mt-10 grid gap-6 lg:grid-cols-3">
               {[
                 {
+                  slug: "lymow-one-plus",
                   label: "Residential Equipment",
                   title: "Lymow One Plus",
                   text: "Tracked virtual-boundary mowing for complex residential lawns, with configurations and compatible equipment available to review before location entry.",
                   href: "/equipment/lymow-one-plus",
                 },
                 {
+                  slug: "yarbo",
                   label: "Complete Systems and Packages",
                   title: "Yarbo",
                   text: "A modular outdoor platform with Complete Yarbo Systems and Individual Yarbo Equipment shown as separate customer paths.",
                   href: "/equipment/yarbo",
                 },
                 {
+                  slug: "pandag-g1",
                   label: "Commercial Equipment",
                   title: "Pandag G1",
                   text: "Commercial autonomous mowing equipment for larger and more demanding properties, preserved as a browsable catalog option.",
                   href: "/equipment/pandag-g1",
                 },
-              ].map((item) => (
-                <article
-                  key={item.title}
-                  className="rounded-[2rem] border border-slate-200 bg-slate-50 p-7"
-                >
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
-                    {item.label}
-                  </p>
-                  <h3 className="mt-4 text-2xl font-black text-slate-950">
-                    {item.title}
-                  </h3>
-                  <p className="mt-4 leading-7 text-slate-600">{item.text}</p>
-                  {item.title === "Lymow One Plus" && (
-                    <div className="mt-5">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                        Starting at
-                      </p>
-                      <LymowPriceDisplay
-                        className="mt-2"
-                        priceClassName="text-2xl font-black text-emerald-700"
-                      />
-                    </div>
-                  )}
-                  {item.title === "Yarbo" && (
-                    <div className="mt-5">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                        Starting at
-                      </p>
-                      <YarboStartingPriceDisplay
-                        className="mt-2"
-                        priceClassName="text-2xl font-black text-emerald-700"
-                      />
-                    </div>
-                  )}
-                  <Link
-                    href={item.href}
-                    className="mt-6 inline-flex font-black text-emerald-700 hover:text-emerald-600"
+              ].map((item) => {
+                const product = catalogProducts.find(
+                  (catalogProduct) => catalogProduct.slug === item.slug
+                );
+
+                return (
+                  <article
+                    key={item.title}
+                    className="rounded-[2rem] border border-slate-200 bg-slate-50 p-7"
                   >
-                    View Details -&gt;
-                  </Link>
-                </article>
-              ))}
+                    <FeaturedMachineImage
+                      product={product}
+                      productName={item.title}
+                    />
+                    <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
+                      {item.label}
+                    </p>
+                    <h3 className="mt-4 text-2xl font-black text-slate-950">
+                      {item.title}
+                    </h3>
+                    <p className="mt-4 leading-7 text-slate-600">{item.text}</p>
+                    {item.title === "Lymow One Plus" && (
+                      <div className="mt-5">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                          Starting at
+                        </p>
+                        <LymowPriceDisplay
+                          className="mt-2"
+                          priceClassName="text-2xl font-black text-emerald-700"
+                        />
+                      </div>
+                    )}
+                    {item.title === "Yarbo" && (
+                      <div className="mt-5">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                          Starting at
+                        </p>
+                        <YarboStartingPriceDisplay
+                          className="mt-2"
+                          priceClassName="text-2xl font-black text-emerald-700"
+                        />
+                      </div>
+                    )}
+                    <Link
+                      href={item.href}
+                      className="mt-6 inline-flex font-black text-emerald-700 hover:text-emerald-600"
+                    >
+                      View Details -&gt;
+                    </Link>
+                  </article>
+                );
+              })}
             </div>
           </div>
         </section>
