@@ -1,14 +1,42 @@
+begin;
+
 -- Keep customer quote requests private.
--- The Next.js API route writes with SUPABASE_SERVICE_ROLE_KEY on the server.
+-- Browser submissions must use the server-only Next.js API route.
 
-alter table public.quote_requests enable row level security;
+alter table public.quote_requests
+  enable row level security;
 
-revoke all privileges on table public.quote_requests from anon, authenticated;
-revoke all privileges on sequence public.quote_requests_id_seq from anon, authenticated;
+-- Preserve the approved FORCE RLS configuration.
+alter table public.quote_requests
+  no force row level security;
 
-grant all privileges on table public.quote_requests to service_role;
-grant usage, select on sequence public.quote_requests_id_seq to service_role;
+-- Remove direct access from browser-facing Supabase roles.
+revoke all privileges
+  on table public.quote_requests
+  from anon, authenticated;
 
--- Intentionally no anon/authenticated policies.
--- Website visitors submit through /api/quote-request; only the server-side
--- service role can read or write quote_requests directly.
+revoke all privileges
+  on sequence public.quote_requests_id_seq
+  from anon, authenticated;
+
+-- Give the server-only service role only what the verified route requires.
+revoke all privileges
+  on table public.quote_requests
+  from service_role;
+
+grant insert
+  on table public.quote_requests
+  to service_role;
+
+revoke all privileges
+  on sequence public.quote_requests_id_seq
+  from service_role;
+
+grant usage
+  on sequence public.quote_requests_id_seq
+  to service_role;
+
+-- No anon or authenticated RLS policies are intentionally created.
+-- service_role remains server-only and has BYPASSRLS.
+
+commit;
