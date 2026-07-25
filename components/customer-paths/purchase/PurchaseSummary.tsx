@@ -1,15 +1,8 @@
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
-import {
-  resolveBuildSelection,
-  resolveServiceSelections,
-} from "@/lib/catalog/selection";
-import type {
-  CatalogProduct,
-  ProductBuildSelection,
-  ServiceSelection,
-} from "@/lib/catalog/types";
+import { resolveBuildSelection } from "@/lib/catalog/selection";
+import type { CatalogProduct, ProductBuildSelection } from "@/lib/catalog/types";
 import {
   YARBO_CORE_ABSENT_NOTICE,
   YARBO_INCLUDED_PLATFORM_EQUIPMENT,
@@ -24,7 +17,6 @@ type SubmitStatus = "idle" | "submitting" | "success" | "error";
 type PurchaseSummaryProps = {
   selectedProduct: CatalogProduct;
   buildSelection: ProductBuildSelection;
-  serviceSelections: ServiceSelection[];
   purchaseMethodLabel: string;
   customerInformation: CustomerInformationValues;
   submitStatus: SubmitStatus;
@@ -47,7 +39,6 @@ function optionLinePrice(
 export default function PurchaseSummary({
   selectedProduct,
   buildSelection,
-  serviceSelections,
   purchaseMethodLabel,
   customerInformation,
   submitStatus,
@@ -55,14 +46,8 @@ export default function PurchaseSummary({
   onSubmit,
 }: PurchaseSummaryProps) {
   const build = resolveBuildSelection(selectedProduct, buildSelection);
-  const serviceSummary = resolveServiceSelections(
-    selectedProduct,
-    serviceSelections
-  );
-  const configuredTotalCents =
-    build.equipmentTotalCents + serviceSummary.serviceTotalCents;
-  const hasUnpricedItems =
-    build.hasUnpricedEquipment || serviceSummary.hasUnpricedServices;
+  const configuredTotalCents = build.equipmentTotalCents;
+  const hasUnpricedItems = build.hasUnpricedEquipment;
   const selectedProductIsYarbo = isYarboProduct(selectedProduct);
 
   return (
@@ -77,15 +62,13 @@ export default function PurchaseSummary({
 
       <p className="mt-4 max-w-4xl leading-7 text-slate-600">
         Nothing is charged through this form. IDS will review availability,
-        shipping, service eligibility, and final pricing before preparing the
-        order.
+        shipping and final pricing before preparing the order.
       </p>
 
       {selectedProductIsYarbo ? (
         <YarboSummaryGrid
           selectedProduct={selectedProduct}
           build={build}
-          serviceSummary={serviceSummary}
           purchaseMethodLabel={purchaseMethodLabel}
           customerInformation={customerInformation}
         />
@@ -93,7 +76,6 @@ export default function PurchaseSummary({
         <StandardSummaryGrid
           selectedProduct={selectedProduct}
           build={build}
-          serviceSummary={serviceSummary}
           purchaseMethodLabel={purchaseMethodLabel}
           customerInformation={customerInformation}
         />
@@ -110,9 +92,8 @@ export default function PurchaseSummary({
               {hasUnpricedItems ? " + items requiring a quote" : ""}
             </p>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-              Recurring plan amounts reflect the payment option selected. Taxes,
-              shipping, site-specific labor, and quote-required items are not
-              included until IDS reviews the request.
+              Taxes, shipping, site-specific labor, and quote-required items are
+              not included until IDS reviews the request.
             </p>
           </div>
         </div>
@@ -122,8 +103,8 @@ export default function PurchaseSummary({
         <div className="mt-6 rounded-2xl border border-emerald-300 bg-emerald-50 p-6 text-emerald-950">
           <p className="text-xl font-black">Request submitted successfully.</p>
           <p className="mt-2 leading-7">
-            IDS received the complete machine, package, module, service, payment,
-            and contact selection.
+            IDS received the complete machine, package, module, payment, and
+            contact selection.
           </p>
         </div>
       ) : (
@@ -151,13 +132,11 @@ export default function PurchaseSummary({
 function YarboSummaryGrid({
   selectedProduct,
   build,
-  serviceSummary,
   purchaseMethodLabel,
   customerInformation,
 }: {
   selectedProduct: CatalogProduct;
   build: ReturnType<typeof resolveBuildSelection>;
-  serviceSummary: ReturnType<typeof resolveServiceSelections>;
   purchaseMethodLabel: string;
   customerInformation: CustomerInformationValues;
 }) {
@@ -280,7 +259,6 @@ function YarboSummaryGrid({
         </section>
       )}
 
-      <ServicesSummary serviceSummary={serviceSummary} />
       <PurchaseAndCustomerSummary
         purchaseMethodLabel={purchaseMethodLabel}
         customerInformation={customerInformation}
@@ -292,13 +270,11 @@ function YarboSummaryGrid({
 function StandardSummaryGrid({
   selectedProduct,
   build,
-  serviceSummary,
   purchaseMethodLabel,
   customerInformation,
 }: {
   selectedProduct: CatalogProduct;
   build: ReturnType<typeof resolveBuildSelection>;
-  serviceSummary: ReturnType<typeof resolveServiceSelections>;
   purchaseMethodLabel: string;
   customerInformation: CustomerInformationValues;
 }) {
@@ -391,50 +367,11 @@ function StandardSummaryGrid({
         )}
       </section>
 
-      <ServicesSummary serviceSummary={serviceSummary} />
       <PurchaseAndCustomerSummary
         purchaseMethodLabel={purchaseMethodLabel}
         customerInformation={customerInformation}
       />
     </div>
-  );
-}
-
-function ServicesSummary({
-  serviceSummary,
-}: {
-  serviceSummary: ReturnType<typeof resolveServiceSelections>;
-}) {
-  return (
-    <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-6 lg:col-span-2">
-      <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-        Selected Services and Plans
-      </p>
-      {serviceSummary.services.length > 0 ? (
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {serviceSummary.services.map(({ service, paymentOption, priceCents }) => (
-            <div
-              key={service.id}
-              className="rounded-2xl border border-slate-200 bg-white p-5"
-            >
-              <p className="text-lg font-black text-slate-950">
-                {service.name}
-              </p>
-              <p className="mt-2 text-sm font-semibold text-slate-600">
-                {paymentOption?.name ?? service.billingType.replaceAll("_", " ")}
-              </p>
-              <p className="mt-3 text-xl font-black text-emerald-700">
-                {priceCents === null ? "Contact for pricing" : formatCents(priceCents)}
-              </p>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-2 text-lg font-black text-slate-950">
-          Equipment-only request
-        </p>
-      )}
-    </section>
   );
 }
 
@@ -482,7 +419,7 @@ function PurchaseAndCustomerSummary({
             {summaryValue(customerInformation.shippingZip)}
           </p>
           <p>
-            <span className="font-bold text-slate-950">Service location:</span>{" "}
+            <span className="font-bold text-slate-950">Delivery location:</span>{" "}
             {summaryValue(customerInformation.shippingRegion)},{" "}
             {summaryValue(customerInformation.shippingState)}
           </p>

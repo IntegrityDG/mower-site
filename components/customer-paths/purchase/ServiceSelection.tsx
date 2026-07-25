@@ -8,7 +8,7 @@ import type {
 } from "@/lib/catalog/types";
 
 type ServiceSelectionProps = {
-  product: CatalogProduct;
+  product: CatalogProduct & { services: CatalogService[] };
   availableServices: CatalogService[];
   selectedServices: SelectedService[];
   selectedState: string;

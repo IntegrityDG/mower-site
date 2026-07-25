@@ -5,7 +5,6 @@ import type {
   CatalogPrice,
   CatalogProduct,
   CatalogResponse,
-  CatalogService,
 } from "@/lib/catalog/types";
 import { getSupabaseCatalogClient } from "@/lib/supabase";
 
@@ -77,9 +76,6 @@ export async function GET() {
       pagesResult,
       sectionsResult,
       mediaResult,
-      servicesResult,
-      productServicesResult,
-      paymentOptionsResult,
     ] = await Promise.all([
       supabase
         .from("catalog_products")
@@ -126,23 +122,6 @@ export async function GET() {
         .select("*")
         .eq("show_on_product_page", true)
         .order("sort_order"),
-      supabase
-        .from("catalog_services")
-        .select("*")
-        .eq("public_status", "active")
-        .order("sort_order")
-        .order("name"),
-      supabase
-        .from("catalog_product_services")
-        .select("*")
-        .eq("is_available", true)
-        .order("sort_order"),
-      supabase
-        .from("catalog_service_payment_options")
-        .select("*")
-        .eq("is_available", true)
-        .order("sort_order")
-        .order("payment_option_name"),
     ]);
 
     const products = ensureData("Products", productsResult);
@@ -155,15 +134,6 @@ export async function GET() {
     const pages = ensureData("Product pages", pagesResult);
     const sections = ensureData("Product page sections", sectionsResult);
     const media = ensureData("Product media", mediaResult);
-    const services = ensureData("Services", servicesResult);
-    const productServices = ensureData(
-      "Product services",
-      productServicesResult
-    );
-    const paymentOptions = ensureData(
-      "Service payment options",
-      paymentOptionsResult
-    );
 
     const normalizedOptions: CatalogOption[] = options.map((option) => ({
       id: option.id,
@@ -259,70 +229,6 @@ export async function GET() {
           ...priceFromRow(catalogPackage),
         }));
 
-      const normalizedServices: CatalogService[] = productServices
-        .filter((link) => link.product_id === product.id)
-        .flatMap((link) => {
-          const service = services.find((item) => item.id === link.service_id);
-          if (!service) return [];
-
-          const priceRow: PriceRow = {
-            regular_price_cents:
-              link.override_regular_price_cents ?? service.regular_price_cents,
-            sale_price_cents:
-              link.override_sale_price_cents ?? service.sale_price_cents,
-            sale_starts_at:
-              link.override_sale_starts_at ?? service.sale_starts_at,
-            sale_ends_at: link.override_sale_ends_at ?? service.sale_ends_at,
-            promotion_label:
-              link.override_promotion_label ?? service.promotion_label,
-            show_public_price:
-              link.override_show_public_price ?? service.show_public_price,
-            contact_for_pricing:
-              link.override_contact_for_pricing ?? service.contact_for_pricing,
-          };
-
-          return [
-            {
-              id: service.id,
-              slug: service.service_slug,
-              name: service.name,
-              description: service.description,
-              category: service.service_category,
-              billingType: service.billing_type,
-              requiresLocalService: service.requires_local_service,
-              requiresPropertyReview: service.requires_property_review,
-              estimatedHours: service.estimated_hours,
-              maximumVisitHours: service.maximum_visit_hours,
-              seasonLength: service.season_length,
-              isRecommended: link.is_recommended,
-              isRequired: link.is_required,
-              sortOrder: link.sort_order || service.sort_order,
-              paymentOptions: paymentOptions
-                .filter((option) => option.service_id === service.id)
-                .map((option) => ({
-                  id: option.id,
-                  slug: option.payment_option_slug,
-                  name: option.payment_option_name,
-                  billingType: option.billing_type,
-                  seasonLengthMonths: option.season_length_months,
-                  savingsLabel: option.savings_label,
-                  notes: option.notes,
-                  sortOrder: option.sort_order,
-                  ...priceFromRow({
-                    ...option,
-                    sale_starts_at: null,
-                    sale_ends_at: null,
-                    promotion_label: null,
-                    show_public_price: true,
-                    contact_for_pricing: false,
-                  }),
-                })),
-              ...priceFromRow(priceRow),
-            },
-          ];
-        })
-        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
-
       return {
         id: product.id,
         slug: product.slug,
@@ -363,7 +269,6 @@ export async function GET() {
           (option) => option.optionGroupId === null
         ),
         packages: normalizedPackages,
-        services: normalizedServices,
         ...priceFromRow(product),
       };
     });

@@ -1,6 +1,7 @@
 import type {
   CatalogOption,
   CatalogProduct,
+  CatalogService,
   ProductBuildSelection,
   ServiceSelection,
 } from "./types";
@@ -151,7 +152,7 @@ export function resolveBuildSelection(
 }
 
 export function resolveServiceSelections(
-  product: CatalogProduct,
+  product: CatalogProduct & { services: CatalogService[] },
   selections: ServiceSelection[]
 ) {
   const resolved = selections.flatMap((selection) => {

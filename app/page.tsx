@@ -343,20 +343,19 @@ export default function Page() {
           </div>
         </section>
 
-        {/* INSTALLATION AND SUPPORT */}
+        {/* EQUIPMENT REQUEST PROCESS */}
         <section className="border-y border-slate-300 bg-slate-100 px-6 py-20 md:px-10">
           <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.95fr_1.05fr]">
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-                Installation and Support
+                Equipment Request Process
               </p>
               <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-                Services appear only after the location check.
+                Build and review an equipment-only request.
               </h2>
               <p className="mt-5 text-lg leading-8 text-slate-600">
-                Professional installation and local support are available within
-                our service area. Equipment sales and remote support may be
-                available nationwide.
+                Compare machines, packages, modules, attachments, and accessories,
+                then provide delivery and contact information for review.
               </p>
             </div>
 
@@ -365,7 +364,7 @@ export default function Page() {
                 "Browse public equipment without entering a ZIP.",
                 "Select a machine, package, module, attachment, or accessory.",
                 "Enter the delivery or installation address after selection.",
-                "See only eligible delivery, deployment, installation, and service-plan options.",
+                "Review the configured equipment estimate before submitting.",
               ].map((item) => (
                 <div
                   key={item}
@@ -389,13 +388,12 @@ export default function Page() {
                 Request Information
               </p>
               <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-                Start with equipment, then check service and delivery
-                availability.
+                Select equipment, then provide delivery information.
               </h2>
               <p className="mt-5 text-lg leading-8 text-slate-600">
-                The request flow keeps equipment browsing first. Location is
-                used later to determine which local services, delivery options,
-                setup options, and support plans can be shown.
+                The request flow covers the selected equipment, configuration,
+                delivery location, purchase preference, and customer contact
+                information.
               </p>
             </div>
 

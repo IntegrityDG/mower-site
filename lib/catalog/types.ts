@@ -138,7 +138,6 @@ export type CatalogProduct = CatalogPrice & {
   optionGroups: CatalogOptionGroup[];
   ungroupedOptions: CatalogOption[];
   packages: CatalogPackage[];
-  services: CatalogService[];
 };
 
 export type CatalogResponse = {
