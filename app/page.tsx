@@ -12,26 +12,43 @@ import type { CatalogProduct } from "@/lib/catalog/types";
 const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
 
+const featuredMachineImages: Record<string, string> = {
+  "lymow-one-plus": "/images/featured-machines/lymow-one-plus.jpg",
+  yarbo: "/images/featured-machines/yarbo-mower.png",
+  "pandag-g1": "/images/featured-machines/pandag-g1.avif",
+};
+
 function FeaturedMachineImage({
   product,
   productName,
+  productSlug,
 }: {
   product: CatalogProduct | undefined;
   productName: string;
+  productSlug: string;
 }) {
-  const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
-  const imageFailed = product?.imageUrl === failedImageUrl;
+  const [failedImageUrls, setFailedImageUrls] = useState<string[]>([]);
+  const imageUrl = [
+    featuredMachineImages[productSlug],
+    product?.imageUrl,
+  ].find((candidate) => candidate && !failedImageUrls.includes(candidate));
 
   return (
     <div className="flex h-56 w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 sm:h-64">
-      {product && !imageFailed ? (
-        // Catalog and product pages intentionally support dynamic media URLs.
+      {imageUrl ? (
+        // The homepage uses dedicated local imagery with catalog media as fallback.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={product.imageUrl}
-          alt={product.imageAlt}
+          src={imageUrl}
+          alt={product?.imageAlt ?? productName}
           className="h-full w-full object-contain"
-          onError={() => setFailedImageUrl(product.imageUrl)}
+          onError={() =>
+            setFailedImageUrls((failedUrls) =>
+              failedUrls.includes(imageUrl)
+                ? failedUrls
+                : [...failedUrls, imageUrl]
+            )
+          }
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-emerald-50 px-6 text-center">
@@ -282,6 +299,7 @@ export default function Page() {
                     <FeaturedMachineImage
                       product={product}
                       productName={item.title}
+                      productSlug={item.slug}
                     />
                     <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
                       {item.label}
