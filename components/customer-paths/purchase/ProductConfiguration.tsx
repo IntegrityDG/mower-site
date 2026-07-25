@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
+import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
 import type {
   CatalogOption,
@@ -790,9 +791,18 @@ function StandardProductConfiguration({
                       ✓
                     </span>
                   </div>
-                  <p className="mt-4 text-lg font-black text-emerald-700">
-                    {priceLabel(variant)}
-                  </p>
+                  {product.slug === "lymow-one-plus" ? (
+                    <EverydayPriceDisplay
+                      item={variant}
+                      comparisonLabel="Lymow Everyday Price"
+                      className="mt-4"
+                      priceClassName="text-lg font-black text-emerald-700"
+                    />
+                  ) : (
+                    <p className="mt-4 text-lg font-black text-emerald-700">
+                      {priceLabel(variant)}
+                    </p>
+                  )}
                 </button>
               );
             })}

@@ -1,4 +1,4 @@
-import { formatCents, priceLabel } from "@/lib/catalog/pricing";
+import EverydayPriceDisplay from "./EverydayPriceDisplay";
 import type { CatalogPrice } from "@/lib/catalog/types";
 
 type YarboPriceDisplayProps = {
@@ -16,31 +16,14 @@ export default function YarboPriceDisplay({
   labelClassName = "text-xs font-bold uppercase tracking-[0.14em] text-slate-500",
   regularClassName = "text-sm font-bold text-slate-500 line-through",
 }: YarboPriceDisplayProps) {
-  const idsPriceCents = item.currentPriceCents;
-  const yarboPriceCents = item.regularPriceCents;
-
-  if (item.contactForPricing || !item.showPublicPrice || idsPriceCents === null) {
-    return (
-      <p className={`${className} ${priceClassName}`.trim()}>
-        {priceLabel(item)}
-      </p>
-    );
-  }
-
-  if (yarboPriceCents !== null && yarboPriceCents > idsPriceCents) {
-    return (
-      <div className={className}>
-        <p className={labelClassName}>Yarbo Everyday Price</p>
-        <p className={regularClassName}>{formatCents(yarboPriceCents)}</p>
-        <p className={`${labelClassName} mt-2`}>IDS Everyday Price</p>
-        <p className={priceClassName}>{formatCents(idsPriceCents)}</p>
-      </div>
-    );
-  }
-
   return (
-    <p className={`${className} ${priceClassName}`.trim()}>
-      {formatCents(idsPriceCents)}
-    </p>
+    <EverydayPriceDisplay
+      item={item}
+      comparisonLabel="Yarbo Everyday Price"
+      className={className}
+      priceClassName={priceClassName}
+      labelClassName={labelClassName}
+      regularClassName={regularClassName}
+    />
   );
 }

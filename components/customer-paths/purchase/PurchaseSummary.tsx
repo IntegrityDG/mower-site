@@ -1,4 +1,5 @@
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
+import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
 import {
   resolveBuildSelection,
@@ -324,13 +325,23 @@ function StandardSummaryGrid({
             build.selectedVariant?.name ??
             selectedProduct.name}
         </p>
-        <p className="mt-2 text-xl font-black text-emerald-700">
-          {build.selectedPackage
-            ? priceLabel(build.selectedPackage)
-            : build.selectedVariant
-              ? priceLabel(build.selectedVariant)
-              : priceLabel(selectedProduct)}
-        </p>
+        {selectedProduct.slug === "lymow-one-plus" &&
+        build.selectedVariant ? (
+          <EverydayPriceDisplay
+            item={build.selectedVariant}
+            comparisonLabel="Lymow Everyday Price"
+            className="mt-2"
+            priceClassName="text-xl font-black text-emerald-700"
+          />
+        ) : (
+          <p className="mt-2 text-xl font-black text-emerald-700">
+            {build.selectedPackage
+              ? priceLabel(build.selectedPackage)
+              : build.selectedVariant
+                ? priceLabel(build.selectedVariant)
+                : priceLabel(selectedProduct)}
+          </p>
+        )}
       </section>
 
       {build.packageIncludedItems.length > 0 && (
