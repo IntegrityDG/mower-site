@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { sendLeadEmail } from "@/lib/email";
+import { salesModeForProductSlug } from "@/lib/catalog/sales-mode";
 
 export async function POST(req: Request) {
   try {
@@ -16,16 +17,30 @@ export async function POST(req: Request) {
     const weedEating = body.weedEating?.trim() || null;
     const purchaseType = body.purchaseType?.trim() || null;
     const extraNotes = body.extraNotes?.trim() || null;
+    const productSlug = body.productSlug?.trim() || "";
 
     const interests = Array.isArray(body.interests) ? body.interests : [];
     const terrain = Array.isArray(body.terrain) ? body.terrain : [];
     const priorities = Array.isArray(body.priorities) ? body.priorities : [];
-    const productInterest = Array.isArray(body.productInterest)
+    const productInterest: unknown[] = Array.isArray(body.productInterest)
       ? body.productInterest
       : [];
     const autoSuggestion = Array.isArray(body.autoSuggestion)
       ? body.autoSuggestion
       : [];
+
+    const identifiesPandag = productInterest.some(
+      (item) => typeof item === "string" && item.toLowerCase().includes("pandag")
+    );
+    if (
+      salesModeForProductSlug(productSlug) === "quote_only" ||
+      identifiesPandag
+    ) {
+      return NextResponse.json(
+        { error: "Pandag projects must use the commercial project request form." },
+        { status: 400 }
+      );
+    }
 
     if (!name) {
       return NextResponse.json(

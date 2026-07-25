@@ -6,6 +6,7 @@ import type {
   CatalogProduct,
   CatalogResponse,
 } from "@/lib/catalog/types";
+import { salesModeForProductSlug } from "@/lib/catalog/sales-mode";
 import { getSupabaseCatalogClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +50,16 @@ function priceFromRow(row: PriceRow): CatalogPrice {
     saleIsActive,
   };
 }
+
+const quoteOnlyPublicPrice: CatalogPrice = {
+  regularPriceCents: null,
+  salePriceCents: null,
+  currentPriceCents: null,
+  showPublicPrice: false,
+  contactForPricing: true,
+  promotionLabel: null,
+  saleIsActive: false,
+};
 
 function ensureData<T>(
   label: string,
@@ -152,6 +163,9 @@ export async function GET() {
     }));
 
     const normalizedProducts: CatalogProduct[] = products.map((product) => {
+      const salesMode = salesModeForProductSlug(product.slug);
+      const publicPrice = (row: PriceRow) =>
+        salesMode === "quote_only" ? quoteOnlyPublicPrice : priceFromRow(row);
       const productMedia = media
         .filter((item) => item.product_id === product.id)
         .map((item) => ({
@@ -167,9 +181,16 @@ export async function GET() {
         productMedia.find((item) => item.isPrimary && item.mediaType === "image") ??
         productMedia.find((item) => item.mediaType === "image");
       const page = pages.find((item) => item.product_id === product.id);
-      const productOptionRows = normalizedOptions.filter(
-        (option) => options.find((row) => row.id === option.id)?.product_id === product.id
-      );
+      const productOptionRows = normalizedOptions
+        .filter(
+          (option) =>
+            options.find((row) => row.id === option.id)?.product_id === product.id
+        )
+        .map((option) =>
+          salesMode === "quote_only"
+            ? { ...option, ...quoteOnlyPublicPrice }
+            : option
+        );
 
       const normalizedVariants = variants
         .filter((variant) => variant.product_id === product.id)
@@ -187,7 +208,7 @@ export async function GET() {
                 link.relationship_type === "defines_variant"
             )
             .map((link) => link.option_id),
-          ...priceFromRow(variant),
+          ...publicPrice(variant),
         }));
 
       const normalizedGroups = optionGroups
@@ -226,7 +247,7 @@ export async function GET() {
                   (option) => option.id === item.option_id
                 ) ?? null,
             })),
-          ...priceFromRow(catalogPackage),
+          ...publicPrice(catalogPackage),
         }));
 
       return {
@@ -244,6 +265,7 @@ export async function GET() {
         imageUrl: primaryMedia?.url ?? fallbackImages[product.slug] ?? "/logo.png",
         imageAlt: primaryMedia?.altText ?? `${product.name} autonomous mower`,
         sortOrder: product.sort_order,
+        salesMode,
         page: page
           ? {
               heroHeading: page.hero_heading,
@@ -269,7 +291,7 @@ export async function GET() {
           (option) => option.optionGroupId === null
         ),
         packages: normalizedPackages,
-        ...priceFromRow(product),
+        ...publicPrice(product),
       };
     });
 

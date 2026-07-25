@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import { priceLabel } from "@/lib/catalog/pricing";
+import { isQuoteOnlyProduct } from "@/lib/catalog/sales-mode";
 import type { CatalogProduct, CatalogResponse } from "@/lib/catalog/types";
 import {
   YARBO_MODULE_ONLY_NOTICE,
@@ -126,6 +127,7 @@ export default function EquipmentCatalog() {
         <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
           {catalog.products.map((product) => {
             const yarboProduct = isYarboProduct(product);
+            const quoteOnlyProduct = isQuoteOnlyProduct(product);
             const bestFitGuidance =
               product.slug === "lymow-one-plus"
                 ? product.customerGuidance
@@ -147,7 +149,9 @@ export default function EquipmentCatalog() {
                 <div className="flex flex-1 flex-col p-6">
                   <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.16em]">
                     <span className="text-emerald-700">{product.brand}</span>
-                    <span className="text-slate-500">Robotic mower</span>
+                    <span className="text-slate-500">
+                      {quoteOnlyProduct ? "Commercial platform" : "Robotic mower"}
+                    </span>
                   </div>
                   <h2 className="mt-3 text-2xl font-black text-slate-950">
                     {product.name}
@@ -160,10 +164,8 @@ export default function EquipmentCatalog() {
                       Best fit: {bestFitGuidance}
                     </p>
                   )}
-                  <div className="mt-5">
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                      Starting at
-                    </p>
+                  {!quoteOnlyProduct && <div className="mt-5">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Starting at</p>
                     {product.slug === "lymow-one-plus" ? (
                       <LymowPriceDisplay
                         product={product}
@@ -181,23 +183,29 @@ export default function EquipmentCatalog() {
                         {priceLabel(product)}
                       </p>
                     )}
-                  </div>
+                  </div>}
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <Link
                       href={`/equipment/${product.slug}`}
                       className="rounded-xl border border-slate-300 px-4 py-3 text-center font-bold hover:border-slate-950"
                     >
-                      View Details
+                      {quoteOnlyProduct ? "View Pandag G1" : "View Details"}
                     </Link>
                     <Link
                       href={
-                        yarboProduct
+                        quoteOnlyProduct
+                          ? "/pandag/project-quote"
+                          : yarboProduct
                           ? `/equipment/${product.slug}#complete-yarbo-systems`
                           : "/#location-and-customer-path"
                       }
                       className="rounded-xl bg-emerald-600 px-4 py-3 text-center font-black text-white hover:bg-emerald-700"
                     >
-                      {yarboProduct ? "View Yarbo Systems" : "Build Your System"}
+                      {quoteOnlyProduct
+                        ? "Request Project Quote"
+                        : yarboProduct
+                          ? "View Yarbo Systems"
+                          : "Build Your System"}
                     </Link>
                   </div>
                 </div>

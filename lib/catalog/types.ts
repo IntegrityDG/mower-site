@@ -8,6 +8,8 @@ export type CatalogPrice = {
   saleIsActive: boolean;
 };
 
+export type CatalogSalesMode = "self_service" | "quote_only";
+
 export type CatalogMedia = {
   id: string;
   mediaType: "image" | "video";
@@ -132,6 +134,8 @@ export type CatalogProduct = CatalogPrice & {
   imageUrl: string;
   imageAlt: string;
   sortOrder: number;
+  /** Public sales-channel behavior; never a source of internal pricing data. */
+  salesMode: CatalogSalesMode;
   page: CatalogProductPage | null;
   media: CatalogMedia[];
   variants: CatalogVariant[];

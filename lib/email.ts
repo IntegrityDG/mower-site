@@ -14,7 +14,10 @@ function getResendClient() {
   return resend;
 }
 
-export async function sendLeadEmail(content: string) {
+export async function sendLeadEmail(
+  content: string,
+  subject = "New Mower Lead"
+) {
   const notifyEmail = process.env.NOTIFY_EMAIL;
 
   if (!notifyEmail) {
@@ -24,7 +27,7 @@ export async function sendLeadEmail(content: string) {
   const result = await getResendClient().emails.send({
     from: "onboarding@resend.dev",
     to: notifyEmail,
-    subject: "New Mower Lead",
+    subject,
     text: content,
   });
 

@@ -10,6 +10,7 @@ import {
   selectedOptionNames,
 } from "@/lib/catalog/selection";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
+import { isSelfServiceProduct } from "@/lib/catalog/sales-mode";
 import type {
   CatalogProduct,
   CatalogResponse,
@@ -202,10 +203,26 @@ export default function NationwidePurchaseFlow({
   const isSummaryStage = activeStage.key === "summary";
   const selectedProduct = useMemo(
     () =>
-      catalog?.products.find((product) => product.id === selectedProductId) ??
+      catalog?.products.find(
+        (product) =>
+          product.id === selectedProductId && isSelfServiceProduct(product)
+      ) ??
       null,
     [catalog, selectedProductId]
   );
+
+  useEffect(() => {
+    if (!catalog || !selectedProductId) return;
+
+    const product = catalog.products.find(
+      (item) => item.id === selectedProductId
+    );
+    if (!product || !isSelfServiceProduct(product)) {
+      setSelectedProductId("");
+      setBuildSelection(emptyBuildSelection);
+      setStageIndex(0);
+    }
+  }, [catalog, selectedProductId]);
   const locationComplete = Boolean(
     customerInformation.shippingAddress.trim() &&
       customerInformation.shippingZip.trim() &&
@@ -221,7 +238,7 @@ export default function NationwidePurchaseFlow({
   );
 
   const currentStageComplete =
-    (activeStage.key === "product" && Boolean(selectedProductId)) ||
+    (activeStage.key === "product" && Boolean(selectedProduct)) ||
     (activeStage.key === "configuration" && buildComplete) ||
     (activeStage.key === "review" && buildComplete) ||
     (activeStage.key === "location" && locationComplete) ||
@@ -255,6 +272,11 @@ export default function NationwidePurchaseFlow({
     if (productId === selectedProductId) return;
 
     const product = catalog?.products.find((item) => item.id === productId);
+    if (!product || !isSelfServiceProduct(product)) {
+      setSelectedProductId("");
+      setBuildSelection(emptyBuildSelection);
+      return;
+    }
     const includedQuantities = Object.fromEntries(
       product?.optionGroups
         .flatMap((group) => group.options)
@@ -392,7 +414,14 @@ export default function NationwidePurchaseFlow({
   }
 
   async function submitRequest() {
-    if (!selectedProduct || !selectedPurchaseMethod || !locationComplete) return;
+    if (
+      !selectedProduct ||
+      !isSelfServiceProduct(selectedProduct) ||
+      !selectedPurchaseMethod ||
+      !locationComplete
+    ) {
+      return;
+    }
 
     setSubmitStatus("submitting");
     setSubmitError("");
@@ -499,6 +528,7 @@ export default function NationwidePurchaseFlow({
           interests: ["Equipment purchase"],
           terrain: [],
           priorities: ["Catalog configuration request"],
+          productSlug: selectedProduct.slug,
           productInterest: selectedProductIsYarbo
             ? [selectedProduct.name, primaryConfiguration, ...yarboIndividualItems]
             : [
@@ -544,7 +574,7 @@ export default function NationwidePurchaseFlow({
     if (activeStage.key === "product") {
       return (
         <ProductSelection
-          products={catalog?.products ?? []}
+          products={catalog?.products.filter(isSelfServiceProduct) ?? []}
           selectedProductId={selectedProductId}
           onSelectProduct={handleProductSelect}
         />

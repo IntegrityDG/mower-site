@@ -9,6 +9,7 @@ import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import { priceLabel } from "@/lib/catalog/pricing";
+import { isQuoteOnlyProduct } from "@/lib/catalog/sales-mode";
 import type { CatalogOption, CatalogProduct } from "@/lib/catalog/types";
 import {
   YARBO_CORE_EQUIPMENT_DESCRIPTION,
@@ -69,7 +70,110 @@ export default function ProductPage({
     return <YarboProductPage product={product} />;
   }
 
+  if (isQuoteOnlyProduct(product)) {
+    return <PandagProductPage product={product} />;
+  }
+
   return <StandardProductPage product={product} />;
+}
+
+function PandagProductPage({ product }: { product: CatalogProduct }) {
+  const options = [
+    ...product.optionGroups.flatMap((group) => group.options),
+    ...product.ungroupedOptions,
+  ];
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-950">
+      <CatalogHeader salesMode={product.salesMode} />
+      <main>
+        <section className="bg-gradient-to-br from-slate-950 to-emerald-950 px-5 py-14 text-white sm:px-8">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2">
+            <div>
+              <Link href="/equipment" className="text-sm font-bold text-emerald-300">
+                Back to equipment catalog
+              </Link>
+              <p className="mt-8 text-sm font-black uppercase tracking-[0.22em] text-emerald-400">
+                Commercial Autonomous Mowing Platform
+              </p>
+              <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">
+                {product.page?.heroHeading ?? product.name}
+              </h1>
+              <p className="mt-6 text-lg leading-8 text-slate-200">
+                {product.page?.heroSubheading ?? product.fullDescription ?? product.homepageSummary}
+              </p>
+              <p className="mt-6 rounded-2xl border border-emerald-400/30 bg-white/10 p-5 leading-7 text-slate-100">
+                Pandag systems are professionally configured according to property acreage,
+                terrain, cutting requirements, charging strategy, and operating schedule.
+                Integrity Distribution Systems will recommend the appropriate model after
+                reviewing the project.
+              </p>
+              <Link
+                href="/pandag/project-quote"
+                className="mt-7 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 hover:bg-emerald-400"
+              >
+                Request a Pandag Project Quote
+              </Link>
+            </div>
+            <div className="flex min-h-80 items-center justify-center rounded-[2rem] bg-white/95 p-8">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={product.imageUrl} alt={product.imageAlt} className="max-h-[28rem] w-full object-contain" />
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
+          <div className="grid gap-5 md:grid-cols-3">
+            {product.propertyScale && <Info label="Best fit" value={product.propertyScale} />}
+            {product.capabilityLevel && <Info label="Capability" value={product.capabilityLevel} />}
+            <Info
+              label="Commercial applications"
+              value="Solar farms, golf courses, large city and municipal parks, expansive private estates, airports, commercial campuses, and substantial agricultural or utility properties."
+            />
+          </div>
+
+          {product.page?.sections.length ? (
+            <div className="mt-14">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">Product information</p>
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                {product.page.sections.map((section) => (
+                  <article key={section.id} className="rounded-3xl border border-slate-200 bg-white p-7">
+                    <h2 className="text-2xl font-black">{section.heading}</h2>
+                    <p className="mt-4 whitespace-pre-line leading-7 text-slate-600">{section.bodyContent}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {options.length > 0 && (
+            <div id="compatible-equipment" className="mt-14 scroll-mt-8">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">Platform equipment</p>
+              <h2 className="mt-3 text-3xl font-black">Equipment considered during project review</h2>
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {options.map((option) => (
+                  <article key={option.id} className="rounded-2xl border border-slate-200 bg-white p-5">
+                    <h3 className="font-black">{option.name}</h3>
+                    {option.description && <p className="mt-3 leading-7 text-slate-600">{option.description}</p>}
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-14 rounded-[2rem] bg-slate-950 p-8 text-white sm:p-10">
+            <h2 className="text-3xl font-black">Plan a Pandag commercial mowing project</h2>
+            <p className="mt-3 max-w-3xl leading-7 text-slate-300">
+              Submit property and operating requirements for project review. No purchase or payment occurs through the request form, and model interest is non-binding.
+            </p>
+            <Link href="/pandag/project-quote" className="mt-6 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950">
+              Request a Pandag Project Quote
+            </Link>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
 }
 
 function YarboProductPage({ product }: { product: CatalogProduct }) {
