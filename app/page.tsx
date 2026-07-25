@@ -283,7 +283,7 @@ export default function Page() {
                   slug: "pandag-g1",
                   label: "Commercial Equipment",
                   title: "Pandag G1",
-                  text: "Built for large, demanding commercial properties, the Pandag G1 delivers heavy-duty autonomous mowing with the power, capacity, and durability required for serious acreage. It is designed to maintain expansive grounds efficiently while reducing labor and operating demands.",
+                  text: "Built primarily for solar farms, golf courses, large city parks, and expansive private estates, the Pandag G1 delivers heavy-duty autonomous mowing for properties where acreage, terrain, and labor demands exceed the capabilities of conventional robotic mowers.",
                   href: "/equipment/pandag-g1",
                 },
               ].map((item) => {
