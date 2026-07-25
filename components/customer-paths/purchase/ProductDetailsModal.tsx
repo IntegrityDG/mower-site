@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 
-import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
+import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
 import type { CatalogProduct } from "@/lib/catalog/types";
 import { isYarboProduct } from "@/lib/catalog/yarbo";
@@ -80,7 +80,7 @@ export default function ProductDetailsModal({
 
             <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
-                {product.slug === "lymow-one-plus"
+                {product.slug === "lymow-one-plus" || isYarboProduct(product)
                   ? "Starting at"
                   : "Starting Price"}
               </p>
@@ -91,10 +91,10 @@ export default function ProductDetailsModal({
                   priceClassName="text-3xl font-black text-emerald-700"
                 />
               ) : isYarboProduct(product) ? (
-                <YarboPriceDisplay
-                  item={product}
+                <YarboStartingPriceDisplay
+                  product={product}
                   className="mt-2"
-                  priceClassName="text-3xl font-black text-slate-950"
+                  priceClassName="text-3xl font-black text-emerald-700"
                 />
               ) : (
                 <p className="mt-2 text-3xl font-black text-slate-950">

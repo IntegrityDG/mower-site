@@ -6,6 +6,7 @@ import { use, useEffect, useState } from "react";
 import CatalogHeader from "@/components/equipment/CatalogHeader";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
+import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import { priceLabel } from "@/lib/catalog/pricing";
 import type { CatalogOption, CatalogProduct } from "@/lib/catalog/types";
@@ -99,6 +100,18 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
                 included, or request individual Yarbo equipment for an existing
                 Core or a manually assembled setup.
               </p>
+              <div className="mt-7">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">
+                  Starting at
+                </p>
+                <YarboStartingPriceDisplay
+                  product={product}
+                  className="mt-2"
+                  priceClassName="text-3xl font-black text-emerald-300"
+                  labelClassName="text-xs font-bold uppercase tracking-[0.14em] text-slate-300"
+                  regularClassName="text-lg font-bold text-slate-300 line-through"
+                />
+              </div>
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <a
                   href="#complete-yarbo-systems"

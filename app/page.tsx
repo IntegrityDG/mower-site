@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import NationwidePurchaseFlow from "@/components/customer-paths/purchase/NationwidePurchaseFlow";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
+import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
 
 const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
@@ -229,6 +230,17 @@ export default function Page() {
                         Starting at
                       </p>
                       <LymowPriceDisplay
+                        className="mt-2"
+                        priceClassName="text-2xl font-black text-emerald-700"
+                      />
+                    </div>
+                  )}
+                  {item.title === "Yarbo" && (
+                    <div className="mt-5">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                        Starting at
+                      </p>
+                      <YarboStartingPriceDisplay
                         className="mt-2"
                         priceClassName="text-2xl font-black text-emerald-700"
                       />

@@ -4,6 +4,23 @@ Date: 2026-07-21
 
 Scope: review-ready Yarbo physical-product pricing proposal. No SQL was executed. Supabase was not modified. No catalog price value was permanently changed.
 
+## Yarbo Core IDS Price Correction
+
+IDS approved a follow-up Yarbo Core everyday-price correction on 2026-07-24:
+
+- Yarbo Everyday Price remains $3,999 (`regular_price_cents = 399900`).
+- IDS Everyday Price is now $3,749 (`sale_price_cents = 374900`).
+- `sale_starts_at`, `sale_ends_at`, and `promotion_label` remain `NULL`.
+- The correction targets only the active `public.catalog_products` row with slug `yarbo`, brand `Yarbo`, and name `Yarbo Core`.
+- No option/module or complete-system package price changed.
+- Review SQL: `supabase/seeds/yarbo-core-ids-price-2026.sql`.
+- Hash-locked runner: `supabase/seeds/Invoke-YarboCoreIdsPrice2026Commit.ps1`.
+- First permanent execution updated 1 row.
+- Immediate second guarded execution updated 0 rows.
+- Live local `/api/catalog` verification returned the corrected Core values and
+  matched all 5 module and all 23 package prices to the previously approved
+  schedule with 0 mismatches.
+
 ## Source Pricing
 
 IDS approved the following Yarbo pricing policy:
@@ -34,8 +51,8 @@ Review inputs:
 - Product targets: 1.
 - Option/module targets: 5.
 - Package targets: 23.
-- Records where Yarbo MSRP and IDS Everyday Price are identical: 11.
-- Records where IDS Everyday Price is lower than Yarbo MSRP: 18.
+- Records where Yarbo MSRP and IDS Everyday Price are identical: 10.
+- Records where IDS Everyday Price is lower than Yarbo MSRP: 19.
 
 The review-only SQL at `supabase/seeds/yarbo-everyday-pricing-2026.sql` revalidates the same mapping against live database state before any proposed update. It stops if a target is missing, duplicated, inactive, outside the Yarbo product, or if package-item module relationships no longer match the expected module set.
 
@@ -46,14 +63,14 @@ The review-only SQL at `supabase/seeds/yarbo-everyday-pricing-2026.sql` revalida
 | Old regular/MSRP total across 29 rows | $158,971 |
 | Old current website-price total across 29 rows | $157,721 |
 | Proposed Yarbo MSRP total across 29 rows | $158,971 |
-| Proposed IDS Everyday Price total across 29 rows | $145,871 |
-| Net change from old current total to proposed IDS total | -$11,850 |
+| Proposed IDS Everyday Price total across 29 rows | $145,621 |
+| Net change from old current total to proposed IDS total | -$12,100 |
 
 ## Full 29-Row Mapping
 
 | Record type | Stable slug | Existing catalog name | Approved customer-facing source name | Package-item modules used for package validation | Old regular price | Old current price | New Yarbo MSRP | New IDS Everyday Price | Display rule |
 | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| Product | `yarbo` | Yarbo Core | Yarbo Core | n/a | $3,999 | $3,999 | $3,999 | $3,999 | Single clean price |
+| Product | `yarbo` | Yarbo Core | Yarbo Core | n/a | $3,999 | $3,999 | $3,999 | $3,749 | Comparison price |
 | Option | `yarbo-snow-blower-module` | Snow Blower Module | Snow Blower Module | n/a | $1,299 | $1,199 | $1,299 | $1,299 | Single clean price |
 | Option | `yarbo-mower-module` | Lawn Mower Module | Standard Lawn Mower Module | n/a | $1,299 | $899 | $1,299 | $999 | Comparison price |
 | Option | `yarbo-lawn-mower-pro-module` | Lawn Mower Pro Module | Lawn Mower Pro Module | n/a | $2,299 | $1,799 | $2,299 | $2,099 | Comparison price |
@@ -85,18 +102,18 @@ The review-only SQL at `supabase/seeds/yarbo-everyday-pricing-2026.sql` revalida
 
 ## Equal Price Rows
 
-These 11 rows have identical Yarbo MSRP and IDS Everyday Price, so the frontend should show one clean price and should not repeat the same value as a crossed-out comparison:
+These 10 rows have identical Yarbo MSRP and IDS Everyday Price, so the frontend should show one clean price and should not repeat the same value as a crossed-out comparison:
 
-`yarbo`, `yarbo-snow-blower-module`, `yarbo-leaf-blower-module`, `yarbo-trimmer-module`, `yarbo-snow-blower`, `yarbo-leaf-blower`, `yarbo-trimmer`, `yarbo-leaf-blower-trimmer`, `yarbo-snow-blower-trimmer`, `yarbo-snow-leaf`, `yarbo-snow-leaf-trimmer`.
+`yarbo-snow-blower-module`, `yarbo-leaf-blower-module`, `yarbo-trimmer-module`, `yarbo-snow-blower`, `yarbo-leaf-blower`, `yarbo-trimmer`, `yarbo-leaf-blower-trimmer`, `yarbo-snow-blower-trimmer`, `yarbo-snow-leaf`, `yarbo-snow-leaf-trimmer`.
 
 ## IDS-Lower Rows
 
-These 18 rows have a lower IDS Everyday Price and should display:
+These 19 rows have a lower IDS Everyday Price and should display:
 
 - Yarbo Everyday Price: crossed-out MSRP.
 - IDS Everyday Price: emphasized current price.
 
-Rows: `yarbo-mower-module`, `yarbo-lawn-mower-pro-module`, `yarbo-lawn-mower`, `yarbo-lawn-mower-pro`, `yarbo-lawn-mower-trimmer`, `yarbo-lawn-mower-pro-trimmer`, `yarbo-snow-lawn`, `yarbo-lawn-leaf`, `yarbo-snow-lawn-trimmer`, `yarbo-lawn-leaf-trimmer`, `yarbo-pro-snow`, `yarbo-pro-leaf`, `yarbo-pro-snow-trimmer`, `yarbo-pro-leaf-trimmer`, `yarbo-lawn-snow-leaf`, `yarbo-pro-snow-leaf`, `yarbo-lawn-snow-leaf-trimmer`, `yarbo-pro-snow-leaf-trimmer`.
+Rows: `yarbo`, `yarbo-mower-module`, `yarbo-lawn-mower-pro-module`, `yarbo-lawn-mower`, `yarbo-lawn-mower-pro`, `yarbo-lawn-mower-trimmer`, `yarbo-lawn-mower-pro-trimmer`, `yarbo-snow-lawn`, `yarbo-lawn-leaf`, `yarbo-snow-lawn-trimmer`, `yarbo-lawn-leaf-trimmer`, `yarbo-pro-snow`, `yarbo-pro-leaf`, `yarbo-pro-snow-trimmer`, `yarbo-pro-leaf-trimmer`, `yarbo-lawn-snow-leaf`, `yarbo-pro-snow-leaf`, `yarbo-lawn-snow-leaf-trimmer`, `yarbo-pro-snow-leaf-trimmer`.
 
 ## Exact Database Columns Affected
 

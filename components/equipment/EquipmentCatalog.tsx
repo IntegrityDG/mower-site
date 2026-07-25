@@ -15,6 +15,7 @@ import {
 
 import YarboPriceDisplay from "./YarboPriceDisplay";
 import LymowPriceDisplay from "./LymowPriceDisplay";
+import YarboStartingPriceDisplay from "./YarboStartingPriceDisplay";
 
 type Filter =
   | "all"
@@ -170,10 +171,10 @@ export default function EquipmentCatalog() {
                         priceClassName="text-2xl font-black text-emerald-700"
                       />
                     ) : yarboProduct ? (
-                      <YarboPriceDisplay
-                        item={product}
+                      <YarboStartingPriceDisplay
+                        product={product}
                         className="mt-1"
-                        priceClassName="text-2xl font-black text-slate-950"
+                        priceClassName="text-2xl font-black text-emerald-700"
                       />
                     ) : (
                       <p className="mt-1 text-2xl font-black text-slate-950">

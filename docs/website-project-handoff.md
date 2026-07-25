@@ -9,6 +9,13 @@ Configured upstream: `origin/catalog-backend`
 
 The equipment-catalog, purchasing-flow, and manufacturer-monitoring work is saved locally. This handoff is a shutdown checkpoint, not authorization to publish catalog changes.
 
+## Yarbo Core pricing follow-up
+
+- The Yarbo Core IDS Everyday Price correction was applied on 2026-07-24. The live active `yarbo` product row is `399900` regular / `374900` current cents with null promotion label and dates.
+- The first guarded execution updated 1 row and the immediate second execution updated 0 rows.
+- The Supabase-backed local `/api/catalog` response verified all 5 module and 23 package prices against the prior approved schedule with 0 mismatches.
+- Public parent-product cards now present the Core price as the Yarbo starting price, while Core-specific, review, and purchase-summary displays use the same two-price structure without changing package or total logic.
+
 The approved Lymow catalog proposal is complete and applied:
 
 - `supabase/seeds/lymow-catalog-proposal.sql` was successfully executed against the configured Supabase project.

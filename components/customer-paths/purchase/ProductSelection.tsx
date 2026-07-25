@@ -6,7 +6,7 @@ import { priceLabel } from "@/lib/catalog/pricing";
 import type { CatalogProduct } from "@/lib/catalog/types";
 import { isYarboProduct } from "@/lib/catalog/yarbo";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
-import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
+import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
 
 import ProductDetailsModal from "./ProductDetailsModal";
 
@@ -85,10 +85,16 @@ export default function ProductSelection({
                     />
                   </div>
                 ) : isYarboProduct(product) ? (
-                  <YarboPriceDisplay
-                    item={product}
-                    priceClassName="text-sm font-black text-emerald-700"
-                  />
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                      Starting at
+                    </p>
+                    <YarboStartingPriceDisplay
+                      product={product}
+                      className="mt-1"
+                      priceClassName="text-sm font-black text-emerald-700"
+                    />
+                  </div>
                 ) : (
                   <span className="text-sm font-black text-emerald-700">
                     {priceLabel(product)}
