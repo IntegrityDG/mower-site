@@ -5,6 +5,7 @@ import { useState } from "react";
 import { priceLabel } from "@/lib/catalog/pricing";
 import type { CatalogProduct } from "@/lib/catalog/types";
 import { isYarboProduct } from "@/lib/catalog/yarbo";
+import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 
 import ProductDetailsModal from "./ProductDetailsModal";
@@ -72,7 +73,18 @@ export default function ProductSelection({
                 >
                   {isSelected ? "Selected" : product.capabilityLevel ?? "Machine"}
                 </span>
-                {isYarboProduct(product) ? (
+                {product.slug === "lymow-one-plus" ? (
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+                      Starting at
+                    </p>
+                    <LymowPriceDisplay
+                      product={product}
+                      className="mt-1"
+                      priceClassName="text-sm font-black text-emerald-700"
+                    />
+                  </div>
+                ) : isYarboProduct(product) ? (
                   <YarboPriceDisplay
                     item={product}
                     priceClassName="text-sm font-black text-emerald-700"

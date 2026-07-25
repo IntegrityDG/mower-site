@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 
 import CatalogHeader from "@/components/equipment/CatalogHeader";
+import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import { priceLabel } from "@/lib/catalog/pricing";
@@ -412,7 +413,24 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                   product.fullDescription ??
                   product.homepageSummary}
               </p>
-              <p className="mt-7 text-3xl font-black">{priceLabel(product)}</p>
+              {product.slug === "lymow-one-plus" ? (
+                <div className="mt-7">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">
+                    Starting at
+                  </p>
+                  <LymowPriceDisplay
+                    product={product}
+                    className="mt-2"
+                    priceClassName="text-3xl font-black text-emerald-300"
+                    labelClassName="text-xs font-bold uppercase tracking-[0.14em] text-slate-300"
+                    regularClassName="text-lg font-bold text-slate-300 line-through"
+                  />
+                </div>
+              ) : (
+                <p className="mt-7 text-3xl font-black">
+                  {priceLabel(product)}
+                </p>
+              )}
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/#location-and-customer-path"
@@ -440,7 +458,43 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
         </section>
 
         <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
-          <div className="grid gap-5 md:grid-cols-3">
+          {product.slug === "lymow-one-plus" &&
+            product.variants.length > 0 && (
+              <div>
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
+                  Available configurations
+                </p>
+                <h2 className="mt-3 text-3xl font-black">
+                  Choose the charging configuration for your property
+                </h2>
+                <div className="mt-5 grid gap-5 md:grid-cols-2">
+                  {product.variants.map((variant) => (
+                    <article
+                      key={variant.id}
+                      className="rounded-3xl border border-slate-200 bg-white p-7"
+                    >
+                      <h3 className="text-xl font-black">{variant.name}</h3>
+                      {variant.description && (
+                        <p className="mt-3 leading-7 text-slate-600">
+                          {variant.description}
+                        </p>
+                      )}
+                      <LymowPriceDisplay
+                        variant={variant}
+                        className="mt-5"
+                        priceClassName="text-2xl font-black text-emerald-700"
+                      />
+                    </article>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          <div
+            className={`grid gap-5 md:grid-cols-3 ${
+              product.slug === "lymow-one-plus" ? "mt-14" : ""
+            }`}
+          >
             {product.propertyScale && (
               <Info label="Best fit" value={product.propertyScale} />
             )}

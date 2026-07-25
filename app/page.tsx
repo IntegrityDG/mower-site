@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import NationwidePurchaseFlow from "@/components/customer-paths/purchase/NationwidePurchaseFlow";
+import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
 
 const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
@@ -222,6 +223,17 @@ export default function Page() {
                     {item.title}
                   </h3>
                   <p className="mt-4 leading-7 text-slate-600">{item.text}</p>
+                  {item.title === "Lymow One Plus" && (
+                    <div className="mt-5">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                        Starting at
+                      </p>
+                      <LymowPriceDisplay
+                        className="mt-2"
+                        priceClassName="text-2xl font-black text-emerald-700"
+                      />
+                    </div>
+                  )}
                   <Link
                     href={item.href}
                     className="mt-6 inline-flex font-black text-emerald-700 hover:text-emerald-600"
