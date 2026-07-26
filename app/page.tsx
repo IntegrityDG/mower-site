@@ -330,12 +330,36 @@ export default function Page() {
                         />
                       </div>
                     )}
+                    {item.title === "Pandag G1" && (
+                      <div className="mt-5">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                          Starting at
+                        </p>
+                        <p className="mt-2 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                          MSRP Everyday Price
+                        </p>
+                        <p className="mt-1 text-2xl font-black text-emerald-700">
+                          $24,660
+                        </p>
+                        <p className="mt-3 text-sm font-bold leading-6 text-slate-700">
+                          Contact us to find out the IDS LOW Everyday Price.
+                        </p>
+                      </div>
+                    )}
                     <Link
                       href={item.href}
                       className="mt-6 inline-flex font-black text-emerald-700 hover:text-emerald-600"
                     >
                       View Details -&gt;
                     </Link>
+                    {item.title === "Pandag G1" && (
+                      <Link
+                        href="/pandag/project-quote"
+                        className="mt-4 flex w-full justify-center rounded-2xl bg-emerald-600 px-5 py-4 text-center font-black text-white transition hover:bg-emerald-700"
+                      >
+                        Request Pricing &amp; Information
+                      </Link>
+                    )}
                   </article>
                 );
               })}
