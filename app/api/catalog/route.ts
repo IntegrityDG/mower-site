@@ -39,6 +39,7 @@ function priceFromRow(row: PriceRow): CatalogPrice {
     row.sale_price_cents !== null && now >= startsAt && now <= endsAt;
 
   return {
+    displayMsrpPriceCents: null,
     regularPriceCents: row.regular_price_cents,
     salePriceCents: row.sale_price_cents,
     currentPriceCents: saleIsActive
@@ -52,6 +53,7 @@ function priceFromRow(row: PriceRow): CatalogPrice {
 }
 
 const quoteOnlyPublicPrice: CatalogPrice = {
+  displayMsrpPriceCents: null,
   regularPriceCents: null,
   salePriceCents: null,
   currentPriceCents: null,
@@ -165,7 +167,9 @@ export async function GET() {
     const normalizedProducts: CatalogProduct[] = products.map((product) => {
       const salesMode = salesModeForProductSlug(product.slug);
       const publicPrice = (row: PriceRow) =>
-        salesMode === "quote_only" ? quoteOnlyPublicPrice : priceFromRow(row);
+        salesMode === "quote_only"
+          ? { ...quoteOnlyPublicPrice, displayMsrpPriceCents: row.regular_price_cents }
+          : priceFromRow(row);
       const productMedia = media
         .filter((item) => item.product_id === product.id)
         .map((item) => ({
@@ -186,11 +190,18 @@ export async function GET() {
           (option) =>
             options.find((row) => row.id === option.id)?.product_id === product.id
         )
-        .map((option) =>
-          salesMode === "quote_only"
-            ? { ...option, ...quoteOnlyPublicPrice }
-            : option
-        );
+        .map((option) => {
+          if (salesMode !== "quote_only") return option;
+
+          return {
+            ...option,
+            ...quoteOnlyPublicPrice,
+            displayMsrpPriceCents:
+              option.slug === "pandag-charging-dock"
+                ? option.regularPriceCents
+                : null,
+          };
+        });
 
       const normalizedVariants = variants
         .filter((variant) => variant.product_id === product.id)

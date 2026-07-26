@@ -8,7 +8,7 @@ import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
-import { priceLabel } from "@/lib/catalog/pricing";
+import { formatCents, priceLabel } from "@/lib/catalog/pricing";
 import { isQuoteOnlyProduct } from "@/lib/catalog/sales-mode";
 import type { CatalogOption, CatalogProduct } from "@/lib/catalog/types";
 import {
@@ -78,9 +78,23 @@ export default function ProductPage({
 }
 
 function PandagProductPage({ product }: { product: CatalogProduct }) {
-  const options = [
+  const chargingDock = [
     ...product.optionGroups.flatMap((group) => group.options),
     ...product.ungroupedOptions,
+  ].find((option) => option.slug === "pandag-charging-dock");
+  const modelInterestBySlug: Record<string, string> = {
+    "pandag-g1-m1500-sd": "m1500_sd",
+    "pandag-g1-m1500-rd": "m1500_rd",
+    "pandag-g1-pro-m3000": "pro_m3000",
+  };
+  const includedEquipment = [
+    "Machine",
+    "Cutting Deck",
+    "Blades",
+    "Battery",
+    "Charging Cable",
+    "RTK Station",
+    "Turf Tires",
   ];
 
   return (
@@ -108,11 +122,24 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
                 Integrity Distribution Systems will recommend the appropriate model after
                 reviewing the project.
               </p>
+              {product.displayMsrpPriceCents != null && (
+                <div className="mt-6">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">
+                    Starting MSRP Everyday Price
+                  </p>
+                  <p className="mt-1 text-3xl font-black text-white">
+                    {formatCents(product.displayMsrpPriceCents)}
+                  </p>
+                </div>
+              )}
+              <p className="mt-6 font-bold text-slate-100">
+                Contact us to find out the IDS LOW Everyday Price.
+              </p>
               <Link
                 href="/pandag/project-quote"
                 className="mt-7 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 hover:bg-emerald-400"
               >
-                Request a Pandag Project Quote
+                Request Pricing &amp; Information
               </Link>
             </div>
             <div className="flex min-h-80 items-center justify-center rounded-[2rem] bg-white/95 p-8">
@@ -146,19 +173,70 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
             </div>
           ) : null}
 
-          {options.length > 0 && (
-            <div id="compatible-equipment" className="mt-14 scroll-mt-8">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">Platform equipment</p>
-              <h2 className="mt-3 text-3xl font-black">Equipment considered during project review</h2>
-              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {options.map((option) => (
-                  <article key={option.id} className="rounded-2xl border border-slate-200 bg-white p-5">
-                    <h3 className="font-black">{option.name}</h3>
-                    {option.description && <p className="mt-3 leading-7 text-slate-600">{option.description}</p>}
-                  </article>
-                ))}
-              </div>
+          <section id="model-configurations" className="mt-14 scroll-mt-8">
+            <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
+              Available configurations
+            </p>
+            <h2 className="mt-3 text-3xl font-black">Three commercial Pandag models</h2>
+            <p className="mt-3 max-w-4xl leading-7 text-slate-600">
+              These models are shown for project planning only. Model interest is non-binding,
+              and IDS recommends the final configuration after reviewing the property.
+            </p>
+            <div className="mt-6 grid gap-5 lg:grid-cols-3">
+              {product.variants.map((variant) => (
+                <article key={variant.id} className="flex flex-col rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
+                  <h3 className="text-2xl font-black">{variant.name}</h3>
+                  <div className="mt-5">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                      MSRP Everyday Price
+                    </p>
+                    <p className="mt-1 text-2xl font-black text-emerald-700">
+                      {variant.displayMsrpPriceCents == null
+                        ? "Contact for MSRP"
+                        : formatCents(variant.displayMsrpPriceCents)}
+                    </p>
+                  </div>
+                  {variant.description && (
+                    <p className="mt-4 leading-7 text-slate-600">{variant.description}</p>
+                  )}
+                  <div className="mt-5 rounded-2xl bg-emerald-50 p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">
+                      Included equipment
+                    </p>
+                    <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm font-semibold text-slate-700">
+                      {includedEquipment.map((item) => <li key={`${variant.id}-${item}`}>{item}</li>)}
+                    </ul>
+                  </div>
+                  <div className="mt-auto pt-6">
+                    <p className="font-bold text-slate-800">
+                      Contact us to find out the IDS LOW Everyday Price.
+                    </p>
+                    <Link
+                      href={`/pandag/project-quote?model=${modelInterestBySlug[variant.slug] ?? "recommend"}`}
+                      className="mt-4 inline-flex w-full justify-center rounded-2xl bg-emerald-600 px-5 py-4 text-center font-black text-white hover:bg-emerald-700"
+                    >
+                      Request Pricing &amp; Information
+                    </Link>
+                  </div>
+                </article>
+              ))}
             </div>
+            <p className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 font-semibold leading-7 text-amber-950">
+              Manufacturer-published capacity is stated as “Up To” and may vary based on terrain,
+              vegetation, cutting height, operating conditions, charging strategy, and mowing schedule.
+            </p>
+          </section>
+
+          {chargingDock?.displayMsrpPriceCents != null && (
+            <section id="compatible-equipment" className="mt-14 scroll-mt-8">
+              <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">Optional charging equipment</p>
+              <article className="mt-5 max-w-2xl rounded-2xl border border-slate-200 bg-white p-6">
+                <h2 className="text-2xl font-black">Charging Dock</h2>
+                <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">MSRP Everyday Price</p>
+                <p className="mt-1 text-2xl font-black text-emerald-700">{formatCents(chargingDock.displayMsrpPriceCents)}</p>
+                <p className="mt-3 leading-7 text-slate-600">Optional charging equipment considered during commercial project review.</p>
+              </article>
+            </section>
           )}
 
           <div className="mt-14 rounded-[2rem] bg-slate-950 p-8 text-white sm:p-10">
@@ -167,7 +245,7 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
               Submit property and operating requirements for project review. No purchase or payment occurs through the request form, and model interest is non-binding.
             </p>
             <Link href="/pandag/project-quote" className="mt-6 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950">
-              Request a Pandag Project Quote
+              Request Pricing &amp; Information
             </Link>
           </div>
         </section>

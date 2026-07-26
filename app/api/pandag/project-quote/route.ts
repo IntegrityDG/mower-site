@@ -25,8 +25,9 @@ const contactMethods = {
 
 const modelInterests = {
   recommend: "Not sure — recommend a model",
-  m1500_family: "M1500 family",
-  pro_m3000_family: "PRO M3000 family",
+  m1500_sd: "Pandag G1 M1500 SD",
+  m1500_rd: "Pandag G1 M1500 RD",
+  pro_m3000: "Pandag G1 PRO M3000",
 } as const;
 
 type TextRule = { required?: boolean; maximum: number };

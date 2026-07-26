@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
-import { priceLabel } from "@/lib/catalog/pricing";
+import { formatCents, priceLabel } from "@/lib/catalog/pricing";
 import { isQuoteOnlyProduct } from "@/lib/catalog/sales-mode";
 import type { CatalogProduct, CatalogResponse } from "@/lib/catalog/types";
 import {
@@ -184,6 +184,19 @@ export default function EquipmentCatalog() {
                       </p>
                     )}
                   </div>}
+                  {quoteOnlyProduct && product.displayMsrpPriceCents != null && (
+                    <div className="mt-5">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                        Starting MSRP Everyday Price
+                      </p>
+                      <p className="mt-1 text-2xl font-black text-emerald-700">
+                        {formatCents(product.displayMsrpPriceCents)}
+                      </p>
+                      <p className="mt-3 text-sm font-bold leading-6 text-slate-700">
+                        Contact us to find out the IDS LOW Everyday Price.
+                      </p>
+                    </div>
+                  )}
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <Link
                       href={`/equipment/${product.slug}`}
@@ -202,7 +215,7 @@ export default function EquipmentCatalog() {
                       className="rounded-xl bg-emerald-600 px-4 py-3 text-center font-black text-white hover:bg-emerald-700"
                     >
                       {quoteOnlyProduct
-                        ? "Request Project Quote"
+                        ? "Request Pricing & Information"
                         : yarboProduct
                           ? "View Yarbo Systems"
                           : "Build Your System"}

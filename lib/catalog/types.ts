@@ -1,4 +1,6 @@
 export type CatalogPrice = {
+  /** Informational MSRP only. Never use for selection, checkout, or totals. */
+  displayMsrpPriceCents?: number | null;
   regularPriceCents: number | null;
   salePriceCents: number | null;
   currentPriceCents: number | null;

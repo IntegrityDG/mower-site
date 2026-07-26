@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import CatalogHeader from "@/components/equipment/CatalogHeader";
 
@@ -43,11 +43,20 @@ const initialValues: FormValues = {
   modelInterest: "recommend", securityRestrictions: "", additionalNotes: "",
 };
 
+const modelInterests = new Set(["recommend", "m1500_sd", "m1500_rd", "pro_m3000"]);
+
 export default function PandagProjectQuotePage() {
   const router = useRouter();
   const [values, setValues] = useState(initialValues);
   const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const requestedModel = new URLSearchParams(window.location.search).get("model");
+    if (requestedModel && modelInterests.has(requestedModel)) {
+      setValues((current) => ({ ...current, modelInterest: requestedModel }));
+    }
+  }, []);
 
   function update(name: string, value: string) {
     setValues((current) => ({ ...current, [name]: value }));
@@ -124,7 +133,7 @@ export default function PandagProjectQuotePage() {
             <TextArea label="Current mowing equipment (optional)" name="currentEquipment" value={values.currentEquipment} onChange={update} />
             <TextArea label="Current mowing labor or operating burden (optional)" name="currentLaborBurden" value={values.currentLaborBurden} onChange={update} />
             <TextField label="Expected number of machines (optional)" name="expectedMachineCount" value={values.expectedMachineCount} onChange={update} />
-            <SelectField label="Preferred or interested model (non-binding)" name="modelInterest" value={values.modelInterest} onChange={update} required options={[["recommend", "Not sure — recommend a model"], ["m1500_family", "M1500 family"], ["pro_m3000_family", "PRO M3000 family"]]} />
+            <SelectField label="Preferred or interested model (non-binding)" name="modelInterest" value={values.modelInterest} onChange={update} required options={[["recommend", "Not sure — recommend a model"], ["m1500_sd", "Pandag G1 M1500 SD"], ["m1500_rd", "Pandag G1 M1500 RD"], ["pro_m3000", "Pandag G1 PRO M3000"]]} />
             <TextArea label="Additional project notes" name="additionalNotes" value={values.additionalNotes} onChange={update} required wide />
           </FormSection>
 
