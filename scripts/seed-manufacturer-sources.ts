@@ -3,9 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 
 type TargetType = "product" | "variant" | "option" | "package";
 type Definition = {
+  id?: string;
   targetType: TargetType; targetSlug: string; brand: "Lymow" | "Yarbo" | "Pandag";
   name: string; url: string; kind: "manufacturer_product_page" | "manufacturer_specs_page" | "other";
-  fields: string[]; category: string; notes: string;
+  fields: string[]; category: string; notes: string; modelScope?: string;
+  manualOnly?: boolean; allowAutomatedFetch?: boolean;
 };
 
 const productFields = ["short_description", "cutting_width", "cutting_height", "battery", "runtime", "charging_time", "maximum_area", "slope_capability", "navigation_system", "obstacle_detection", "drive_system", "official_image_url", "official_document_url"];
@@ -40,7 +42,10 @@ const definitions: Definition[] = [
     ["yarbo-plow-module", "Yarbo Snow Plow Blade", "https://www.yarbo.com/products/plow-blade", ["dimensions", "weight", "official_image_url"]],
     ["yarbo-tow-hitch", "Yarbo Tow Hitch", "https://www.yarbo.com/products/tow-hitch", ["dimensions", "weight", "official_image_url"]],
   ].map(([targetSlug, name, sourceUrl, fields]) => ({ targetType: "option" as const, targetSlug: targetSlug as string, brand: "Yarbo" as const, name: name as string, url: sourceUrl as string, kind: "manufacturer_product_page" as const, fields: fields as string[], category: targetSlug === "yarbo-plow-module" || targetSlug === "yarbo-tow-hitch" ? "accessories" : "product_page", notes: `Exact catalog option match. ${reviewed}` })),
-  { targetType: "product", targetSlug: "pandag-g1", brand: "Pandag", name: "Pandag G1 M1500 SD/RD and G1 PRO M3000 specifications", url: "https://www.pandag.com/product/pandag-g1-mower", kind: "manufacturer_specs_page", fields: productFields.filter((field) => field !== "short_description"), category: "specifications", notes: `${reviewed} Covers all three model tabs. Public pricing monitoring is prohibited.` },
+  { id: "6a4f0e76-6b9d-4fbb-9a72-8b6154da3c11", targetType: "product", targetSlug: "pandag-g1", brand: "Pandag", name: "Pandag G1 shared platform review", url: "https://www.pandag.com/product/pandag-g1-mower", kind: "manufacturer_specs_page", fields: ["short_description", "navigation_system", "obstacle_detection", "drive_system", "warranty", "official_image_url", "official_document_url"], category: "platform_review", modelScope: "platform", manualOnly: true, allowAutomatedFetch: false, notes: `${reviewed} Shared G1 platform information only. Model specifications and all pricing are protected.` },
+  { id: "0de5fd6d-a7c6-4d6e-91d1-62c715b5a2b2", targetType: "variant", targetSlug: "pandag-g1-m1500-sd", brand: "Pandag", name: "Pandag G1 M1500 SD review", url: "https://www.pandag.com/product/pandag-g1-mower", kind: "manufacturer_specs_page", fields: ["short_description", "warranty", "official_image_url", "official_document_url"], category: "model_review", modelScope: "m1500_sd", manualOnly: true, allowAutomatedFetch: false, notes: `${reviewed} M1500 SD informational review only. Owner-approved specifications and all pricing are protected.` },
+  { id: "58e09b88-b28e-4f73-a8ba-f684e512c3c3", targetType: "variant", targetSlug: "pandag-g1-m1500-rd", brand: "Pandag", name: "Pandag G1 M1500 RD review", url: "https://www.pandag.com/product/pandag-g1-mower", kind: "manufacturer_specs_page", fields: ["short_description", "warranty", "official_image_url", "official_document_url"], category: "model_review", modelScope: "m1500_rd", manualOnly: true, allowAutomatedFetch: false, notes: `${reviewed} M1500 RD informational review only. Owner-approved specifications and all pricing are protected.` },
+  { id: "cb8745aa-931e-47d5-86fa-3da8f4d7d4d4", targetType: "variant", targetSlug: "pandag-g1-pro-m3000", brand: "Pandag", name: "Pandag G1 PRO M3000 review", url: "https://www.pandag.com/product/pandag-g1-mower", kind: "manufacturer_specs_page", fields: ["short_description", "warranty", "official_image_url", "official_document_url"], category: "model_review", modelScope: "pro_m3000", manualOnly: true, allowAutomatedFetch: false, notes: `${reviewed} PRO M3000 informational review only. Owner-approved specifications and all pricing are protected.` },
 ];
 
 loadEnvConfig(process.cwd());
@@ -74,19 +79,19 @@ async function main() {
       lookups.set(`${type}:${String(row[config.slug])}`, String(row.id));
     }
   }
-  const existingResult = await privateClient.from("catalog_source_targets").select("target_type,product_id,variant_id,option_id,package_id,source_url");
+  const existingResult = await privateClient.from("catalog_source_targets").select("id,target_type,product_id,variant_id,option_id,package_id,source_url");
   if (existingResult.error) throw new Error(`Read existing sources: ${existingResult.error.message}`);
-  const existing = new Set((existingResult.data ?? []).map((row) => {
+  const existing = new Set((existingResult.data ?? []).flatMap((row) => {
     const config = tableConfig[row.target_type as TargetType]; const id = config ? row[config.idColumn as keyof typeof row] : null;
-    return `${row.target_type}:${String(id)}:${String(row.source_url).replace(/\/$/, "").toLowerCase()}`;
+    return [`id:${String(row.id)}`, `${row.target_type}:${String(id)}:${String(row.source_url).replace(/\/$/, "").toLowerCase()}`];
   }));
   const rows: Record<string, unknown>[] = []; const unmatched: string[] = [];
   for (const source of definitions) {
     const config = tableConfig[source.targetType]; const targetId = lookups.get(`${source.targetType}:${source.targetSlug}`);
     if (!targetId) { unmatched.push(`${source.targetType}:${source.targetSlug}`); continue; }
-    const identity = `${source.targetType}:${targetId}:${source.url.replace(/\/$/, "").toLowerCase()}`;
+    const identity = source.id ? `id:${source.id}` : `${source.targetType}:${targetId}:${source.url.replace(/\/$/, "").toLowerCase()}`;
     if (existing.has(identity)) continue;
-    rows.push({ target_type: source.targetType, [config.idColumn]: targetId, source_brand: source.brand, source_name: source.name, source_url: source.url, source_kind: source.kind, fields_to_monitor: { fields: source.fields, source_category: source.category }, public_pricing_monitoring_allowed: false, source_notes: source.notes, pricing_monitoring_notes: source.brand === "Pandag" ? "Pandag pricing is manual/private only." : "Public pricing is not monitored by this source seed.", check_frequency: "monthly", manual_only: false, is_active: true, allow_automated_fetch: true, allow_image_download: false, updated_at: new Date().toISOString() });
+    rows.push({ ...(source.id ? { id: source.id } : {}), target_type: source.targetType, [config.idColumn]: targetId, source_brand: source.brand, source_name: source.name, source_url: source.url, source_kind: source.kind, fields_to_monitor: { fields: source.fields, source_category: source.category, ...(source.modelScope ? { model_scope: source.modelScope, review_only: true, target_slug: source.targetSlug } : {}) }, public_pricing_monitoring_allowed: false, source_notes: source.notes, pricing_monitoring_notes: source.brand === "Pandag" ? "Pandag MSRP and IDS/private pricing are excluded from manufacturer sync." : "Public pricing is not monitored by this source seed.", check_frequency: source.manualOnly ? "manual" : "monthly", manual_only: source.manualOnly ?? false, is_active: true, allow_automated_fetch: source.allowAutomatedFetch ?? true, allow_image_download: false, updated_at: new Date().toISOString() });
   }
   if (rows.length) { const insert = await privateClient.from("catalog_source_targets").insert(rows); if (insert.error) throw new Error(`Insert sources: ${insert.error.message}`); }
   console.log("\nManufacturer source seed complete");

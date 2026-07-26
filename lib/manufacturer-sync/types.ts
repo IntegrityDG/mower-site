@@ -9,7 +9,16 @@ export type MonitoredField =
   | "dimensions" | "weight" | "warranty" | "official_image_url"
   | "official_document_url";
 
-export type ExtractedValue = { field: MonitoredField; value: string; confidence: number; notes: string };
+export type ExtractedValue = {
+  field: MonitoredField;
+  value: string;
+  confidence: number;
+  notes: string;
+  sourceTargetId?: string;
+  sourceUrl?: string;
+  modelScope?: string;
+  evidence?: string;
+};
 export type ExtractionResult = { values: ExtractedValue[]; notes: string[] };
 export type SourceTarget = {
   id: string; target_type: string; product_id: string | null; variant_id: string | null;

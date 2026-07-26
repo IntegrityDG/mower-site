@@ -5,6 +5,7 @@ import { fetchApprovedSource } from "../lib/manufacturer-sync/fetch-source";
 import { lymowAdapter } from "../lib/manufacturer-sync/adapters/lymow";
 import { yarboAdapter } from "../lib/manufacturer-sync/adapters/yarbo";
 import { pandagAdapter } from "../lib/manufacturer-sync/adapters/pandag";
+import { isPandagSuggestionAllowed } from "../lib/manufacturer-sync/pandag-policy";
 import { supportedManufacturers, type Manufacturer, type ManufacturerAdapter, type PublicTarget, type SourceTarget } from "../lib/manufacturer-sync/types";
 
 loadEnvConfig(process.cwd());
@@ -58,6 +59,10 @@ async function main() {
           const snapshot = await privateCatalog.from("catalog_source_snapshots").insert({ source_target_id: source.id, http_status: fetched.status, content_hash: fetched.contentHash, extracted_data: extraction, raw_excerpt: fetched.body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").slice(0, 1000), success: true }).select("id").single();
           requireNoError("Save source snapshot", snapshot.error); if (!snapshot.data) throw new Error("Save source snapshot returned no record.");
           for (const value of extraction.values) {
+            if (brand === "Pandag" && !isPandagSuggestionAllowed(source, value)) {
+              item.notes.push(`Blocked non-actionable Pandag candidate for ${value.field}.`);
+              continue;
+            }
             if (value.field === "official_image_url") item.images++;
             const difference = compareValue(value, target.values); if (!difference) continue;
             const duplicate = await privateCatalog.from("catalog_change_suggestions").select("id").eq("source_target_id", source.id).eq("target_record_id", target.id).eq("field_name", difference.fieldName).eq("suggested_value", difference.suggestedValue).eq("review_status", "pending").maybeSingle();

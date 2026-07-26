@@ -30,10 +30,7 @@ with source_definitions (
     ('option', 'yarbo-leaf-blower-module', 'Yarbo', 'Yarbo Blower Module', 'https://www.yarbo.com/products/blower-module', 'manufacturer_product_page', '{"fields":["runtime","charging_time","slope_capability","navigation_system","obstacle_detection","drive_system","dimensions","weight","official_image_url","official_document_url"],"source_category":"product_page"}'::jsonb, 'Exact module match reviewed 2026-07-15.'),
     ('option', 'yarbo-trimmer-module', 'Yarbo', 'Yarbo Trimmer Module', 'https://www.yarbo.com/products/trimmer-back-brace-mount', 'manufacturer_product_page', '{"fields":["runtime","charging_time","slope_capability","navigation_system","obstacle_detection","drive_system","dimensions","weight","official_image_url","official_document_url"],"source_category":"product_page"}'::jsonb, 'Exact module/package match reviewed 2026-07-15.'),
     ('option', 'yarbo-plow-module', 'Yarbo', 'Yarbo Snow Plow Blade', 'https://www.yarbo.com/products/plow-blade', 'manufacturer_product_page', '{"fields":["dimensions","weight","official_image_url"],"source_category":"accessories"}'::jsonb, 'Exact hidden catalog option match reviewed 2026-07-15; source monitoring does not change public status.'),
-    ('option', 'yarbo-tow-hitch', 'Yarbo', 'Yarbo Tow Hitch', 'https://www.yarbo.com/products/tow-hitch', 'manufacturer_product_page', '{"fields":["dimensions","weight","official_image_url"],"source_category":"accessories"}'::jsonb, 'Exact hidden catalog option match reviewed 2026-07-15; source monitoring does not change public status.'),
-
-    -- Pandag official product family page. Pricing monitoring remains prohibited.
-    ('product', 'pandag-g1', 'Pandag', 'Pandag G1 M1500 SD/RD and G1 PRO M3000 specifications', 'https://www.pandag.com/product/pandag-g1-mower', 'manufacturer_specs_page', '{"fields":["cutting_width","cutting_height","battery","runtime","charging_time","recommended_area","maximum_area","slope_capability","navigation_system","obstacle_detection","drive_system","dimensions","weight","warranty","official_image_url","official_document_url"],"source_category":"specifications"}'::jsonb, 'Reviewed 2026-07-15 on the official manufacturer domain; covers all three model tabs. Public pricing monitoring is prohibited.')
+    ('option', 'yarbo-tow-hitch', 'Yarbo', 'Yarbo Tow Hitch', 'https://www.yarbo.com/products/tow-hitch', 'manufacturer_product_page', '{"fields":["dimensions","weight","official_image_url"],"source_category":"accessories"}'::jsonb, 'Exact hidden catalog option match reviewed 2026-07-15; source monitoring does not change public status.')
 ),
 resolved_sources as (
   select s.*, p.id as target_id
@@ -79,4 +76,39 @@ where not exists (
     and existing.option_id is not distinct from case when r.target_type = 'option' then r.target_id end
     and existing.package_id is not distinct from case when r.target_type = 'package' then r.target_id end
     and lower(rtrim(existing.source_url, '/')) = lower(rtrim(r.source_url, '/'))
+  );
+
+-- Pandag sources are model-isolated, manual-only, and review-only.
+with pandag_sources (
+  id, target_type, target_id, source_name, fields_to_monitor, source_notes
+) as (
+  values
+    ('6a4f0e76-6b9d-4fbb-9a72-8b6154da3c11'::uuid, 'product', '6364d86a-d5e5-4f17-8849-cea66cb6ff0c'::uuid, 'Pandag G1 shared platform review', '{"fields":["short_description","navigation_system","obstacle_detection","drive_system","warranty","official_image_url","official_document_url"],"source_category":"platform_review","model_scope":"platform","review_only":true,"target_slug":"pandag-g1"}'::jsonb, 'Shared G1 platform information only. Model specifications and all pricing are protected.'),
+    ('0de5fd6d-a7c6-4d6e-91d1-62c715b5a2b2'::uuid, 'variant', '17be81bd-cf7b-424a-a57e-95423e7a10db'::uuid, 'Pandag G1 M1500 SD review', '{"fields":["short_description","warranty","official_image_url","official_document_url"],"source_category":"model_review","model_scope":"m1500_sd","review_only":true,"target_slug":"pandag-g1-m1500-sd"}'::jsonb, 'M1500 SD informational review only. Owner-approved specifications and all pricing are protected.'),
+    ('58e09b88-b28e-4f73-a8ba-f684e512c3c3'::uuid, 'variant', '9fcc8558-576b-4df7-93bd-12ceff29dcb2'::uuid, 'Pandag G1 M1500 RD review', '{"fields":["short_description","warranty","official_image_url","official_document_url"],"source_category":"model_review","model_scope":"m1500_rd","review_only":true,"target_slug":"pandag-g1-m1500-rd"}'::jsonb, 'M1500 RD informational review only. Owner-approved specifications and all pricing are protected.'),
+    ('cb8745aa-931e-47d5-86fa-3da8f4d7d4d4'::uuid, 'variant', '7dd2ce98-59a7-4a0d-b912-8d4916efa415'::uuid, 'Pandag G1 PRO M3000 review', '{"fields":["short_description","warranty","official_image_url","official_document_url"],"source_category":"model_review","model_scope":"pro_m3000","review_only":true,"target_slug":"pandag-g1-pro-m3000"}'::jsonb, 'PRO M3000 informational review only. Owner-approved specifications and all pricing are protected.')
+)
+insert into catalog_private.catalog_source_targets (
+  id, target_type, product_id, variant_id, source_brand, source_name,
+  source_url, source_kind, fields_to_monitor,
+  public_pricing_monitoring_allowed, source_notes, pricing_monitoring_notes,
+  check_frequency, manual_only, is_active, allow_automated_fetch,
+  allow_image_download, updated_at
+)
+select
+  source.id,
+  source.target_type,
+  case when source.target_type = 'product' then source.target_id end,
+  case when source.target_type = 'variant' then source.target_id end,
+  'Pandag', source.source_name,
+  'https://www.pandag.com/product/pandag-g1-mower',
+  'manufacturer_specs_page', source.fields_to_monitor,
+  false, source.source_notes,
+  'Pandag MSRP and IDS/private pricing are excluded from manufacturer sync.',
+  'manual', true, true, false, false, now()
+from pandag_sources source
+where not exists (
+  select 1
+  from catalog_private.catalog_source_targets existing
+  where existing.id = source.id
 );

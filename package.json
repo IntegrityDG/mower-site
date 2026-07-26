@@ -9,7 +9,8 @@
     "lint": "eslint",
     "import:catalog": "tsx scripts/import-catalog.ts",
     "seed:manufacturer-sources": "tsx scripts/seed-manufacturer-sources.ts",
-    "sync-manufacturer-catalog": "tsx scripts/sync-manufacturer-catalog.ts"
+    "sync-manufacturer-catalog": "tsx scripts/sync-manufacturer-catalog.ts",
+    "validate:pandag-sync": "tsx scripts/validate-pandag-manufacturer-sync.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.2",

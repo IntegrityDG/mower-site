@@ -27,6 +27,8 @@ New sources default to `allow_automated_fetch=false`. Review terms, robots rules
 
 Manufacturer-specific adapters conservatively inspect page metadata, labeled specification text, official-page PDF links, and `og:image` URLs. Confidence scores indicate extraction confidence, not factual approval. Metadata descriptions must be rewritten into IDS language before publication. PDF contents are not parsed in this first version.
 
+Pandag uses four isolated review scopes: shared G1 platform, M1500 SD, M1500 RD, and PRO M3000. These targets are manual-only and automated fetching is disabled. The Pandag adapter rejects protected pricing, identity, and owner-approved specification fields as well as ambiguous, mixed-model, noisy, or unscoped values. Re-enabling a Pandag fetch requires a separate owner-approved workflow and must not bypass these guards.
+
 Review `catalog_change_suggestions` records with `review_status='pending'`. Approval does not automatically publish anything; a separate, future reviewed publishing process is required.
 
 ## Troubleshooting
