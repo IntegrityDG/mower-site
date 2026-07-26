@@ -9,6 +9,11 @@ import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
+import {
+  hasCompletePandagSpecifications,
+  pandagApplications,
+  pandagSpecificationDisplay,
+} from "@/lib/catalog/pandag-specifications";
 import { isQuoteOnlyProduct } from "@/lib/catalog/sales-mode";
 import type { CatalogOption, CatalogProduct } from "@/lib/catalog/types";
 import {
@@ -96,6 +101,21 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
     "RTK Station",
     "Turf Tires",
   ];
+  const positioningBySlug: Record<string, string> = {
+    "pandag-g1-m1500-sd":
+      "Fine-turf commercial configuration intended for golf courses and similar properties that prioritize lower cutting heights, side discharge, and a bar-blade system.",
+    "pandag-g1-m1500-rd":
+      "Large-property commercial configuration suited to municipal parks, playing fields, orchards, airports, solar farms, and similar maintained acreage.",
+    "pandag-g1-pro-m3000":
+      "High-power rear-discharge configuration intended for land reclamation, overgrown ground, scrub-covered slopes, and taller or rougher vegetation.",
+  };
+  const specificationGroups = [
+    ["Power", "power"],
+    ["Performance", "performance"],
+    ["Battery", "battery"],
+    ["Cutting Height", "cuttingHeight"],
+    ["Physical", "physical"],
+  ] as const;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -183,9 +203,16 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
               and IDS recommends the final configuration after reviewing the property.
             </p>
             <div className="mt-6 grid gap-5 lg:grid-cols-3">
-              {product.variants.map((variant) => (
+              {product.variants.map((variant) => {
+                const applications = pandagApplications(variant);
+                const completeSpecifications = hasCompletePandagSpecifications(variant);
+                const minimumHeight = pandagSpecificationDisplay(variant, "minimum_cutting_height").replace(" inches", "");
+                const maximumHeight = pandagSpecificationDisplay(variant, "maximum_cutting_height");
+
+                return (
                 <article key={variant.id} className="flex flex-col rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
-                  <h3 className="text-2xl font-black">{variant.name}</h3>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">Commercial configuration</p>
+                  <h3 className="mt-2 text-2xl font-black">{variant.name}</h3>
                   <div className="mt-5">
                     <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
                       MSRP Everyday Price
@@ -196,9 +223,65 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
                         : formatCents(variant.displayMsrpPriceCents)}
                     </p>
                   </div>
-                  {variant.description && (
-                    <p className="mt-4 leading-7 text-slate-600">{variant.description}</p>
-                  )}
+                  <p className="mt-4 leading-7 text-slate-600">
+                    {positioningBySlug[variant.slug] ?? variant.description}
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {applications.map((application) => (
+                      <span key={`${variant.id}-${application}`} className="rounded-full bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">
+                        {application}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-6 grid grid-cols-2 gap-3">
+                    {[
+                      ["Discharge", "discharge_type"],
+                      ["Blade", "blade_type"],
+                      ["Runtime", "maximum_runtime"],
+                      ["Capacity", "mowable_acreage_per_day"],
+                      ["Rated Power", "rated_power"],
+                      ["Battery", "battery_capacity"],
+                    ].map(([label, slug]) => (
+                      <div key={`${variant.id}-${slug}`} className="rounded-2xl border border-slate-200 p-4">
+                        <p className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">{label}</p>
+                        <p className="mt-2 font-black text-slate-950">{pandagSpecificationDisplay(variant, slug)}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <details className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-5" open>
+                    <summary className="cursor-pointer font-black text-slate-950">Complete specifications</summary>
+                    {!completeSpecifications && (
+                      <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-950">
+                        Complete specifications are temporarily unavailable.
+                      </p>
+                    )}
+                    <div className="mt-4 space-y-5">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-700">Cutting System</p>
+                        <dl className="mt-2 space-y-2 text-sm">
+                          <SpecificationRow label="Discharge Type" value={pandagSpecificationDisplay(variant, "discharge_type")} />
+                          <SpecificationRow label="Blade Type" value={pandagSpecificationDisplay(variant, "blade_type")} />
+                        </dl>
+                      </div>
+                      {specificationGroups.map(([label, category]) => (
+                        <div key={`${variant.id}-${category}`}>
+                          <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-700">{label}</p>
+                          <dl className="mt-2 space-y-2 text-sm">
+                            {variant.specifications?.[category].map((specification) => (
+                              <SpecificationRow
+                                key={specification.slug}
+                                label={specification.label}
+                                value={specification.displayValue ?? pandagSpecificationDisplay(variant, specification.slug)}
+                              />
+                            ))}
+                            {category === "cuttingHeight" && (
+                              <SpecificationRow label="Adjustable Range" value={`${minimumHeight}–${maximumHeight}`} />
+                            )}
+                          </dl>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                   <div className="mt-5 rounded-2xl bg-emerald-50 p-5">
                     <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-800">
                       Included equipment
@@ -219,7 +302,7 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
                     </Link>
                   </div>
                 </article>
-              ))}
+              )})}
             </div>
             <p className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 font-semibold leading-7 text-amber-950">
               Manufacturer-published capacity is stated as “Up To” and may vary based on terrain,
@@ -231,10 +314,10 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
             <section id="compatible-equipment" className="mt-14 scroll-mt-8">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">Optional charging equipment</p>
               <article className="mt-5 max-w-2xl rounded-2xl border border-slate-200 bg-white p-6">
-                <h2 className="text-2xl font-black">Charging Dock</h2>
+                <h2 className="text-2xl font-black">Optional Charging Dock</h2>
                 <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">MSRP Everyday Price</p>
                 <p className="mt-1 text-2xl font-black text-emerald-700">{formatCents(chargingDock.displayMsrpPriceCents)}</p>
-                <p className="mt-3 leading-7 text-slate-600">Optional charging equipment considered during commercial project review.</p>
+                <p className="mt-3 leading-7 text-slate-600">Contact IDS for project pricing and deployment planning.</p>
               </article>
             </section>
           )}
@@ -250,6 +333,15 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
           </div>
         </section>
       </main>
+    </div>
+  );
+}
+
+function SpecificationRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-2 last:border-0 last:pb-0">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className="text-right font-bold text-slate-950">{value}</dd>
     </div>
   );
 }

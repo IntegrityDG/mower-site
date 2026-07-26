@@ -5,6 +5,8 @@ import type {
   CatalogPrice,
   CatalogProduct,
   CatalogResponse,
+  CatalogSpecificationCategory,
+  CatalogSpecifications,
 } from "@/lib/catalog/types";
 import { salesModeForProductSlug } from "@/lib/catalog/sales-mode";
 import { getSupabaseCatalogClient } from "@/lib/supabase";
@@ -89,6 +91,8 @@ export async function GET() {
       pagesResult,
       sectionsResult,
       mediaResult,
+      specificationDefinitionsResult,
+      variantSpecificationValuesResult,
     ] = await Promise.all([
       supabase
         .from("catalog_products")
@@ -135,6 +139,20 @@ export async function GET() {
         .select("*")
         .eq("show_on_product_page", true)
         .order("sort_order"),
+      supabase
+        .from("catalog_spec_definitions")
+        .select(
+          "id, specification_slug, public_label, category, data_type, canonical_unit, sort_order, public_status"
+        )
+        .eq("public_status", "active")
+        .order("category")
+        .order("sort_order"),
+      supabase
+        .from("catalog_variant_spec_values")
+        .select(
+          "id, variant_id, specification_definition_id, numeric_value, text_value, boolean_value, text_values, public_display_value, is_public"
+        )
+        .eq("is_public", true),
     ]);
 
     const products = ensureData("Products", productsResult);
@@ -147,6 +165,54 @@ export async function GET() {
     const pages = ensureData("Product pages", pagesResult);
     const sections = ensureData("Product page sections", sectionsResult);
     const media = ensureData("Product media", mediaResult);
+    const specificationDefinitions = ensureData(
+      "Specification definitions",
+      specificationDefinitionsResult
+    );
+    const variantSpecificationValues = ensureData(
+      "Variant specification values",
+      variantSpecificationValuesResult
+    );
+
+    const specificationCategory = (category: string): CatalogSpecificationCategory =>
+      category === "cutting_height" ? "cuttingHeight" : category as CatalogSpecificationCategory;
+
+    const specificationsForVariant = (variantId: string): CatalogSpecifications => {
+      const grouped: CatalogSpecifications = {
+        applications: [],
+        power: [],
+        performance: [],
+        battery: [],
+        cuttingHeight: [],
+        physical: [],
+      };
+
+      variantSpecificationValues
+        .filter((value) => value.variant_id === variantId)
+        .forEach((value) => {
+          const definition = specificationDefinitions.find(
+            (candidate) => candidate.id === value.specification_definition_id
+          );
+          if (!definition) return;
+
+          const category = specificationCategory(definition.category);
+          grouped[category].push({
+            slug: definition.specification_slug,
+            label: definition.public_label,
+            category,
+            dataType: definition.data_type,
+            canonicalUnit: definition.canonical_unit,
+            numericValue: value.numeric_value,
+            textValue: value.text_value,
+            booleanValue: value.boolean_value,
+            textValues: value.text_values,
+            displayValue: value.public_display_value,
+            sortOrder: definition.sort_order,
+          });
+        });
+
+      return grouped;
+    };
 
     const normalizedOptions: CatalogOption[] = options.map((option) => ({
       id: option.id,
@@ -219,6 +285,9 @@ export async function GET() {
                 link.relationship_type === "defines_variant"
             )
             .map((link) => link.option_id),
+          ...(salesMode === "quote_only"
+            ? { specifications: specificationsForVariant(variant.id) }
+            : {}),
           ...publicPrice(variant),
         }));
 

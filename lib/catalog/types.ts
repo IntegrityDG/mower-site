@@ -12,6 +12,33 @@ export type CatalogPrice = {
 
 export type CatalogSalesMode = "self_service" | "quote_only";
 
+export type CatalogSpecificationCategory =
+  | "applications"
+  | "power"
+  | "performance"
+  | "battery"
+  | "cuttingHeight"
+  | "physical";
+
+export type CatalogSpecification = {
+  slug: string;
+  label: string;
+  category: CatalogSpecificationCategory;
+  dataType: "numeric" | "text" | "boolean" | "text_list";
+  canonicalUnit: string | null;
+  numericValue: number | null;
+  textValue: string | null;
+  booleanValue: boolean | null;
+  textValues: string[] | null;
+  displayValue: string | null;
+  sortOrder: number;
+};
+
+export type CatalogSpecifications = Record<
+  CatalogSpecificationCategory,
+  CatalogSpecification[]
+>;
+
 export type CatalogMedia = {
   id: string;
   mediaType: "image" | "video";
@@ -74,6 +101,7 @@ export type CatalogVariant = CatalogPrice & {
   description: string | null;
   sortOrder: number;
   definingOptionIds: string[];
+  specifications?: CatalogSpecifications;
 };
 
 export type CatalogPackageItem = {
