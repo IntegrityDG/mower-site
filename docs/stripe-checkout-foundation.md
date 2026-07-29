@@ -10,7 +10,9 @@ Runtime configuration is lazy and requires `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_
 
 The signed webhook endpoint records only safe event metadata and handles card Checkout completion/expiration, refunds, and disputes idempotently. Live-mode events are rejected; asynchronous payment events are recorded as ignored until ACH is separately approved. Success is a read-only server-rendered verification page and never changes payment state; cancel state is short-lived, signed, and restricted to local equipment routes.
 
-Because `checkout_private` must not be exposed through the Data API, `20260728090000_add_private_checkout_runtime_functions.sql` adds narrowly scoped service-role-only RPCs for atomic draft creation, linkage, event receipt, lookup, and guarded state transitions. This new runtime migration has not been applied and requires review plus explicit approval.
+Because `checkout_private` must not be exposed through the Data API, `supabase/migrations/20260729010607_add_private_checkout_runtime_functions.sql` adds narrowly scoped service-role-only RPCs for atomic draft creation, linkage, event receipt, lookup, and guarded state transitions. The migration was successfully applied and metadata-verified on production project `zyualbcbjchuhajyrpvw`; Supabase recorded version `20260729010607` with migration name `add_private_checkout_runtime_functions`. Its SQL-content SHA-256 is `2d4692c69754a9fbdf353b4503f7076b3bbac8dbfe1fc98b722f61ea4b788962`. All six service-role-only RPC functions are live, RLS and FORCE RLS remain enabled on all five private checkout tables, and no browser policies or grants were added.
+
+No Stripe secrets are configured yet, and no Stripe objects, Checkout Sessions, or payments have been created. Public purchase behavior remains unchanged, and database-backed plus Stripe test-mode integration testing remains pending. The three legacy `20260715` migration-history discrepancies remain separate technical debt; they were neither applied nor repaired as part of the runtime migration.
 
 The local `validate:stripe-card-checkout` command contains pure request, Session-parameter, signed-state, Stripe-signature, reconciliation, and transition-guard tests plus static migration privilege and safety assertions. It does not claim to exercise PostgreSQL transactions, concurrent webhook claims, PostgREST RPC permissions, or applied RLS behavior. Those require a separately approved migration application followed by database-backed test-mode integration testing.
 
@@ -33,7 +35,7 @@ Orders reference private customer profiles with preservation-first foreign keys.
 
 ## Deferred work
 
-The Phase 4B2A server routes are intentionally not connected to public purchase controls. The runtime migration and test-mode environment configuration must be completed before controlled integration testing; transactional notifications remain deferred.
+The Phase 4B2A server routes are intentionally not connected to public purchase controls. The runtime migration is applied, but test-mode environment configuration must be completed before controlled integration testing; transactional notifications remain deferred.
 
 Shipping, tax, card fees, ACH discounts, ACH enablement, wire payment, inventory, services, and Hearth-in-Stripe are not implemented. Phase 4B1 freezes discount, fee, shipping, and tax amounts at zero. No payments are enabled.
 

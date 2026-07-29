@@ -98,7 +98,7 @@ assert.equal(canTransitionAttempt("expired", "succeeded"), false);
 assert.equal(canTransitionAttempt("succeeded", "expired"), false);
 
 // Static migration security checks. Database behavior still requires post-application integration tests.
-const sql = fs.readFileSync(path.join(process.cwd(), "supabase/migrations/20260728090000_add_private_checkout_runtime_functions.sql"), "utf8");
+const sql = fs.readFileSync(path.join(process.cwd(), "supabase/migrations/20260729010607_add_private_checkout_runtime_functions.sql"), "utf8");
 for (const name of ["checkout_create_card_draft", "checkout_link_card_session", "checkout_record_webhook", "checkout_finish_webhook", "checkout_find_attempt", "checkout_apply_card_event"]) {
   assert.match(sql, new RegExp(`revoke all on function public\\.${name}\\([\\s\\S]*?from public,anon,authenticated`, "i"));
 }
