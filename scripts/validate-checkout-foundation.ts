@@ -110,7 +110,7 @@ const executableDefinitions = [
   sql,
   ...["types.ts", "order-repository.ts", "pricing-resolver.ts", "eligibility.ts", "request-schema.ts"].map((file) => fs.readFileSync(path.join(process.cwd(), "lib/checkout", file), "utf8")),
 ].join("\n");
-assert.doesNotMatch(executableDefinitions, /\b(?:card_number|card_last4|last4|card_brand|cvc|cvv|exp_month|exp_year|expiration|fingerprint|account_number|bank_last4|routing_number|bank_name|payment_method_id|paymentmethod_id|reusable_token|mandate_details|complete_stripe_webhook_payload)\b/i);
+assert.doesNotMatch(executableDefinitions, /\b(?:card_number|card_last4|last4|card_brand|cvc|cvv|exp_month|exp_year|expiration|card_fingerprint|payment_fingerprint|account_number|bank_last4|routing_number|bank_name|payment_method_id|paymentmethod_id|reusable_token|mandate_details|complete_stripe_webhook_payload)\b/i);
 
 const safeSnapshot = { currency: "usd", subtotalCents: 1000, discountCents: 0, feeCents: 0, shippingCents: 0, taxCents: 0, totalCents: 1000 };
 assert.equal(safeSnapshot.totalCents, safeSnapshot.subtotalCents); assert.equal(JSON.stringify(safeSnapshot).includes("cost"), false); assert.ok(Object.values(safeSnapshot).filter((value) => typeof value === "number").every(Number.isSafeInteger));

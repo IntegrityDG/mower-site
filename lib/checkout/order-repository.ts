@@ -1,29 +1,17 @@
 import "server-only";
+import { getSupabaseServiceClient } from "@/lib/supabase";
+import type { CheckoutRequest, OrderPriceSnapshot, PaymentAttemptStatus, PaymentStatus } from "./types";
 
-import type { CustomerProfileReuseDecision, FulfillmentStatus, IdentityVerificationState, InternalCustomerProfile, OrderPriceSnapshot, OrderStatus, PaymentAttemptStatus, PaymentStatus, StripeCustomerLinkage } from "./types";
-
-export type OrderRow = { id: string; customer_id: string; public_reference: string; order_status: OrderStatus; payment_status: PaymentStatus; fulfillment_status: FulfillmentStatus; currency: "usd"; total_cents: number; refunded_cents: number; pricing_snapshot: OrderPriceSnapshot };
-export type PaymentAttemptRow = { id: string; order_id: string; attempt_number: number; payment_method: "card" | "ach"; attempt_status: PaymentAttemptStatus; stripe_checkout_session_id: string | null; stripe_payment_intent_id: string | null; expected_amount_cents: number; expected_currency: "usd" };
-export type SafeOrderStatus = Pick<OrderRow, "public_reference" | "order_status" | "payment_status" | "fulfillment_status" | "currency" | "total_cents" | "refunded_cents">;
-
-export interface CheckoutOrderRepository {
-  createInternalCustomer(input: Omit<InternalCustomerProfile, "id" | "createdAt" | "updatedAt" | "identityVerification">): Promise<InternalCustomerProfile>;
-  recordCustomerContactAndAddressSnapshots(customerId: string, snapshots: Pick<InternalCustomerProfile, "email" | "normalizedEmail" | "name" | "phone" | "billingAddress" | "shippingAddress">): Promise<InternalCustomerProfile>;
-  findPossibleProfilesByNormalizedEmail(normalizedEmail: string): Promise<readonly InternalCustomerProfile[]>;
-  linkStripeCustomer(customerId: string, linkage: Omit<StripeCustomerLinkage, "internalCustomerId">): Promise<StripeCustomerLinkage>;
-  retrieveAuthorizedReusableStripeCustomer(customerId: string, verification: Extract<IdentityVerificationState, { status: "verified" }>): Promise<CustomerProfileReuseDecision>;
-  createOrder(customerId: string, snapshot: OrderPriceSnapshot): Promise<OrderRow>;
-  attachOrderToInternalCustomer(orderId: string, customerId: string): Promise<void>;
-  createOrderItems(orderId: string, snapshot: OrderPriceSnapshot): Promise<void>;
-  createPaymentAttempt(orderId: string, paymentMethod: "card" | "ach", idempotencyKey: string, requestFingerprint: string): Promise<PaymentAttemptRow>;
-  findAttemptByCheckoutSessionId(sessionId: string): Promise<PaymentAttemptRow | null>;
-  findAttemptByPaymentIntentId(paymentIntentId: string): Promise<PaymentAttemptRow | null>;
-  recordCheckoutSessionLinkage(attemptId: string, sessionId: string, paymentIntentId: string | null): Promise<void>;
-  retrieveSafeOrderStatus(publicReference: string): Promise<SafeOrderStatus | null>;
-  recordWebhookReceipt(event: { id: string; type: string; objectId: string | null; livemode: boolean; apiVersion: string | null }): Promise<"created" | "duplicate">;
-  advancePaymentState(orderId: string, next: { orderStatus: OrderStatus; paymentStatus: PaymentStatus; fulfillmentStatus: FulfillmentStatus }): Promise<void>;
-}
-
-export function mapSafeOrderStatus(row: OrderRow): SafeOrderStatus {
-  return { public_reference: row.public_reference, order_status: row.order_status, payment_status: row.payment_status, fulfillment_status: row.fulfillment_status, currency: row.currency, total_cents: row.total_cents, refunded_cents: row.refunded_cents };
-}
+export class CheckoutRepositoryError extends Error { constructor(public code: "CONFLICT"|"UNAVAILABLE", message="Checkout repository operation failed."){super(message)} }
+export type DraftResult={customerId:string;orderId:string;publicReference:string;attemptId:string;attemptNumber:number;attemptStatus:PaymentAttemptStatus;attemptCreatedAt:string;stripeIdempotencyKey:string;sessionId:string|null};
+export type CheckoutRecord={attemptId:string;orderId:string;customerId:string;publicReference:string;attemptStatus:PaymentAttemptStatus;paymentStatus:PaymentStatus;orderStatus:string;fulfillmentStatus:string;currency:"usd";totalCents:number;refundedCents:number;snapshot:OrderPriceSnapshot;sessionId:string|null;paymentIntentId:string|null};
+const one=<T>(r:{data:T|null;error:{code?:string;message:string}|null}):T=>{if(r.error) throw new CheckoutRepositoryError(r.error.code==="23505"||r.error.message.includes("conflict")?"CONFLICT":"UNAVAILABLE");if(!r.data)throw new CheckoutRepositoryError("UNAVAILABLE");return r.data};
+const completed=(r:{error:{code?:string;message:string}|null})=>{if(r.error)throw new CheckoutRepositoryError(r.error.code==="23505"||r.error.message.includes("conflict")?"CONFLICT":"UNAVAILABLE")};
+export async function createCardCheckoutDraft(request:CheckoutRequest,snapshot:OrderPriceSnapshot,idempotencyKey:string,fingerprint:string){return one<DraftResult>(await getSupabaseServiceClient().rpc("checkout_create_card_draft",{p_idempotency_key:idempotencyKey,p_request_fingerprint:fingerprint,p_customer:{...request.customer,shippingAddress:request.shippingAddress},p_snapshot:snapshot}) as never)}
+export async function linkCheckoutSession(attemptId:string,session:{id:string;payment_intent:string|null;status:string|null;payment_status:string;created:number;expires_at:number|null}){completed(await getSupabaseServiceClient().rpc("checkout_link_card_session",{p_attempt_id:attemptId,p_session_id:session.id,p_payment_intent_id:session.payment_intent,p_session_status:session.status,p_payment_status:session.payment_status,p_created_at:new Date(session.created*1000).toISOString(),p_expires_at:session.expires_at?new Date(session.expires_at*1000).toISOString():null}))}
+export async function findCheckoutRecord(field:"stripe_checkout_session_id"|"stripe_payment_intent_id",value:string):Promise<CheckoutRecord|null>{const r=await getSupabaseServiceClient().rpc("checkout_find_attempt",{p_session_id:field==="stripe_checkout_session_id"?value:null,p_payment_intent_id:field==="stripe_payment_intent_id"?value:null});if(r.error)throw new CheckoutRepositoryError("UNAVAILABLE");return r.data as CheckoutRecord|null}
+export const findBySessionId=(id:string)=>findCheckoutRecord("stripe_checkout_session_id",id); export const findByPaymentIntentId=(id:string)=>findCheckoutRecord("stripe_payment_intent_id",id);
+export async function recordWebhookReceipt(e:{id:string;type:string;objectId:string|null;livemode:boolean;apiVersion:string|null}){return one<{state:string}>(await getSupabaseServiceClient().rpc("checkout_record_webhook",{p_event_id:e.id,p_event_type:e.type,p_object_id:e.objectId,p_livemode:e.livemode,p_api_version:e.apiVersion}) as never).state}
+export async function finishWebhook(id:string,status:"processed"|"failed"|"ignored",code:string|null=null){completed(await getSupabaseServiceClient().rpc("checkout_finish_webhook",{p_event_id:id,p_status:status,p_error_code:code}))}
+export async function applyCardEvent(p:Record<string,unknown>){return one(await getSupabaseServiceClient().rpc("checkout_apply_card_event",p) as never)}
+export function safeProjection(r:CheckoutRecord){return{publicReference:r.publicReference,attemptStatus:r.attemptStatus,paymentStatus:r.paymentStatus,orderStatus:r.orderStatus,fulfillmentStatus:r.fulfillmentStatus,currency:r.currency,totalCents:r.totalCents,refundedCents:r.refundedCents,items:[...r.snapshot.chargeableItems,...r.snapshot.includedPackageComponents].map(i=>({name:i.name,quantity:i.quantity,included:i.includedInPackagePrice}))}}

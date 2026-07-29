@@ -1,5 +1,19 @@
 # Stripe checkout foundation (Phase 4B1)
 
+## Phase 4B2A — private card Checkout backend (test mode)
+
+Phase 4B2A adds an unconnected server-side Stripe-hosted Checkout foundation for cards only. The public Lymow/Yarbo purchase and quote-request experiences are unchanged, so no real or test payment can yet be initiated from the site UI. ACH, wire transfer, discount-price presentation, fees, shipping, tax, services, and Phase 4B3 public-flow wiring remain deferred.
+
+Checkout creates a new Stripe Customer for each new or unverified purchaser (`customer_creation: always`); typed email never authorizes reuse or merging. Stripe may offer customer-controlled payment-method saving, but IDS does not request automatic saving and stores no payment-instrument data. The centralized `PAYMENT_SECURITY_NOTICE` is passed verbatim as Checkout submit custom text.
+
+Runtime configuration is lazy and requires `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `APP_BASE_URL`, and `CHECKOUT_SIGNING_SECRET`. Only `sk_test_` secret keys are accepted. Non-local base URLs require HTTPS, and localhost HTTP is development-only. No publishable key or Stripe.js dependency is required.
+
+The signed webhook endpoint records only safe event metadata and handles card Checkout completion/expiration, refunds, and disputes idempotently. Live-mode events are rejected; asynchronous payment events are recorded as ignored until ACH is separately approved. Success is a read-only server-rendered verification page and never changes payment state; cancel state is short-lived, signed, and restricted to local equipment routes.
+
+Because `checkout_private` must not be exposed through the Data API, `20260728090000_add_private_checkout_runtime_functions.sql` adds narrowly scoped service-role-only RPCs for atomic draft creation, linkage, event receipt, lookup, and guarded state transitions. This new runtime migration has not been applied and requires review plus explicit approval.
+
+The local `validate:stripe-card-checkout` command contains pure request, Session-parameter, signed-state, Stripe-signature, reconciliation, and transition-guard tests plus static migration privilege and safety assertions. It does not claim to exercise PostgreSQL transactions, concurrent webhook claims, PostgREST RPC permissions, or applied RLS behavior. Those require a separately approved migration application followed by database-backed test-mode integration testing.
+
 Phase 4B1 adds an applied private checkout migration, a lazy server-only Stripe client, strict request parsing, database-backed eligibility rules, an authoritative pricing resolver, repository contracts, status-transition guards, and local validation fixtures. It does not add an API route or change the public quote/request flow.
 
 ## Architecture
@@ -19,7 +33,7 @@ Orders reference private customer profiles with preservation-first foreign keys.
 
 ## Deferred work
 
-No Stripe objects or live payment routes exist yet. Phase 4B2 must implement order writes, card-only Checkout Session creation, raw-body signed webhooks, idempotency, safe success/cancel pages, and transactional notifications before any payment can be collected.
+The Phase 4B2A server routes are intentionally not connected to public purchase controls. The runtime migration and test-mode environment configuration must be completed before controlled integration testing; transactional notifications remain deferred.
 
 Shipping, tax, card fees, ACH discounts, ACH enablement, wire payment, inventory, services, and Hearth-in-Stripe are not implemented. Phase 4B1 freezes discount, fee, shipping, and tax amounts at zero. No payments are enabled.
 

@@ -19,7 +19,7 @@ export function transitionCheckoutState(current: CheckoutState, next: CheckoutSt
   if (!paymentTransitions[current.paymentStatus].includes(next.paymentStatus)) throw new Error("Invalid or out-of-order payment transition.");
   if (!Number.isSafeInteger(next.refundedCents) || next.refundedCents < current.refundedCents || next.refundedCents > next.totalCents) throw new Error("Invalid refunded amount.");
   if ((next.paymentStatus === "partially_refunded" && (next.refundedCents <= 0 || next.refundedCents >= next.totalCents)) || (next.paymentStatus === "refunded" && next.refundedCents !== next.totalCents)) throw new Error("Refund state does not reconcile.");
-  if ((next.fulfillmentStatus === "pending" || next.fulfillmentStatus === "fulfilled") && !["paid", "partially_refunded"].includes(next.paymentStatus)) throw new Error("Fulfillment cannot begin before payment is paid.");
+  if ((next.fulfillmentStatus === "pending" || next.fulfillmentStatus === "fulfilled") && !["paid", "partially_refunded", "disputed"].includes(next.paymentStatus)) throw new Error("Fulfillment cannot begin before payment is paid.");
   if (current.fulfillmentStatus === "fulfilled" && next.fulfillmentStatus === "pending") throw new Error("Fulfillment cannot move backward.");
   if (current.orderStatus === "confirmed" && next.orderStatus === "draft") throw new Error("Confirmed order cannot become a draft.");
   return Object.freeze({ ...next });

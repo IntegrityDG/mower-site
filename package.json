@@ -11,7 +11,8 @@
     "seed:manufacturer-sources": "tsx scripts/seed-manufacturer-sources.ts",
     "sync-manufacturer-catalog": "tsx scripts/sync-manufacturer-catalog.ts",
     "validate:pandag-sync": "tsx scripts/validate-pandag-manufacturer-sync.ts",
-    "validate:checkout-foundation": "tsx scripts/validate-checkout-foundation.ts"
+    "validate:checkout-foundation": "tsx scripts/validate-checkout-foundation.ts",
+    "validate:stripe-card-checkout": "tsx scripts/validate-stripe-card-checkout.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.2",

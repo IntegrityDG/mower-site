@@ -1,16 +1,12 @@
 import "server-only";
 
 import Stripe from "stripe";
+import { getStripeSecretKey } from "./config";
 
 let stripeClient: Stripe | null = null;
 
 export function getStripeServerClient() {
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-
-  if (!secretKey) {
-    throw new Error("Stripe is not configured on this server.");
-  }
-
-  stripeClient ??= new Stripe(secretKey);
+  const secretKey = getStripeSecretKey();
+  stripeClient ??= new Stripe(secretKey, { maxNetworkRetries: 2 });
   return stripeClient;
 }

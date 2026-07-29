@@ -29,8 +29,15 @@ export function parseCheckoutRequest(value: unknown): CheckoutRequest {
     return { optionId: item.optionId, quantity: item.quantity };
   });
   if (!record(value.customer) || !allowed(value.customer, ["name", "email", "phone"]) || typeof value.customer.name !== "string" || !nullableString(value.customer.email) || !nullableString(value.customer.phone)) throw new Error("Invalid customer properties.");
+  const customerName = value.customer.name.trim();
+  const customerEmail = typeof value.customer.email === "string" ? value.customer.email.trim() : null;
+  const customerPhone = typeof value.customer.phone === "string" ? value.customer.phone.trim() : null;
+  if (!customerName || customerName.length > 200 || (customerEmail?.length ?? 0) > 254 || (customerPhone?.length ?? 0) > 50 || (!customerEmail && !customerPhone)) throw new Error("Valid customer contact information is required.");
+  if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) throw new Error("Invalid customer email.");
   if (!record(value.shippingAddress) || !allowed(value.shippingAddress, ["line1", "line2", "city", "state", "postalCode", "country"])) throw new Error("Invalid shipping address properties.");
   const address = value.shippingAddress;
   if ([address.line1, address.city, address.state, address.postalCode].some((part) => typeof part !== "string") || !nullableString(address.line2) || address.country !== "US") throw new Error("Only structured US shipping addresses are supported.");
-  return { requestId: value.requestId, paymentMethod: value.paymentMethod, selection: { productId: selection.productId, variantId: selection.variantId as string | null, purchaseMode: selection.purchaseMode as CheckoutRequest["selection"]["purchaseMode"], packageId: selection.packageId as string | null, options, includeBaseProduct: selection.includeBaseProduct }, customer: { name: value.customer.name, email: value.customer.email as string | null, phone: value.customer.phone as string | null }, shippingAddress: { line1: address.line1 as string, line2: address.line2 as string | null, city: address.city as string, state: address.state as string, postalCode: address.postalCode as string, country: "US" } };
+  const shipping = { line1: (address.line1 as string).trim(), line2: typeof address.line2 === "string" ? address.line2.trim() || null : null, city: (address.city as string).trim(), state: (address.state as string).trim().toUpperCase(), postalCode: (address.postalCode as string).trim(), country: "US" as const };
+  if (!shipping.line1 || !shipping.city || !shipping.state || !shipping.postalCode || shipping.line1.length > 200 || (shipping.line2?.length ?? 0) > 200 || shipping.city.length > 100 || shipping.state.length > 50 || shipping.postalCode.length > 20) throw new Error("Invalid shipping address.");
+  return { requestId: value.requestId, paymentMethod: value.paymentMethod, selection: { productId: selection.productId, variantId: selection.variantId as string | null, purchaseMode: selection.purchaseMode as CheckoutRequest["selection"]["purchaseMode"], packageId: selection.packageId as string | null, options, includeBaseProduct: selection.includeBaseProduct }, customer: { name: customerName, email: customerEmail, phone: customerPhone }, shippingAddress: shipping };
 }
