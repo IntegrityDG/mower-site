@@ -118,7 +118,7 @@ assert.equal(PAYMENT_SECURITY_NOTICE.length, 467); assert.ok(PAYMENT_SECURITY_NO
 assert.equal(crypto.createHash("sha256").update(PAYMENT_SECURITY_NOTICE).digest("hex"), "7c067547572e8216b4e3ad5b7926ae30e0c6ef11f205811bfa45c729f58eea9a");
 const docs = fs.readFileSync(path.join(process.cwd(), "docs/stripe-checkout-foundation.md"), "utf8");
 assert.match(docs, /PAYMENT_SECURITY_NOTICE/); assert.doesNotMatch(docs, /Payment Security Notice:/);
-assert.match(docs, /zyualbcbjchuhajyrpvw/); assert.match(docs, /20260727034240/); assert.match(docs, /applied successfully/i); assert.doesNotMatch(docs, /\bunapplied\b|awaiting approval|must receive separate approval/i);
+assert.match(docs, /zyualbcbjchuhajyrpvw/); assert.match(docs, /20260727034240/); assert.match(docs, /The migration was applied successfully/i); assert.match(docs, /checkout_apply_card_event_v2[\s\S]*local and unapplied/i);
 assert.equal(STRIPE_CUSTOMER_PROFILE_REUSE_POLICY.emailMatchMeaning, "possible_duplicate_only");
 assert.equal(STRIPE_CUSTOMER_PROFILE_REUSE_POLICY.reuseRequires, "verified_identity");
 assert.equal(STRIPE_CUSTOMER_PROFILE_REUSE_POLICY.automaticEmailMerge, "prohibited");

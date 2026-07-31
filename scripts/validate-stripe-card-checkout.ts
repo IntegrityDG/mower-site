@@ -7,7 +7,7 @@ import { checkoutAttemptIdempotencyKey, checkoutRequestFingerprint } from "../li
 import { signCancelState, verifyCancelState } from "../lib/checkout/signed-state";
 import { getCheckoutSigningSecret, getStripeConfiguration, getStripeSecretKey, getStripeWebhookSecret, StripeConfigurationError } from "../lib/stripe/config-values";
 import { PAYMENT_SECURITY_NOTICE } from "../lib/checkout/payment-security-policy";
-import { assertTestEvent, reconcileCompletedSession, reconcileFinancialObject, WebhookReconciliationError } from "../lib/stripe/webhook-policy";
+import { assertTestEvent, reconcileCompletedSession, reconcileExpiredSession, reconcileFinancialObject, WebhookReconciliationError } from "../lib/stripe/webhook-policy";
 import { canTransitionAttempt, transitionCheckoutState } from "../lib/checkout/status-transitions";
 import type { CheckoutRequest, OrderPriceSnapshot } from "../lib/checkout/types";
 
@@ -76,9 +76,14 @@ assert.throws(() => stripe.webhooks.constructEvent(payload, "invalid", webhookSe
 
 // Pure webhook reconciliation and non-paid behavior.
 const record = { orderId: "order", attemptId: "attempt", totalCents: 1000, currency: "usd" as const };
-const completed = { livemode: false, mode: "payment", paymentMethodTypes: ["card"], clientReferenceId: "order", metadata: { order_id: "order", attempt_id: "attempt" }, currency: "usd", amountTotal: 1000, paymentStatus: "unpaid" };
-assert.equal(reconcileCompletedSession(completed, record), "processing");
-assert.equal(reconcileCompletedSession({ ...completed, paymentStatus: "paid" }, record), "paid");
+const completed = { livemode: false, status: "complete", mode: "payment", paymentMethodTypes: ["card"], clientReferenceId: "order", metadata: { order_id: "order", attempt_id: "attempt" }, currency: "usd", amountTotal: 1000, paymentStatus: "paid" };
+assert.equal(reconcileCompletedSession(completed, record), "paid");
+assert.throws(() => reconcileCompletedSession({ ...completed, paymentStatus: "unpaid" }, record), WebhookReconciliationError);
+assert.throws(() => reconcileCompletedSession({ ...completed, status: "open" }, record), WebhookReconciliationError);
+assert.equal(reconcileExpiredSession({ ...completed, status: "expired", paymentStatus: "unpaid" }, record), "expired");
+assert.equal(reconcileExpiredSession({ ...completed, status: "expired", paymentStatus: "no_payment_required" }, record), "expired");
+assert.throws(() => reconcileExpiredSession({ ...completed, status: "complete", paymentStatus: "unpaid" }, record), WebhookReconciliationError);
+assert.throws(() => reconcileExpiredSession({ ...completed, status: "expired", paymentStatus: "unknown" }, record), WebhookReconciliationError);
 assert.throws(() => reconcileCompletedSession({ ...completed, amountTotal: 999 }, record), WebhookReconciliationError);
 assert.throws(() => reconcileCompletedSession({ ...completed, currency: "eur" }, record), WebhookReconciliationError);
 assert.throws(() => reconcileCompletedSession({ ...completed, livemode: true }, record), WebhookReconciliationError);
@@ -113,4 +118,31 @@ assert.doesNotMatch(changedRuntime, /last4|payment_method_id|request\.json\(|con
 const repositorySource = fs.readFileSync("lib/checkout/order-repository.ts", "utf8");
 assert.match(repositorySource, /completed\(await getSupabaseServiceClient\(\)\.rpc\("checkout_link_card_session"/);
 assert.match(repositorySource, /completed\(await getSupabaseServiceClient\(\)\.rpc\("checkout_finish_webhook"/);
+const v2Sql = fs.readFileSync(path.join(process.cwd(), "supabase/migrations/20260731215720_persist_checkout_session_status_v2.sql"), "utf8");
+const webhookSource = fs.readFileSync("app/api/stripe/webhook/route.ts", "utf8");
+const successSource = fs.readFileSync("app/checkout/success/page.tsx", "utf8");
+assert.match(repositorySource, /export type ApplyCardEventV2Params=\{[\s\S]*p_stripe_session_status:string\|null;[\s\S]*p_stripe_payment_status:string\|null/);
+assert.match(repositorySource, /rpc\("checkout_apply_card_event_v2",p\)/);
+assert.doesNotMatch(repositorySource, /rpc\("checkout_apply_card_event",p\)/);
+assert.match(webhookSource, /applyCardEventV2\(\{[\s\S]*p_stripe_session_status: session\.status,[\s\S]*p_stripe_payment_status: session\.payment_status/);
+assert.doesNotMatch(webhookSource, /\bapplyCardEvent\b/);
+assert.match(v2Sql, /create or replace function public\.checkout_apply_card_event_v2\(/i);
+assert.doesNotMatch(v2Sql, /create or replace function public\.checkout_apply_card_event\(/i);
+assert.match(sql, /create or replace function public\.checkout_apply_card_event\(/i);
+assert.doesNotMatch(v2Sql, /drop function[\s\S]*checkout_apply_card_event\(/i);
+assert.match(v2Sql, /stripe_session_status=case when p_kind in \('paid','processing','expired'\) then p_stripe_session_status[\s\S]*stripe_payment_status=case when p_kind in \('paid','processing','expired'\) then p_stripe_payment_status/i);
+assert.match(v2Sql, /p_kind='paid'[\s\S]*p_stripe_session_status is distinct from 'complete'[\s\S]*p_stripe_payment_status is distinct from 'paid'/i);
+assert.match(v2Sql, /p_kind='expired'[\s\S]*p_stripe_session_status is distinct from 'expired'[\s\S]*p_stripe_payment_status not in \('paid','unpaid','no_payment_required'\)/i);
+assert.match(v2Sql, /expired_at=coalesce\(expired_at,now\(\)\)/i);
+assert.match(v2Sql, /p_kind='paid'[\s\S]*a\.failed_at is not null/i);
+assert.match(v2Sql, /p_kind is null or p_kind not in/i);
+assert.match(v2Sql, /p_amount is null or p_currency is null/i);
+assert.match(v2Sql, /revoke all on function public\.checkout_apply_card_event_v2[\s\S]*from public,anon,authenticated/i);
+assert.match(v2Sql, /grant execute on function public\.checkout_apply_card_event_v2[\s\S]*to service_role/i);
+assert.doesNotMatch(v2Sql, /delete\s+from|security definer|execute\s+format|quote_requests/i);
+assert.doesNotMatch(v2Sql, /IDS-B843E8271C51|stripe_webhook_events/i);
+assert.match(webhookSource, /\["processed", "ignored"\]\.includes\(receiptState\)[\s\S]*return ok\(\)/);
+assert.match(webhookSource, /receiptState === "processing"[\s\S]*status: 503/);
+assert.match(successSource, /safeProjection\(record\)/);
+assert.doesNotMatch(successSource, /stripeSessionStatus|stripePaymentStatus|stripe_session_status|stripe_payment_status/);
 console.log("Stripe card checkout validation assertions passed (pure and static checks only).");
