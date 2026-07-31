@@ -4,6 +4,7 @@ import type {
   CatalogProduct,
   ProductBuildSelection,
 } from "./types";
+import { customerFacingProductOptions } from "./customer-facing-options";
 
 export const YARBO_PRODUCT_SLUG = "yarbo";
 
@@ -248,12 +249,7 @@ export function yarboPackageBestFit(catalogPackage: CatalogPackage) {
 }
 
 export function yarboIndividualModules(product: CatalogProduct) {
-  const options = [
-    ...product.optionGroups.flatMap((group) => group.options),
-    ...product.ungroupedOptions,
-  ];
-
-  return options.filter(isYarboModuleOption);
+  return customerFacingProductOptions(product).filter(isYarboModuleOption);
 }
 
 export function selectedYarboIndividualModules(

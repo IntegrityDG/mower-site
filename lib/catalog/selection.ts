@@ -13,24 +13,10 @@ import {
   yarboHasIndividualSelection,
   yarboOptionDisplayName,
 } from "./yarbo";
-
-
-function optionGroupIsBuiltIntoVariant(
-  product: CatalogProduct,
-  groupSlug: string
-) {
-  return (
-    product.slug === "lymow-one-plus" &&
-    groupSlug === "lymow-charger-config"
-  );
-}
+import { customerFacingProductOptions } from "./customer-facing-options";
 
 export function allProductOptions(product: CatalogProduct) {
-  const options = [
-    ...product.optionGroups.flatMap((group) => group.options),
-    ...product.ungroupedOptions,
-  ];
-
+  const options = customerFacingProductOptions(product);
   return Array.from(new Map(options.map((option) => [option.id, option])).values());
 }
 
@@ -57,9 +43,6 @@ export function resolveBuildSelection(
       .filter((item) => item.includedInPackagePrice)
       .map((item) => item.optionId) ?? []
   );
-  const definingOptionIds = new Set(
-    product.variants.flatMap((variant) => variant.definingOptionIds)
-  );
 
   const selectedOptions = (
     yarboIndividualMode
@@ -75,7 +58,6 @@ export function resolveBuildSelection(
         !option.isIncluded &&
         !yarboCompleteSystemMode &&
         !packageIncludedOptionIds.has(option.id) &&
-        !definingOptionIds.has(option.id) &&
         (!yarboIndividualMode || isYarboModuleOption(option))
     );
 
@@ -197,15 +179,7 @@ export function optionGroupIsComplete(
   const selectedVariant = product.variants.find(
     (variant) => variant.id === selection.variantId
   );
-  const definingOptionIds = new Set(
-    product.variants.flatMap((variant) => variant.definingOptionIds)
-  );
-
   return product.optionGroups.every((group) => {
-    if (optionGroupIsBuiltIntoVariant(product, group.slug)) {
-      return true;
-    }
-
     if (group.slug.includes("m1500") && !selectedVariant?.slug.includes("m1500")) {
       return true;
     }
@@ -213,8 +187,9 @@ export function optionGroupIsComplete(
       return true;
     }
 
+    const customerFacingIds = new Set(allProductOptions(product).map((option) => option.id));
     const selectableOptions = group.options.filter(
-      (option) => !definingOptionIds.has(option.id) && !option.isIncluded
+      (option) => customerFacingIds.has(option.id) && !option.isIncluded
     );
     if (!group.isRequired || selectableOptions.length === 0) return true;
 

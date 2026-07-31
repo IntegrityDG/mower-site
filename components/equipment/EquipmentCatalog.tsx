@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
+import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
 import { isQuoteOnlyProduct } from "@/lib/catalog/sales-mode";
 import type { CatalogProduct, CatalogResponse } from "@/lib/catalog/types";
@@ -34,11 +35,10 @@ const filters: { key: Filter; label: string }[] = [
   { key: "parts", label: "Replacement Parts" },
 ];
 
-function allOptions(product: CatalogProduct) {
-  return [
-    ...product.optionGroups.flatMap((group) => group.options),
-    ...product.ungroupedOptions,
-  ];
+export function catalogBrowseOptions(products: CatalogProduct[]) {
+  return products.flatMap((product) =>
+    customerFacingProductOptions(product).map((option) => ({ product, option }))
+  );
 }
 
 function optionKind(name: string): Exclude<Filter, "all" | "mowers"> {
@@ -74,10 +74,7 @@ export default function EquipmentCatalog() {
   }, []);
 
   const options = useMemo(
-    () =>
-      catalog?.products.flatMap((product) =>
-        allOptions(product).map((option) => ({ product, option }))
-      ) ?? [],
+    () => catalogBrowseOptions(catalog?.products ?? []),
     [catalog]
   );
 

@@ -10,6 +10,7 @@ import {
   selectedOptionNames,
 } from "@/lib/catalog/selection";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
+import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { isSelfServiceProduct } from "@/lib/catalog/sales-mode";
 import type {
   CatalogProduct,
@@ -278,8 +279,7 @@ export default function NationwidePurchaseFlow({
       return;
     }
     const includedQuantities = Object.fromEntries(
-      product?.optionGroups
-        .flatMap((group) => group.options)
+      customerFacingProductOptions(product)
         .filter((option) => option.isIncluded)
         .map((option) => [
           option.id,
@@ -348,10 +348,9 @@ export default function NationwidePurchaseFlow({
 
   function handleOptionQuantityChange(optionId: string, quantity: number) {
     const option = selectedProduct
-      ? [
-          ...selectedProduct.optionGroups.flatMap((group) => group.options),
-          ...selectedProduct.ungroupedOptions,
-        ].find((item) => item.id === optionId)
+      ? customerFacingProductOptions(selectedProduct).find(
+          (item) => item.id === optionId
+        )
       : null;
     const maximum =
       selectedProduct &&

@@ -201,8 +201,8 @@ Build Your System
 
 | Option slug | Proposed customer-facing treatment | Public status |
 | --- | --- | --- |
-| `lymow-5a-charger` | Finished 5A configuration description; represented by the 5A mower variant. | `active` → `hidden` |
-| `lymow-10a-charger` | Finished 10A configuration description; represented by the 10A mower variant. | `active` → `hidden` |
+| `lymow-5a-charger` | Active internal definition represented by the 5A mower variant and excluded from customer-facing option collections. | Preserve `active` |
+| `lymow-10a-charger` | Active internal definition represented by the 10A mower variant and excluded from customer-facing option collections. | Preserve `active` |
 | `lymow-battery-528wh` | Rename to `Lymow One Plus Battery`; remove unverified public capacity/2.0 wording. | Preserve `active` |
 | `lymow-straight-blade-2` | Keep name; remove the existing internal “Confirm…” sentence from its description. | Preserve `active` |
 | `lymow-tracks-pair` | Rename to `Replacement Lymow Track`; use quantity-neutral compatibility copy so the existing name-based catalog classifier places it in Replacement Parts. | Preserve `active` |

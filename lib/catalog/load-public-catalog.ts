@@ -9,6 +9,7 @@ import type {
   CatalogSpecifications,
 } from "@/lib/catalog/types";
 import { salesModeForProductSlug } from "@/lib/catalog/sales-mode";
+import { customerFacingOptions } from "@/lib/catalog/customer-facing-options";
 import { getSupabaseCatalogClient } from "@/lib/supabase";
 
 const fallbackImages: Record<string, string> = {
@@ -343,6 +344,11 @@ export async function loadPublicCatalog(
           ...publicPrice(variant),
         }));
 
+      const customerFacingProductOptionRows = customerFacingOptions(
+        productOptionRows,
+        normalizedVariants,
+      );
+
       const normalizedGroups = optionGroups
         .filter((group) => group.product_id === product.id)
         .map((group) => ({
@@ -355,7 +361,7 @@ export async function loadPublicCatalog(
           minimumSelections: group.minimum_selections,
           maximumSelections: group.maximum_selections,
           sortOrder: group.sort_order,
-          options: productOptionRows.filter(
+          options: customerFacingProductOptionRows.filter(
             (option) => option.optionGroupId === group.id
           ),
         }));
@@ -419,7 +425,7 @@ export async function loadPublicCatalog(
         media: productMedia,
         variants: normalizedVariants,
         optionGroups: normalizedGroups,
-        ungroupedOptions: productOptionRows.filter(
+        ungroupedOptions: customerFacingProductOptionRows.filter(
           (option) => option.optionGroupId === null
         ),
         packages: normalizedPackages,

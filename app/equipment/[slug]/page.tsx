@@ -7,6 +7,7 @@ import QuoteOnlyNotice from "@/components/equipment/QuoteOnlyNotice";
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
+import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { loadPublicCatalog } from "@/lib/catalog/load-public-catalog";
 import {
   hasCompletePandagSpecifications,
@@ -68,10 +69,9 @@ export default async function ProductPage({
 }
 
 function PandagProductPage({ product }: { product: CatalogProduct }) {
-  const chargingDock = [
-    ...product.optionGroups.flatMap((group) => group.options),
-    ...product.ungroupedOptions,
-  ].find((option) => option.slug === "pandag-charging-dock");
+  const chargingDock = customerFacingProductOptions(product).find(
+    (option) => option.slug === "pandag-charging-dock"
+  );
   const modelInterestBySlug: Record<string, string> = {
     "pandag-g1-m1500-sd": "m1500_sd",
     "pandag-g1-m1500-rd": "m1500_rd",
@@ -634,10 +634,7 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
 }
 
 function StandardProductPage({ product }: { product: CatalogProduct }) {
-  const options = [
-    ...product.optionGroups.flatMap((group) => group.options),
-    ...product.ungroupedOptions,
-  ];
+  const options = customerFacingProductOptions(product);
   const included = options.filter((item) => item.isIncluded);
   const optional = options.filter((item) => !item.isIncluded);
 

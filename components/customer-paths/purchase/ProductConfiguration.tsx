@@ -5,6 +5,10 @@ import { useMemo, useState } from "react";
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
+import {
+  customerFacingGroupOptions,
+  customerFacingUngroupedOptions,
+} from "@/lib/catalog/customer-facing-options";
 import type {
   CatalogOption,
   CatalogOptionGroup,
@@ -91,16 +95,6 @@ function groupAppliesToVariant(
   }
 
   return true;
-}
-
-function optionGroupIsBuiltIntoVariant(
-  product: CatalogProduct,
-  group: CatalogOptionGroup
-) {
-  return (
-    product.slug === "lymow-one-plus" &&
-    group.slug === "lymow-charger-config"
-  );
 }
 
 function OptionPrice({ option }: { option: CatalogOption }) {
@@ -554,12 +548,9 @@ function StandardProductConfiguration({
       (catalogPackage) => catalogPackage.id === selection.packageId
     ) ?? null;
 
-  const definingOptionIds = useMemo(
-    () =>
-      new Set(
-        product.variants.flatMap((variant) => variant.definingOptionIds)
-      ),
-    [product.variants]
+  const customerFacingUngrouped = useMemo(
+    () => customerFacingUngroupedOptions(product),
+    [product]
   );
 
   const packageIncludedOptionIds = useMemo(
@@ -929,13 +920,10 @@ function StandardProductConfiguration({
         {product.optionGroups
           .filter(
             (group) =>
-              !optionGroupIsBuiltIntoVariant(product, group) &&
               groupAppliesToVariant(group, selectedVariant?.slug ?? null)
           )
           .map((group) => {
-            const visibleOptions = group.options.filter(
-              (option) => !definingOptionIds.has(option.id)
-            );
+            const visibleOptions = customerFacingGroupOptions(product, group);
 
             if (visibleOptions.length === 0) return null;
 
@@ -1010,7 +998,7 @@ function StandardProductConfiguration({
             );
           })}
 
-        {product.ungroupedOptions.length > 0 && (
+        {customerFacingUngrouped.length > 0 && (
           <section className="rounded-[2rem] border border-slate-300 bg-slate-50 p-5 md:p-7">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
               Accessories and Replacement Items
@@ -1024,7 +1012,7 @@ function StandardProductConfiguration({
             </p>
 
             <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              {product.ungroupedOptions.map((option) =>
+              {customerFacingUngrouped.map((option) =>
                 renderSelectableOption(
                   {
                     id: "ungrouped-accessories",
@@ -1036,7 +1024,7 @@ function StandardProductConfiguration({
                     minimumSelections: 0,
                     maximumSelections: null,
                     sortOrder: 0,
-                    options: product.ungroupedOptions,
+                    options: customerFacingUngrouped,
                   },
                   option
                 )

@@ -101,6 +101,31 @@ function compact<T extends Record<string, unknown>>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
 }
 
+const LYMOW_CHARGER_CONFIGURATIONS = new Set([
+  "lymow-5a-charger",
+  "lymow-10a-charger",
+]);
+
+function optionPublicStatus(productSlug: string, optionSlug: string, value: unknown) {
+  if (productSlug === "lymow-one-plus" && LYMOW_CHARGER_CONFIGURATIONS.has(optionSlug)) {
+    return "active";
+  }
+  return text(value) ?? "hidden";
+}
+
+function expectedLymowCharger(variantSlug: string) {
+  return variantSlug === "lymow-one-plus-5a"
+    ? "lymow-5a-charger"
+    : variantSlug === "lymow-one-plus-10a"
+      ? "lymow-10a-charger"
+      : null;
+}
+
+function variantOptionRelationship(variantSlug: string, optionSlug: string, isDefault: unknown) {
+  const expectedCharger = expectedLymowCharger(variantSlug);
+  return expectedCharger === optionSlug || bool(isDefault) ? "defines_variant" : "compatible";
+}
+
 async function upsert(
   client: DbClient,
   table: string,
@@ -189,6 +214,10 @@ function validateWorkbook() {
     const option = required(slug(row.option_slug), "Variant Option Links.option_slug");
     if (!variantSlugs.has(variant)) throw new Error(`Variant Option Links references unknown variant_slug ${variant}.`);
     if (!optionSlugs.has(option)) throw new Error(`Variant Option Links references unknown option_slug ${option}.`);
+    const expectedCharger = expectedLymowCharger(variant);
+    if (LYMOW_CHARGER_CONFIGURATIONS.has(option) && expectedCharger !== option) {
+      throw new Error(`Variant Option Links crosses Lymow variant ${variant} with charger ${option}.`);
+    }
   }
   for (const sheet of ["Service Payment Options", "Product Services", "Service Regions"]) {
     for (const row of rows(sheet)) {
@@ -317,11 +346,13 @@ async function main() {
 
   const optionRecords = rows("Options").map((row) => {
     const productId = lookup(products, row.product_slug, "product_slug");
+    const productSlug = required(slug(row.product_slug), "product_slug");
     const groupSlug = slug(row.group_slug);
+    const optionSlug = required(slug(row.option_slug), "option_slug");
     return {
       product_id: productId, option_group_id: groupSlug ? lookup(groups, `${productId}:${groupSlug}`, "group_slug") : null,
-      option_slug: required(slug(row.option_slug), "option_slug"), name: required(text(row.option_name), "option_name"),
-      description: text(row.description), public_status: text(row.public_status) ?? "hidden",
+      option_slug: optionSlug, name: required(text(row.option_name), "option_name"),
+      description: text(row.description), public_status: optionPublicStatus(productSlug, optionSlug, row.public_status),
       is_required: bool(row.required), is_included: bool(row.included), is_recommended: bool(row.recommended),
       default_quantity: integer(row.default_quantity, 0), minimum_quantity: integer(row.minimum_quantity, 0),
       maximum_quantity: integer(row.maximum_quantity), regular_price_cents: cents(row, "regular_price_cents", "regular_price_dollars"),
@@ -348,10 +379,12 @@ async function main() {
   const options = await refreshMap(publicCatalog, "catalog_options", "option_slug");
 
   for (const row of rows("Variant Option Links")) {
+    const variantSlug = required(slug(row.variant_slug), "variant_slug");
+    const optionSlug = required(slug(row.option_slug), "option_slug");
     await upsert(publicCatalog, "catalog_variant_options", [{
-      variant_id: lookup(variants, row.variant_slug, "variant_slug"),
-      option_id: lookup(options, row.option_slug, "option_slug"),
-      relationship_type: bool(row.is_default) ? "defines_variant" : "compatible", quantity: 1,
+      variant_id: lookup(variants, variantSlug, "variant_slug"),
+      option_id: lookup(options, optionSlug, "option_slug"),
+      relationship_type: variantOptionRelationship(variantSlug, optionSlug, row.is_default), quantity: 1,
       updated_at: new Date().toISOString(),
     }], "variant_id,option_id,relationship_type");
   }

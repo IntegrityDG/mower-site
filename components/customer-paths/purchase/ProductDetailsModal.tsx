@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
+import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import type { CatalogProduct } from "@/lib/catalog/types";
 import { isYarboProduct } from "@/lib/catalog/yarbo";
 
@@ -163,10 +164,7 @@ export default function ProductDetailsModal({
               </div>
               <div className="rounded-2xl bg-slate-950 p-4 text-white">
                 <p className="text-2xl font-black">
-                  {product.optionGroups.reduce(
-                    (count, group) => count + group.options.length,
-                    product.ungroupedOptions.length
-                  )}
+                  {customerFacingProductOptions(product).length}
                 </p>
                 <p className="mt-1 text-sm text-slate-300">Options</p>
               </div>

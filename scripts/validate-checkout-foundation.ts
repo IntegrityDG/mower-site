@@ -52,6 +52,25 @@ expectReject(() => validateCheckoutEligibility(request({ variantId: lymowVariant
 const crossedVariant = variant(ids[2], "lymow-one-plus-5a", 269900);
 expectReject(() => validateCheckoutEligibility(request({ variantId: crossedVariant.id, purchaseMode: "standard", includeBaseProduct: false }), catalog({ product: product("lymow-one-plus", "Lymow"), variants: [crossedVariant], options: [option(ids[3], "lymow-10a-charger")], variantOptions: [{ id: ids[4], variant_id: crossedVariant.id, option_id: ids[3], relationship_type: "defines_variant" }] })), /relationship/i);
 
+const chargerCorrectionMigration = fs.readFileSync(
+  path.join(process.cwd(), "supabase/migrations/20260731172013_activate_lymow_charger_configurations.sql"),
+  "utf8",
+);
+assert.match(chargerCorrectionMigration, /option_slug\s+in\s*\(\s*'lymow-5a-charger',\s*'lymow-10a-charger'\s*\)/i);
+assert.match(chargerCorrectionMigration, /public_status\s*=\s*'active'/i);
+assert.match(chargerCorrectionMigration, /on conflict\s*\(variant_id,\s*option_id,\s*relationship_type\)\s*do update/i);
+assert.match(chargerCorrectionMigration, /Conflicting Lymow charger relationship requires manual review/i);
+for (const table of ["catalog_products", "catalog_product_variants", "catalog_option_groups", "catalog_options", "catalog_variant_options"]) assert.match(chargerCorrectionMigration, new RegExp(`lock table public\\.${table} in share row exclusive mode`, "i"));
+assert.doesNotMatch(chargerCorrectionMigration, /checkout_private|catalog_private|delete\s+from|pandag/i);
+const importerSource = fs.readFileSync(path.join(process.cwd(), "scripts/import-catalog.ts"), "utf8");
+assert.match(importerSource, /LYMOW_CHARGER_CONFIGURATIONS[\s\S]*lymow-5a-charger[\s\S]*lymow-10a-charger/);
+assert.match(importerSource, /productSlug === "lymow-one-plus"[\s\S]*return "active"/);
+assert.match(importerSource, /expectedCharger === optionSlug[\s\S]*"defines_variant"/);
+assert.match(importerSource, /crosses Lymow variant/);
+const pricingSource = fs.readFileSync(path.join(process.cwd(), "lib/checkout/pricing-resolver.ts"), "utf8");
+assert.match(pricingSource, /product\.slug === "lymow-one-plus"[\s\S]*effectivePrice\(eligibility\.variant, "variant"\)/);
+assert.doesNotMatch(pricingSource, /effectivePrice\(definingChargers|chargeable\.push\([^)]*lymow-(?:5a|10a)-charger/i);
+
 const modules = [option(ids[3], "yarbo-mower-module"), option(ids[4], "yarbo-lawn-mower-pro-module"), option(ids[5], "yarbo-leaf-blower-module")];
 const individual = validateCheckoutEligibility(request({ includeBaseProduct: false, options: [{ optionId: ids[3], quantity: 1 }, { optionId: ids[4], quantity: 1 }] }), catalog({ options: modules }));
 assert.match(individual.moduleOnlyWarning ?? "", /Core is not included/); assert.equal(individual.selectedOptions.length, 2);

@@ -513,7 +513,10 @@ where variant.product_id = product.id
   and row(variant.name, variant.description)
       is distinct from row(proposed.name, proposed.description);
 
--- Hide only the two configuration mirrors. Normalize finished customer copy
+-- Keep the two configuration mirrors active so their defines_variant links are
+-- publicly readable. They remain non-selectable because all defines_variant
+-- options are excluded from normalized customer-facing catalog collections.
+-- Normalize finished customer copy
 -- for active replacement and optional equipment. The track stays visible and
 -- is named so the existing name-based catalog classifier places it in
 -- Replacement Parts without asserting an unverified package quantity.
@@ -529,13 +532,13 @@ proposed_options(option_slug, proposed_name, description, proposed_status) as (
       'lymow-5a-charger',
       null::text,
       '5A charging configuration for the Lymow One Plus 5A mower.',
-      'hidden'
+      'active'
     ),
     (
       'lymow-10a-charger',
       null::text,
       '10A charging configuration for the Lymow One Plus 10A mower.',
-      'hidden'
+      'active'
     ),
     (
       'lymow-battery-528wh',

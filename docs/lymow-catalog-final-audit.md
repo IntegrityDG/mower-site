@@ -123,7 +123,7 @@ The equipment catalog summary does not repeat the two acreage figures. The detai
 
 ### Configuration names
 
-The customer-facing mower variant names are `Lymow One Plus — 5A Configuration` and `Lymow One Plus — 10A Configuration`. The hidden internal charger option slugs remain `lymow-5a-charger` and `lymow-10a-charger`.
+The customer-facing mower variant names are `Lymow One Plus — 5A Configuration` and `Lymow One Plus — 10A Configuration`. The active internal charger-definition slugs remain `lymow-5a-charger` and `lymow-10a-charger`; `defines_variant` semantics exclude them from customer-facing option collections.
 
 ### RTK limitation placement
 
@@ -162,7 +162,7 @@ The active mower variants remain the customer decision:
 - `lymow-one-plus-5a`
 - `lymow-one-plus-10a`
 
-The two legacy configuration-mirror options become hidden. The SQL does not insert or update an option group. The application already suppresses `lymow-charger-config` for Lymow, treats the group as complete through the selected variant, and filters `defines_variant` option IDs from selectable add-ons and pricing.
+The two legacy configuration-mirror options remain active so checkout can validate their relationships. The SQL does not insert or update an option group. The application centrally excludes every `defines_variant` option from customer-facing collections, treats the empty customer-facing group as complete through the selected variant, and keeps those IDs out of selectable add-ons and pricing.
 
 No separate charger-selection question is created or restored.
 
@@ -172,8 +172,8 @@ Exactly two semantic `public_status` changes are proposed:
 
 | Option slug | Current | Proposed |
 | --- | --- | --- |
-| `lymow-5a-charger` | `active` | `hidden` |
-| `lymow-10a-charger` | `active` | `hidden` |
+| `lymow-5a-charger` | `hidden` | `active` |
+| `lymow-10a-charger` | `hidden` | `active` |
 
 No other `public_status` changes.
 
@@ -265,7 +265,7 @@ Confirmed untouched:
 - Revised SQL safe to execute after content approval: **Yes**.
 - First run: **18 updates, 7 inserts** against the audited snapshot.
 - Second run: **0 updates, 0 inserts, 0 timestamp changes**.
-- `public_status` changes: exactly the two charger mirrors, `active` → `hidden`.
+- `public_status` changes: exactly the two charger mirrors, `hidden` → `active`.
 - Relationship changes: exactly two `defines_variant`, quantity-1 links.
 - Unexpected page content: positively excluded from updates, preserved in place, and reported by notice.
 - Concurrent section duplicates and conflicting charger links: prevented by transaction advisory locking plus short section/link-table DML locks.
