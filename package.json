@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "test": "tsx --test tests/**/*.test.tsx",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

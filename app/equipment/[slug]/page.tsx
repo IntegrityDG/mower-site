@@ -1,14 +1,13 @@
-"use client";
-
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
 
 import CatalogHeader from "@/components/equipment/CatalogHeader";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
+import ProductPageSections from "@/components/equipment/ProductPageSections";
+import QuoteOnlyNotice from "@/components/equipment/QuoteOnlyNotice";
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
-import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
+import { loadPublicCatalog } from "@/lib/catalog/load-public-catalog";
 import {
   hasCompletePandagSpecifications,
   pandagApplications,
@@ -30,42 +29,28 @@ import {
   yarboPackageMowerType,
 } from "@/lib/catalog/yarbo";
 
-export default function ProductPage({
+export default async function ProductPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  const { slug } = use(params);
-  const [product, setProduct] = useState<CatalogProduct | null>(null);
-  const [status, setStatus] = useState("Loading product...");
+  const { slug } = await params;
+  let product: CatalogProduct | null = null;
+  let loadFailed = false;
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetchCatalog({ signal: controller.signal })
-      .then((payload) => {
-        const match = payload.products.find((item) => item.slug === slug);
-        if (!match) throw new Error("Product not found.");
-        setProduct(match);
-      })
-      .catch((reason: unknown) => {
-        if (reason instanceof DOMException && reason.name === "AbortError") {
-          return;
-        }
-        setStatus(
-          reason instanceof Error ? reason.message : "Unable to load product."
-        );
-      });
-
-    return () => controller.abort();
-  }, [slug]);
+  try {
+    const payload = await loadPublicCatalog(slug);
+    product = payload.products[0] ?? null;
+  } catch {
+    loadFailed = true;
+  }
 
   if (!product) {
     return (
       <div className="min-h-screen bg-slate-50">
         <CatalogHeader />
         <p className="mx-auto max-w-7xl px-6 py-20 font-bold text-slate-600">
-          {status}
+          {loadFailed ? "Unable to load product." : "Product not found."}
         </p>
       </div>
     );
@@ -152,15 +137,7 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
                   </p>
                 </div>
               )}
-              <p className="mt-6 font-bold text-slate-100">
-                Contact us to find out the IDS LOW Everyday Price.
-              </p>
-              <Link
-                href="/pandag/project-quote"
-                className="mt-7 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 hover:bg-emerald-400"
-              >
-                Request Pricing &amp; Information
-              </Link>
+              <QuoteOnlyNotice className="mt-7" />
             </div>
             <div className="flex min-h-80 items-center justify-center rounded-[2rem] bg-white/95 p-8">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -179,19 +156,7 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
             />
           </div>
 
-          {product.page?.sections.length ? (
-            <div className="mt-14">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">Product information</p>
-              <div className="mt-5 grid gap-5 md:grid-cols-2">
-                {product.page.sections.map((section) => (
-                  <article key={section.id} className="rounded-3xl border border-slate-200 bg-white p-7">
-                    <h2 className="text-2xl font-black">{section.heading}</h2>
-                    <p className="mt-4 whitespace-pre-line leading-7 text-slate-600">{section.bodyContent}</p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <ProductPageSections sections={product.page?.sections ?? []} />
 
           <section id="model-configurations" className="mt-14 scroll-mt-8">
             <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
@@ -793,26 +758,7 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
             )}
           </div>
 
-          {product.page?.sections.length ? (
-            <div className="mt-14">
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
-                Product information
-              </p>
-              <div className="mt-5 grid gap-5 md:grid-cols-2">
-                {product.page.sections.map((section) => (
-                  <article
-                    key={section.id}
-                    className="rounded-3xl border border-slate-200 bg-white p-7"
-                  >
-                    <h2 className="text-2xl font-black">{section.heading}</h2>
-                    <p className="mt-4 whitespace-pre-line leading-7 text-slate-600">
-                      {section.bodyContent}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <ProductPageSections sections={product.page?.sections ?? []} />
 
           <div id="compatible-equipment" className="mt-14 scroll-mt-8">
             <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
