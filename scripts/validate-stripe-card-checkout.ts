@@ -118,7 +118,7 @@ assert.doesNotMatch(changedRuntime, /last4|payment_method_id|request\.json\(|con
 const repositorySource = fs.readFileSync("lib/checkout/order-repository.ts", "utf8");
 assert.match(repositorySource, /completed\(await getSupabaseServiceClient\(\)\.rpc\("checkout_link_card_session"/);
 assert.match(repositorySource, /completed\(await getSupabaseServiceClient\(\)\.rpc\("checkout_finish_webhook"/);
-const v2Sql = fs.readFileSync(path.join(process.cwd(), "supabase/migrations/20260731215720_persist_checkout_session_status_v2.sql"), "utf8");
+const v2Sql = fs.readFileSync(path.join(process.cwd(), "supabase/migrations/20260731231221_persist_checkout_session_status_v2.sql"), "utf8");
 const webhookSource = fs.readFileSync("app/api/stripe/webhook/route.ts", "utf8");
 const successSource = fs.readFileSync("app/checkout/success/page.tsx", "utf8");
 assert.match(repositorySource, /export type ApplyCardEventV2Params=\{[\s\S]*p_stripe_session_status:string\|null;[\s\S]*p_stripe_payment_status:string\|null/);
