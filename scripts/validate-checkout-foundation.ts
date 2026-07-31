@@ -53,7 +53,7 @@ const crossedVariant = variant(ids[2], "lymow-one-plus-5a", 269900);
 expectReject(() => validateCheckoutEligibility(request({ variantId: crossedVariant.id, purchaseMode: "standard", includeBaseProduct: false }), catalog({ product: product("lymow-one-plus", "Lymow"), variants: [crossedVariant], options: [option(ids[3], "lymow-10a-charger")], variantOptions: [{ id: ids[4], variant_id: crossedVariant.id, option_id: ids[3], relationship_type: "defines_variant" }] })), /relationship/i);
 
 const chargerCorrectionMigration = fs.readFileSync(
-  path.join(process.cwd(), "supabase/migrations/20260731172013_activate_lymow_charger_configurations.sql"),
+  path.join(process.cwd(), "supabase/migrations/20260731194650_activate_lymow_charger_configurations.sql"),
   "utf8",
 );
 assert.match(chargerCorrectionMigration, /option_slug\s+in\s*\(\s*'lymow-5a-charger',\s*'lymow-10a-charger'\s*\)/i);

@@ -15,7 +15,7 @@ const TEMPORARY_LYMOW_CHARGER_OPTIONS = new Set([
 
 // Rollout compatibility for environments where charger mirrors are still
 // hidden and defines_variant links are therefore absent from the public read.
-// Remove this branch only after migration 20260731172013 has been applied and
+// Remove this branch only after migration 20260731194650 has been applied and
 // verified in every active environment. The relationship-based rule below is
 // the permanent semantic for all internal variant-definition options.
 function isTemporaryLymowChargerMirror(option: CatalogOption) {
