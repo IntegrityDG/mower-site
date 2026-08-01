@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import test from "node:test";
 
-const sql=fs.readFileSync("supabase/migrations/20260801010000_add_ach_wire_payment_foundation.sql","utf8");
+const sql=fs.readFileSync("supabase/migrations/20260801194805_add_ach_wire_payment_foundation.sql","utf8");
 const wireLookup=sql.match(/create or replace function public\.checkout_find_wire_attempt_by_customer[\s\S]*?end \$\$;/i)?.[0]??"";
 const achDraft=sql.match(/create or replace function public\.checkout_create_ach_draft[\s\S]*?end \$\$;/i)?.[0]??"";
 const wireDraft=sql.match(/create or replace function public\.checkout_create_wire_draft[\s\S]*?end \$\$;/i)?.[0]??"";
