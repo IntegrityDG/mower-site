@@ -10,7 +10,10 @@ const statusLabel = (view: ReturnType<typeof safeProjection>) => {
   if (view.attemptStatus === "expired") return "Expired";
   if (view.attemptStatus === "failed" || view.paymentStatus === "failed") return "Failed";
   if (view.paymentStatus === "paid") return "Paid";
+  if (view.paymentStatus === "awaiting_customer_action") return "Awaiting bank authorization";
   if (view.paymentStatus === "processing") return "Processing";
+  if (view.paymentStatus === "awaiting_customer_funds") return "Awaiting wire transfer";
+  if (view.paymentStatus === "partially_funded") return "Partially funded";
   if (view.paymentStatus === "partially_refunded") return "Partially refunded";
   if (view.paymentStatus === "refunded") return "Refunded";
   if (view.paymentStatus === "disputed") return "Disputed";
@@ -38,6 +41,7 @@ export default async function Success({ searchParams }: { searchParams: Promise<
       <h2 className="mt-8 text-xl font-semibold">Equipment</h2>
       <ul className="mt-2 list-disc pl-6">{view.items.map((item, index) => <li key={`${item.name}-${index}`}>{item.quantity} × {item.name}{item.included ? " (included)" : ""}</li>)}</ul>
       <p className="mt-5 text-lg">Total: {money(view.totalCents)}</p>
+      {view.paymentStatus === "partially_funded" && view.fundedAmountCents !== null && view.amountRemainingCents !== null ? <p className="mt-3 text-sm">Received: {money(view.fundedAmountCents)}. Remaining: {money(view.amountRemainingCents)}.</p> : null}
       <p className="mt-5 text-sm">Webhook-confirmed payment status is authoritative. This page does not authorize or update payment.</p>
     </> : <p className="mt-4">We could not verify that Checkout Session. No order status was changed.</p>}
   </main>;

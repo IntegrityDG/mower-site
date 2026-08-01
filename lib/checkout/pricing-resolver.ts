@@ -3,6 +3,7 @@ import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { checkoutDisplayName, validateCheckoutEligibility, type CheckoutCatalog, type PriceableRow } from "./eligibility";
 import { CheckoutRejectionError, type CatalogSourceReference, type CheckoutRequest, type OrderPriceItem, type OrderPriceSnapshot } from "./types";
+import { resolvePaymentAdjustments } from "./payment-pricing";
 
 function currentPrice(row: PriceableRow, now: number) {
   const starts = row.sale_starts_at ? new Date(row.sale_starts_at).getTime() : Number.NEGATIVE_INFINITY;
@@ -61,5 +62,6 @@ export async function resolveAuthoritativeOrderPricing(input: CheckoutRequest): 
     for (const selected of eligibility.selectedOptions) { const amount = effectivePrice(selected.option, "option"); sources.push({ table: "catalog_options", id: selected.option.id }); chargeable.push({ itemType: "option", sourceId: selected.option.id, sku: null, name: checkoutDisplayName(selected.option), description: selected.option.description, quantity: selected.quantity, unitAmountCents: amount, extendedAmountCents: amount * selected.quantity, includedInPackagePrice: false, parentSourceId: null }); }
   }
   const subtotal = chargeable.reduce((sum, item) => sum + item.extendedAmountCents, 0);
-  return Object.freeze({ currency: "usd", product: { id: product.id, slug: product.slug, name: product.name }, variant: eligibility.variant ? { id: eligibility.variant.id, slug: eligibility.variant.variant_slug, name: eligibility.variant.name, sku: eligibility.variant.sku } : null, purchaseMode: input.selection.purchaseMode, chargeableItems: Object.freeze(chargeable), includedPackageComponents: Object.freeze(included), subtotalCents: subtotal, discountCents: 0, feeCents: 0, shippingCents: 0, taxCents: 0, totalCents: subtotal, paymentMethod: input.paymentMethod, pricedAt: new Date(now).toISOString(), catalogSources: Object.freeze(sources), warnings: Object.freeze(eligibility.moduleOnlyWarning ? [eligibility.moduleOnlyWarning] : []), safeMetadata: { phase: "4B1" as const, adjustments: "not_implemented" as const } });
+  const adjustments = resolvePaymentAdjustments(subtotal, input.paymentMethod);
+  return Object.freeze({ currency: "usd", product: { id: product.id, slug: product.slug, name: product.name }, variant: eligibility.variant ? { id: eligibility.variant.id, slug: eligibility.variant.variant_slug, name: eligibility.variant.name, sku: eligibility.variant.sku } : null, purchaseMode: input.selection.purchaseMode, chargeableItems: Object.freeze(chargeable), includedPackageComponents: Object.freeze(included), subtotalCents: subtotal, discountCents: adjustments.discountCents, feeCents: 0, shippingCents: 0, taxCents: 0, totalCents: adjustments.totalCents, paymentMethod: input.paymentMethod, pricedAt: new Date(now).toISOString(), catalogSources: Object.freeze(sources), warnings: Object.freeze(eligibility.moduleOnlyWarning ? [eligibility.moduleOnlyWarning] : []), safeMetadata: { phase: "4B2B" as const, discountPolicy: adjustments.discountPolicy } });
 }

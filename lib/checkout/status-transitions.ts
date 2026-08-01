@@ -2,13 +2,21 @@ import type { FulfillmentStatus, OrderStatus, PaymentAttemptStatus, PaymentStatu
 
 export type CheckoutState = { orderStatus: OrderStatus; paymentStatus: PaymentStatus; fulfillmentStatus: FulfillmentStatus; refundedCents: number; totalCents: number };
 const paymentTransitions: Record<PaymentStatus, readonly PaymentStatus[]> = {
-  unpaid: ["unpaid", "processing", "paid", "failed"], processing: ["processing", "paid", "failed"],
+  unpaid: ["unpaid", "awaiting_customer_action", "processing", "awaiting_customer_funds", "partially_funded", "paid", "failed"],
+  awaiting_customer_action: ["awaiting_customer_action", "processing", "paid", "failed"],
+  processing: ["processing", "paid", "failed"],
+  awaiting_customer_funds: ["awaiting_customer_funds", "partially_funded", "paid", "failed"],
+  partially_funded: ["partially_funded", "paid", "failed"],
   failed: ["failed", "processing", "paid"], paid: ["paid", "partially_refunded", "refunded", "disputed"],
   partially_refunded: ["partially_refunded", "refunded", "disputed"], refunded: ["refunded", "disputed"], disputed: ["disputed", "partially_refunded", "refunded"],
 };
 const attemptTransitions: Record<PaymentAttemptStatus, readonly PaymentAttemptStatus[]> = {
-  creating: ["creating", "open", "failed"], open: ["open", "completed", "processing", "succeeded", "failed", "expired"],
+  creating: ["creating", "open", "awaiting_customer_action", "awaiting_customer_funds", "failed"],
+  open: ["open", "awaiting_customer_action", "completed", "processing", "awaiting_customer_funds", "succeeded", "failed", "expired"],
+  awaiting_customer_action: ["awaiting_customer_action", "processing", "succeeded", "failed", "expired"],
   completed: ["completed", "processing", "succeeded", "failed"], processing: ["processing", "succeeded", "failed"],
+  awaiting_customer_funds: ["awaiting_customer_funds", "partially_funded", "succeeded", "failed", "expired"],
+  partially_funded: ["partially_funded", "succeeded", "failed"],
   succeeded: ["succeeded"], failed: ["failed"], expired: ["expired"],
 };
 

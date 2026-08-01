@@ -4,6 +4,24 @@ export const MAX_CHECKOUT_REQUEST_BYTES = 16_384;
 export const MAX_CHECKOUT_OPTIONS = 20;
 export const MAX_CHECKOUT_ITEM_QUANTITY = 10;
 
+export async function readLimitedCheckoutBody(request: Request) {
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    length += value.byteLength;
+    if (length > MAX_CHECKOUT_REQUEST_BYTES) { await reader.cancel(); return null; }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) { body.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder("utf-8", { fatal: true }).decode(body);
+}
+
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const allowed = (value: Record<string, unknown>, keys: string[]) => Object.keys(value).every((key) => keys.includes(key));
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -12,7 +30,7 @@ const nullableString = (value: unknown) => value === null || typeof value === "s
 export function parseCheckoutRequest(value: unknown): CheckoutRequest {
   if (!record(value) || !allowed(value, ["requestId", "paymentMethod", "selection", "customer", "shippingAddress"])) throw new Error("Invalid or unknown checkout request properties.");
   if (typeof value.requestId !== "string" || !uuid.test(value.requestId)) throw new Error("Invalid request UUID.");
-  if (value.paymentMethod !== "card" && value.paymentMethod !== "ach") throw new Error("Unsupported payment method.");
+  if (value.paymentMethod !== "card" && value.paymentMethod !== "ach_debit" && value.paymentMethod !== "wire_transfer") throw new Error("Unsupported payment method.");
   if (!record(value.selection) || !allowed(value.selection, ["productId", "variantId", "purchaseMode", "packageId", "options", "includeBaseProduct"])) throw new Error("Invalid or unknown selection properties.");
   const selection = value.selection;
   if (typeof selection.productId !== "string" || !uuid.test(selection.productId)) throw new Error("Invalid product ID.");

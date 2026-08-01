@@ -13,7 +13,8 @@
     "sync-manufacturer-catalog": "tsx scripts/sync-manufacturer-catalog.ts",
     "validate:pandag-sync": "tsx scripts/validate-pandag-manufacturer-sync.ts",
     "validate:checkout-foundation": "tsx scripts/validate-checkout-foundation.ts",
-    "validate:stripe-card-checkout": "tsx scripts/validate-stripe-card-checkout.ts"
+    "validate:stripe-card-checkout": "tsx scripts/validate-stripe-card-checkout.ts",
+    "validate:bank-payment-migration": "tsx scripts/validate-bank-payment-migration.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.2",
