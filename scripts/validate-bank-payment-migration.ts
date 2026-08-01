@@ -12,6 +12,17 @@ for(const fn of ["checkout_create_ach_draft","checkout_link_ach_session","checko
 assert.match(sql,/security invoker/gi);
 assert.match(sql,/force row level security/i);
 assert.match(sql,/round\(subtotal\*275::numeric\/10000\)/i);
+assert.match(sql,/foreach monetary_key in array array\['subtotalCents','discountCents','feeCents','shippingCents','taxCents','totalCents'\]/gi);
+assert.match(sql,/jsonb_typeof\(p_snapshot->monetary_key\) is distinct from 'number'/gi);
+assert.match(sql,/monetary_text !~ '\^\(0\|\[1-9\]\[0-9\]\*\)\$'/gi);
+assert.match(sql,/monetary_text>'9223372036854775807'/gi);
+assert.match(sql,/total::numeric<>subtotal::numeric-discount\+fee\+shipping\+tax/gi);
+assert.match(sql,/values\(c\.id,ref,[\s\S]*?'usd',subtotal,discount,fee,shipping,tax,total,'ach_debit'/i);
+assert.match(sql,/values\(c\.id,ref,[\s\S]*?'usd',subtotal,discount,fee,shipping,tax,total,'wire_transfer'/i);
+const wireLookup=sql.match(/create or replace function public\.checkout_find_wire_attempt_by_customer[\s\S]*?end \$\$;/i)?.[0]??"";
+assert.match(wireLookup,/attempt_status in \('awaiting_customer_funds','partially_funded'\)/gi);
+assert.doesNotMatch(wireLookup,/'succeeded'|'failed'|'expired'/i);
+assert.match(wireLookup,/if n<>1 then return null/gi);
 assert.doesNotMatch(sql,/security definer|grant[^;]*to (?:public|anon|authenticated)|bank_account|routing_number|account_number|swift|delete\s+from/i);
 assert.doesNotMatch(sql,/checkout_apply_card_event(?:_v2)?\s*\(/i);
 assert.match(sql,/get diagnostics n=row_count/i);

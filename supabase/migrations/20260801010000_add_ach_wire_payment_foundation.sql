@@ -42,10 +42,14 @@ grant select,insert,update on table checkout_private.bank_payment_reconciliation
 
 create or replace function public.checkout_create_ach_draft(p_idempotency_key text,p_request_fingerprint text,p_customer jsonb,p_snapshot jsonb)
 returns jsonb language plpgsql security invoker set search_path=pg_catalog,public,checkout_private as $$
-declare a checkout_private.payment_attempts; c checkout_private.customers; o checkout_private.orders; item jsonb; ref text; subtotal bigint; discount bigint; total bigint;
+declare a checkout_private.payment_attempts; c checkout_private.customers; o checkout_private.orders; item jsonb; ref text; subtotal bigint; discount bigint; fee bigint; shipping bigint; tax bigint; total bigint; monetary_key text; monetary_text text;
 begin
-  subtotal := (p_snapshot->>'subtotalCents')::bigint; discount := (p_snapshot->>'discountCents')::bigint; total := (p_snapshot->>'totalCents')::bigint;
-  if p_snapshot->>'paymentMethod'<>'ach_debit' or p_snapshot->>'currency'<>'usd' or discount<>round(subtotal*275::numeric/10000)::bigint or (p_snapshot->>'feeCents')::bigint<>0 or total<>subtotal-discount then raise exception 'invalid ach pricing snapshot'; end if;
+  foreach monetary_key in array array['subtotalCents','discountCents','feeCents','shippingCents','taxCents','totalCents'] loop
+    monetary_text := p_snapshot->>monetary_key;
+    if jsonb_typeof(p_snapshot->monetary_key) is distinct from 'number' or monetary_text !~ '^(0|[1-9][0-9]*)$' or length(monetary_text)>19 or (length(monetary_text)=19 and monetary_text>'9223372036854775807') then raise exception 'invalid ach monetary field: %',monetary_key; end if;
+  end loop;
+  subtotal := (p_snapshot->>'subtotalCents')::bigint; discount := (p_snapshot->>'discountCents')::bigint; fee := (p_snapshot->>'feeCents')::bigint; shipping := (p_snapshot->>'shippingCents')::bigint; tax := (p_snapshot->>'taxCents')::bigint; total := (p_snapshot->>'totalCents')::bigint;
+  if p_snapshot->>'paymentMethod'<>'ach_debit' or p_snapshot->>'currency'<>'usd' or discount<>round(subtotal*275::numeric/10000)::bigint or fee<>0 or subtotal::numeric-discount+fee+shipping+tax>9223372036854775807::numeric or total::numeric<>subtotal::numeric-discount+fee+shipping+tax then raise exception 'invalid ach pricing snapshot'; end if;
   select * into a from checkout_private.payment_attempts where idempotency_key=p_idempotency_key;
   if found then
     if a.payment_method<>'ach_debit' or a.request_fingerprint<>p_request_fingerprint then raise exception using errcode='23505',message='checkout_idempotency_conflict'; end if;
@@ -56,7 +60,7 @@ begin
   insert into checkout_private.customers(email,normalized_email,name,phone,shipping_address) values(nullif(p_customer->>'email',''),nullif(lower(p_customer->>'email'),''),p_customer->>'name',nullif(p_customer->>'phone',''),p_customer->'shippingAddress') returning * into c;
   ref := 'IDS-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,12));
   insert into checkout_private.orders(customer_id,public_reference,order_status,payment_status,fulfillment_status,currency,subtotal_cents,discount_cents,fee_cents,shipping_cents,tax_cents,total_cents,payment_method_choice,customer_name,customer_email,customer_phone,shipping_address,pricing_snapshot,catalog_priced_at)
-  values(c.id,ref,'checkout_pending','unpaid','not_ready','usd',subtotal,discount,0,0,0,total,'ach_debit',p_customer->>'name',nullif(p_customer->>'email',''),nullif(p_customer->>'phone',''),p_customer->'shippingAddress',p_snapshot,(p_snapshot->>'pricedAt')::timestamptz) returning * into o;
+  values(c.id,ref,'checkout_pending','unpaid','not_ready','usd',subtotal,discount,fee,shipping,tax,total,'ach_debit',p_customer->>'name',nullif(p_customer->>'email',''),nullif(p_customer->>'phone',''),p_customer->'shippingAddress',p_snapshot,(p_snapshot->>'pricedAt')::timestamptz) returning * into o;
   for item in select * from jsonb_array_elements((p_snapshot->'chargeableItems')||(p_snapshot->'includedPackageComponents')) loop
     insert into checkout_private.order_items(order_id,item_type,product_id,variant_id,option_id,package_id,sku,name_snapshot,description_snapshot,quantity,unit_amount_cents,extended_amount_cents,included_in_package_price,metadata_snapshot)
     values(o.id,item->>'itemType',case when item->>'itemType'='product' then (item->>'sourceId')::uuid end,case when item->>'itemType'='variant' then (item->>'sourceId')::uuid end,case when item->>'itemType' in ('option','package_component') then (item->>'sourceId')::uuid end,case when item->>'itemType'='package' then (item->>'sourceId')::uuid end,nullif(item->>'sku',''),item->>'name',nullif(item->>'description',''),(item->>'quantity')::int,(item->>'unitAmountCents')::bigint,(item->>'extendedAmountCents')::bigint,(item->>'includedInPackagePrice')::boolean,'{}');
@@ -67,10 +71,14 @@ end $$;
 
 create or replace function public.checkout_create_wire_draft(p_idempotency_key text,p_request_fingerprint text,p_customer jsonb,p_snapshot jsonb)
 returns jsonb language plpgsql security invoker set search_path=pg_catalog,public,checkout_private as $$
-declare a checkout_private.payment_attempts; c checkout_private.customers; o checkout_private.orders; item jsonb; ref text; subtotal bigint; discount bigint; total bigint;
+declare a checkout_private.payment_attempts; c checkout_private.customers; o checkout_private.orders; item jsonb; ref text; subtotal bigint; discount bigint; fee bigint; shipping bigint; tax bigint; total bigint; monetary_key text; monetary_text text;
 begin
-  subtotal := (p_snapshot->>'subtotalCents')::bigint; discount := (p_snapshot->>'discountCents')::bigint; total := (p_snapshot->>'totalCents')::bigint;
-  if p_snapshot->>'paymentMethod'<>'wire_transfer' or p_snapshot->>'currency'<>'usd' or discount<>round(subtotal*275::numeric/10000)::bigint or (p_snapshot->>'feeCents')::bigint<>0 or total<>subtotal-discount then raise exception 'invalid wire pricing snapshot'; end if;
+  foreach monetary_key in array array['subtotalCents','discountCents','feeCents','shippingCents','taxCents','totalCents'] loop
+    monetary_text := p_snapshot->>monetary_key;
+    if jsonb_typeof(p_snapshot->monetary_key) is distinct from 'number' or monetary_text !~ '^(0|[1-9][0-9]*)$' or length(monetary_text)>19 or (length(monetary_text)=19 and monetary_text>'9223372036854775807') then raise exception 'invalid wire monetary field: %',monetary_key; end if;
+  end loop;
+  subtotal := (p_snapshot->>'subtotalCents')::bigint; discount := (p_snapshot->>'discountCents')::bigint; fee := (p_snapshot->>'feeCents')::bigint; shipping := (p_snapshot->>'shippingCents')::bigint; tax := (p_snapshot->>'taxCents')::bigint; total := (p_snapshot->>'totalCents')::bigint;
+  if p_snapshot->>'paymentMethod'<>'wire_transfer' or p_snapshot->>'currency'<>'usd' or discount<>round(subtotal*275::numeric/10000)::bigint or fee<>0 or subtotal::numeric-discount+fee+shipping+tax>9223372036854775807::numeric or total::numeric<>subtotal::numeric-discount+fee+shipping+tax then raise exception 'invalid wire pricing snapshot'; end if;
   select * into a from checkout_private.payment_attempts where idempotency_key=p_idempotency_key;
   if found then
     if a.payment_method<>'wire_transfer' or a.request_fingerprint<>p_request_fingerprint then raise exception using errcode='23505',message='checkout_idempotency_conflict'; end if;
@@ -81,7 +89,7 @@ begin
   insert into checkout_private.customers(email,normalized_email,name,phone,shipping_address) values(nullif(p_customer->>'email',''),nullif(lower(p_customer->>'email'),''),p_customer->>'name',nullif(p_customer->>'phone',''),p_customer->'shippingAddress') returning * into c;
   ref := 'IDS-'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,12));
   insert into checkout_private.orders(customer_id,public_reference,order_status,payment_status,fulfillment_status,currency,subtotal_cents,discount_cents,fee_cents,shipping_cents,tax_cents,total_cents,payment_method_choice,customer_name,customer_email,customer_phone,shipping_address,pricing_snapshot,catalog_priced_at)
-  values(c.id,ref,'checkout_pending','awaiting_customer_funds','not_ready','usd',subtotal,discount,0,0,0,total,'wire_transfer',p_customer->>'name',nullif(p_customer->>'email',''),nullif(p_customer->>'phone',''),p_customer->'shippingAddress',p_snapshot,(p_snapshot->>'pricedAt')::timestamptz) returning * into o;
+  values(c.id,ref,'checkout_pending','awaiting_customer_funds','not_ready','usd',subtotal,discount,fee,shipping,tax,total,'wire_transfer',p_customer->>'name',nullif(p_customer->>'email',''),nullif(p_customer->>'phone',''),p_customer->'shippingAddress',p_snapshot,(p_snapshot->>'pricedAt')::timestamptz) returning * into o;
   for item in select * from jsonb_array_elements((p_snapshot->'chargeableItems')||(p_snapshot->'includedPackageComponents')) loop
     insert into checkout_private.order_items(order_id,item_type,product_id,variant_id,option_id,package_id,sku,name_snapshot,description_snapshot,quantity,unit_amount_cents,extended_amount_cents,included_in_package_price,metadata_snapshot)
     values(o.id,item->>'itemType',case when item->>'itemType'='product' then (item->>'sourceId')::uuid end,case when item->>'itemType'='variant' then (item->>'sourceId')::uuid end,case when item->>'itemType' in ('option','package_component') then (item->>'sourceId')::uuid end,case when item->>'itemType'='package' then (item->>'sourceId')::uuid end,nullif(item->>'sku',''),item->>'name',nullif(item->>'description',''),(item->>'quantity')::int,(item->>'unitAmountCents')::bigint,(item->>'extendedAmountCents')::bigint,(item->>'includedInPackagePrice')::boolean,'{}');
@@ -181,9 +189,9 @@ create or replace function public.checkout_find_wire_attempt_by_customer(p_strip
 returns jsonb language plpgsql security invoker set search_path=pg_catalog,public,checkout_private as $$
 declare result jsonb; n integer;
 begin
-  select count(*) into n from checkout_private.payment_attempts a join checkout_private.orders o on o.id=a.order_id join checkout_private.customers c on c.id=o.customer_id where c.stripe_customer_id=p_stripe_customer_id and a.payment_method='wire_transfer' and a.attempt_status in ('awaiting_customer_funds','partially_funded','succeeded');
+  select count(*) into n from checkout_private.payment_attempts a join checkout_private.orders o on o.id=a.order_id join checkout_private.customers c on c.id=o.customer_id where c.stripe_customer_id=p_stripe_customer_id and a.payment_method='wire_transfer' and a.attempt_status in ('awaiting_customer_funds','partially_funded');
   if n<>1 then return null; end if;
-  select jsonb_build_object('attemptId',a.id,'orderId',o.id,'customerId',o.customer_id,'publicReference',o.public_reference,'attemptStatus',a.attempt_status,'paymentStatus',o.payment_status,'orderStatus',o.order_status,'fulfillmentStatus',o.fulfillment_status,'currency',o.currency,'totalCents',o.total_cents,'refundedCents',o.refunded_cents,'fundedAmountCents',a.funded_amount_cents,'amountRemainingCents',a.amount_remaining_cents,'snapshot',o.pricing_snapshot,'sessionId',a.stripe_checkout_session_id,'paymentIntentId',a.stripe_payment_intent_id) into result from checkout_private.payment_attempts a join checkout_private.orders o on o.id=a.order_id join checkout_private.customers c on c.id=o.customer_id where c.stripe_customer_id=p_stripe_customer_id and a.payment_method='wire_transfer' and a.attempt_status in ('awaiting_customer_funds','partially_funded','succeeded');
+  select jsonb_build_object('attemptId',a.id,'orderId',o.id,'customerId',o.customer_id,'publicReference',o.public_reference,'attemptStatus',a.attempt_status,'paymentStatus',o.payment_status,'orderStatus',o.order_status,'fulfillmentStatus',o.fulfillment_status,'currency',o.currency,'totalCents',o.total_cents,'refundedCents',o.refunded_cents,'fundedAmountCents',a.funded_amount_cents,'amountRemainingCents',a.amount_remaining_cents,'snapshot',o.pricing_snapshot,'sessionId',a.stripe_checkout_session_id,'paymentIntentId',a.stripe_payment_intent_id) into result from checkout_private.payment_attempts a join checkout_private.orders o on o.id=a.order_id join checkout_private.customers c on c.id=o.customer_id where c.stripe_customer_id=p_stripe_customer_id and a.payment_method='wire_transfer' and a.attempt_status in ('awaiting_customer_funds','partially_funded');
   return result;
 end $$;
 
