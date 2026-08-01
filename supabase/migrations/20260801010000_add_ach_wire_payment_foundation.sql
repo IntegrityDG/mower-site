@@ -49,7 +49,7 @@ begin
     if jsonb_typeof(p_snapshot->monetary_key) is distinct from 'number' or monetary_text !~ '^(0|[1-9][0-9]*)$' or length(monetary_text)>19 or (length(monetary_text)=19 and monetary_text>'9223372036854775807') then raise exception 'invalid ach monetary field: %',monetary_key; end if;
   end loop;
   subtotal := (p_snapshot->>'subtotalCents')::bigint; discount := (p_snapshot->>'discountCents')::bigint; fee := (p_snapshot->>'feeCents')::bigint; shipping := (p_snapshot->>'shippingCents')::bigint; tax := (p_snapshot->>'taxCents')::bigint; total := (p_snapshot->>'totalCents')::bigint;
-  if p_snapshot->>'paymentMethod'<>'ach_debit' or p_snapshot->>'currency'<>'usd' or discount<>round(subtotal*275::numeric/10000)::bigint or fee<>0 or subtotal::numeric-discount+fee+shipping+tax>9223372036854775807::numeric or total::numeric<>subtotal::numeric-discount+fee+shipping+tax then raise exception 'invalid ach pricing snapshot'; end if;
+  if p_snapshot->>'paymentMethod' is distinct from 'ach_debit' or p_snapshot->>'currency' is distinct from 'usd' or discount<>round(subtotal*275::numeric/10000)::bigint or fee<>0 or subtotal::numeric-discount+fee+shipping+tax>9223372036854775807::numeric or total::numeric<>subtotal::numeric-discount+fee+shipping+tax then raise exception 'invalid ach pricing snapshot'; end if;
   select * into a from checkout_private.payment_attempts where idempotency_key=p_idempotency_key;
   if found then
     if a.payment_method<>'ach_debit' or a.request_fingerprint<>p_request_fingerprint then raise exception using errcode='23505',message='checkout_idempotency_conflict'; end if;
@@ -78,7 +78,7 @@ begin
     if jsonb_typeof(p_snapshot->monetary_key) is distinct from 'number' or monetary_text !~ '^(0|[1-9][0-9]*)$' or length(monetary_text)>19 or (length(monetary_text)=19 and monetary_text>'9223372036854775807') then raise exception 'invalid wire monetary field: %',monetary_key; end if;
   end loop;
   subtotal := (p_snapshot->>'subtotalCents')::bigint; discount := (p_snapshot->>'discountCents')::bigint; fee := (p_snapshot->>'feeCents')::bigint; shipping := (p_snapshot->>'shippingCents')::bigint; tax := (p_snapshot->>'taxCents')::bigint; total := (p_snapshot->>'totalCents')::bigint;
-  if p_snapshot->>'paymentMethod'<>'wire_transfer' or p_snapshot->>'currency'<>'usd' or discount<>round(subtotal*275::numeric/10000)::bigint or fee<>0 or subtotal::numeric-discount+fee+shipping+tax>9223372036854775807::numeric or total::numeric<>subtotal::numeric-discount+fee+shipping+tax then raise exception 'invalid wire pricing snapshot'; end if;
+  if p_snapshot->>'paymentMethod' is distinct from 'wire_transfer' or p_snapshot->>'currency' is distinct from 'usd' or discount<>round(subtotal*275::numeric/10000)::bigint or fee<>0 or subtotal::numeric-discount+fee+shipping+tax>9223372036854775807::numeric or total::numeric<>subtotal::numeric-discount+fee+shipping+tax then raise exception 'invalid wire pricing snapshot'; end if;
   select * into a from checkout_private.payment_attempts where idempotency_key=p_idempotency_key;
   if found then
     if a.payment_method<>'wire_transfer' or a.request_fingerprint<>p_request_fingerprint then raise exception using errcode='23505',message='checkout_idempotency_conflict'; end if;
@@ -126,11 +126,11 @@ create or replace function public.checkout_apply_ach_event_v1(p_kind text,p_sess
 returns jsonb language plpgsql security invoker set search_path=pg_catalog,public,checkout_private as $$
 declare a checkout_private.payment_attempts; o checkout_private.orders; n integer;
 begin
-  if p_kind not in ('awaiting_customer_action','processing','paid','failed','expired','refund','dispute') then raise exception 'unsupported ach event'; end if;
+  if p_kind is null or p_kind not in ('awaiting_customer_action','processing','paid','failed','expired','refund','dispute') then raise exception 'unsupported ach event'; end if;
   select * into a from checkout_private.payment_attempts where id=p_attempt_id and order_id=p_order_id and payment_method='ach_debit' and (stripe_checkout_session_id=p_session_id or stripe_payment_intent_id=p_payment_intent_id) for update; if not found then raise exception 'ach_relationship_mismatch'; end if;
   select * into o from checkout_private.orders where id=p_order_id and payment_method_choice='ach_debit' for update; if not found then raise exception 'ach_order_missing'; end if;
   if p_amount is null or p_currency is null or (p_kind<>'dispute' and a.expected_amount_cents<>p_amount) or (p_kind='dispute' and (p_amount<1 or p_amount>a.expected_amount_cents)) or a.expected_currency<>lower(p_currency) then raise exception 'ach_reconciliation_mismatch'; end if;
-  if p_kind='paid' and (p_payment_intent_status<>'succeeded' or a.attempt_status in ('failed','expired')) then raise exception 'invalid ach success'; end if;
+  if p_kind='paid' and (p_payment_intent_status is distinct from 'succeeded' or a.attempt_status in ('failed','expired')) then raise exception 'invalid ach success'; end if;
   if p_kind='processing' and a.attempt_status in ('succeeded','failed','expired') then raise exception 'invalid ach processing transition'; end if;
   if p_kind='expired' and a.attempt_status in ('processing','succeeded','failed') then raise exception 'invalid ach expiration'; end if;
   if p_kind='refund' and (p_refunded is null or p_refunded<1 or p_refunded>o.total_cents) then raise exception 'invalid ach refund'; end if;
@@ -151,11 +151,11 @@ create or replace function public.checkout_apply_wire_event_v1(p_kind text,p_eve
 returns jsonb language plpgsql security invoker set search_path=pg_catalog,public,checkout_private as $$
 declare a checkout_private.payment_attempts; o checkout_private.orders; n integer;
 begin
-  if p_kind not in ('awaiting_customer_funds','partially_funded','paid','failed','expired','refund','dispute','overpayment') then raise exception 'unsupported wire event'; end if;
+  if p_kind is null or p_kind not in ('awaiting_customer_funds','partially_funded','paid','failed','expired','refund','dispute','overpayment') then raise exception 'unsupported wire event'; end if;
   select * into a from checkout_private.payment_attempts where id=p_attempt_id and order_id=p_order_id and payment_method='wire_transfer' and (stripe_checkout_session_id=p_session_id or stripe_payment_intent_id=p_payment_intent_id) for update; if not found then raise exception 'wire_relationship_mismatch'; end if;
   select * into o from checkout_private.orders where id=p_order_id and payment_method_choice='wire_transfer' for update; if not found then raise exception 'wire_order_missing'; end if;
   if p_amount is null or p_currency is null or a.expected_amount_cents<>p_amount or a.expected_currency<>lower(p_currency) or p_funded is null or p_remaining is null or p_funded<0 or p_remaining<0 then raise exception 'wire_reconciliation_mismatch'; end if;
-  if p_kind='paid' and (p_payment_intent_status<>'succeeded' or p_funded<a.expected_amount_cents or p_remaining<>0) then raise exception 'invalid wire success'; end if;
+  if p_kind='paid' and (p_payment_intent_status is distinct from 'succeeded' or p_funded<>a.expected_amount_cents or p_remaining<>0) then raise exception 'invalid wire success'; end if;
   if p_kind='partially_funded' and (p_funded<1 or p_funded>=a.expected_amount_cents or p_remaining<>a.expected_amount_cents-p_funded) then raise exception 'invalid partial funding'; end if;
   if p_kind='expired' and (p_funded<>0 or a.attempt_status in ('partially_funded','succeeded','failed')) then raise exception 'invalid wire expiration'; end if;
   if p_kind='refund' and (p_refunded is null or p_refunded<1 or p_refunded>o.total_cents) then raise exception 'invalid wire refund'; end if;
