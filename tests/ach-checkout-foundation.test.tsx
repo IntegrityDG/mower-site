@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildAchCheckoutSession } from "../lib/stripe/ach-checkout-session";
+import { buildCardCheckoutSession } from "../lib/stripe/checkout-session";
 import { paymentMethodIsServerEnabled } from "../lib/checkout/payment-method-availability";
 import type { OrderPriceSnapshot } from "../lib/checkout/types";
 
@@ -8,6 +9,8 @@ const snapshot:OrderPriceSnapshot={currency:"usd",product:{id:"p",slug:"lymow-on
 
 test("builds an ACH-only Checkout Session",()=>{
   const value=buildAchCheckoutSession({snapshot,orderId:"order",attemptId:"attempt",publicReference:"IDS-X",customerEmail:null,appBaseUrl:"https://example.com",signingSecret:"secret",returnPath:"/equipment/lymow-one-plus",cancelExpiresAt:1800000});
+  assert.equal(value.metadata?.public_reference,"IDS-X");
+  assert.deepEqual(value.payment_intent_data?.metadata,value.metadata);
   assert.deepEqual(value.payment_method_types,["us_bank_account"]);
   assert.equal(value.mode,"payment");
   assert.equal("automatic_payment_methods" in value,false);
@@ -20,4 +23,12 @@ test("builds an ACH-only Checkout Session",()=>{
 test("ACH remains server-disabled by default",()=>{
   assert.equal(paymentMethodIsServerEnabled("ach_debit",{}),false);
   assert.equal(paymentMethodIsServerEnabled("ach_debit",{ACH_CHECKOUT_ENABLED:"true"}),true);
+});
+
+test("card Checkout Sessions copy stable IDS identity to the PaymentIntent",()=>{
+  const cardSnapshot={...snapshot,paymentMethod:"card" as const,discountCents:0,totalCents:269900};
+  const value=buildCardCheckoutSession({snapshot:cardSnapshot,orderId:"order",attemptId:"attempt",publicReference:"IDS-X",customerEmail:null,appBaseUrl:"https://example.com",signingSecret:"secret",returnPath:"/equipment/lymow-one-plus",cancelExpiresAt:1800000});
+  assert.equal(value.metadata?.public_reference,"IDS-X");
+  assert.equal(value.metadata?.payment_method,"card");
+  assert.deepEqual(value.payment_intent_data?.metadata,value.metadata);
 });

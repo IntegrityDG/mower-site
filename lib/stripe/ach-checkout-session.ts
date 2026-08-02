@@ -19,7 +19,7 @@ export function buildAchCheckoutSession(input: BankSessionInput): Stripe.Checkou
   if (input.snapshot.paymentMethod !== "ach_debit" || input.snapshot.currency !== "usd") throw new Error("ACH USD snapshot required.");
   const { line_items, token } = common(input);
   const email = input.customerEmail?.trim();
-  const metadata = { order_id: input.orderId, attempt_id: input.attemptId, payment_method: "ach_debit", checkout_policy: CHECKOUT_POLICY_VERSION, security_policy: PAYMENT_SECURITY_POLICY_VERSION };
+  const metadata = { order_id: input.orderId, attempt_id: input.attemptId, public_reference: input.publicReference, payment_method: "ach_debit", checkout_policy: CHECKOUT_POLICY_VERSION, security_policy: PAYMENT_SECURITY_POLICY_VERSION };
   return { mode: "payment", payment_method_types: ["us_bank_account"], line_items, customer_creation: "always", ...(email ? { customer_email: email } : {}), billing_address_collection: "required", shipping_address_collection: { allowed_countries: ["US"] }, custom_text: { submit: { message: PAYMENT_SECURITY_NOTICE } }, payment_intent_data: { metadata }, client_reference_id: input.orderId, metadata, success_url: `${input.appBaseUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${input.appBaseUrl}/checkout/cancel?token=${encodeURIComponent(token)}` };
 }
 

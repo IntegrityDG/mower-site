@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { applyAchEventV1, applyCardEventV2, applyWireEventV1, findActiveWireByStripeCustomerId, findByPaymentIntentId, findBySessionId, finishWebhook, recordWebhookReceipt, type CheckoutRecord } from "@/lib/checkout/order-repository";
+import { applyAchEventV1, applyCardEventV2, applyWireEventV1, findActiveWireByStripeCustomerId, findByPaymentIntentId, findBySessionId, finishWebhook, linkPaymentIntentByIdentity, recordWebhookReceipt, type CheckoutRecord } from "@/lib/checkout/order-repository";
 import { getStripeWebhookSecret, StripeConfigurationError } from "@/lib/stripe/config";
 import { getStripeServerClient } from "@/lib/stripe/server";
 import { reconcileAchIntent, reconcileAchSession } from "@/lib/stripe/ach-webhook-policy";
 import { assertTestEvent, reconcileCompletedSession, reconcileExpiredSession, reconcileFinancialObject, WebhookReconciliationError } from "@/lib/stripe/webhook-policy";
 import { reconcileWireIntent, reconcileWireSession } from "@/lib/stripe/wire-webhook-policy";
+import { IdsPaymentIntentResolutionError, resolvePaymentIntent } from "@/lib/stripe/payment-intent-resolution";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ const intentShape = (intent: Stripe.PaymentIntent) => ({ livemode: intent.livemo
 const wireIntentShape = (intent: Stripe.PaymentIntent) => ({ ...intentShape(intent), amountReceived: intent.amount_received });
 
 async function retrieveIntent(id: string) { return getStripeServerClient().paymentIntents.retrieve(id); }
+async function listIntentSessions(id: string) { return (await getStripeServerClient().checkout.sessions.list({ payment_intent: id, limit: 2 })).data; }
 
 async function applyAchIntent(record: CheckoutRecord, intent: Stripe.PaymentIntent, session: Stripe.Checkout.Session | null = null, forcedKind?: "failed" | "expired") {
   const kind = forcedKind ?? reconcileAchIntent(intentShape(intent), record);
@@ -69,10 +71,21 @@ async function handleSession(eventType: string, session: Stripe.Checkout.Session
 }
 
 async function handleIntent(intent: Stripe.PaymentIntent, eventId: string) {
-  const record = await findByPaymentIntentId(intent.id); if (!record) throw new Error("PaymentIntent not linked yet");
+  const resolution = await resolvePaymentIntent(intent, { findByPaymentIntentId, findBySessionId, linkByIdentity: linkPaymentIntentByIdentity, listSessions: listIntentSessions });
+  if (!resolution) return;
+  const { record } = resolution;
   if (paymentMethod(record) === "ach_debit") { await applyAchIntent(record, intent); return; }
   if (paymentMethod(record) === "wire_transfer") { await applyWireIntent(record, intent, null, undefined, eventId); return; }
-  throw new WebhookReconciliationError("Unexpected PaymentIntent event for card.");
+  if (paymentMethod(record) === "card" && intent.status === "succeeded") {
+    const session = resolution.session ?? (await listIntentSessions(intent.id))[0] ?? null;
+    if (!session || session.status !== "complete" || session.payment_status !== "paid") return;
+    const kind = reconcileCompletedSession(sessionShape(session), record);
+    const stripeCustomerId = objectId(session.customer);
+    if (!stripeCustomerId) throw new IdsPaymentIntentResolutionError("Paid IDS card Session is missing its Stripe customer.", { paymentIntentId: intent.id, sessionId: session.id });
+    await applyCardEventV2({ p_kind: kind, p_session_id: session.id, p_payment_intent_id: intent.id, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: session.amount_total, p_currency: session.currency, p_stripe_session_status: session.status, p_stripe_payment_status: session.payment_status, p_refunded: null, p_stripe_customer_id: stripeCustomerId, p_contact: { email: session.customer_details?.email, name: session.customer_details?.name, phone: session.customer_details?.phone, billingAddress: session.customer_details?.address, shippingAddress: session.collected_information?.shipping_details?.address } });
+    return;
+  }
+  throw new WebhookReconciliationError("Unsupported card PaymentIntent event.");
 }
 
 async function handleFinancial(event: Stripe.Event) {
@@ -114,6 +127,7 @@ export async function POST(request: Request) {
     await finishWebhook(event.id,"processed"); return ok();
   } catch(error) {
     if(error instanceof WebhookReconciliationError){await finishWebhook(event.id,"ignored","RECONCILIATION_REJECTED").catch(()=>undefined);return ok();}
+    console.error("Stripe webhook processing failed", { eventId: event.id, eventType: event.type, objectId: object.id ?? null, error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack, ...(error instanceof IdsPaymentIntentResolutionError ? { details: error.details } : {}) } : error });
     await finishWebhook(event.id,"failed","PROCESSING_FAILED").catch(()=>undefined);return NextResponse.json({error:"Webhook processing failed."},{status:503});
   }
 }
