@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import { formatCents } from "@/lib/catalog/pricing";
@@ -12,6 +12,11 @@ import {
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { isSelfServiceProduct } from "@/lib/catalog/sales-mode";
+import {
+  checkoutEndpoint,
+  checkoutSubmissionKind,
+} from "@/lib/checkout/handoff";
+import type { CheckoutRequest } from "@/lib/checkout/types";
 import type {
   CatalogProduct,
   CatalogResponse,
@@ -67,7 +72,9 @@ const stages: { key: StageKey; label: string }[] = [
 ];
 
 const purchaseMethodLabels: Record<PurchaseMethodKey, string> = {
-  "pay-in-full": "Pay in full",
+  "pay-in-full": "Pay in full by card",
+  ach: "ACH bank payment",
+  wire: "Wire transfer",
   "hearth-financing": "Explore financing through Hearth",
 };
 
@@ -160,6 +167,7 @@ export default function NationwidePurchaseFlow({
     });
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
   const [submitError, setSubmitError] = useState("");
+  const submissionInProgress = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +219,19 @@ export default function NationwidePurchaseFlow({
       null,
     [catalog, selectedProductId]
   );
+  const configurationRequiresQuote = Boolean(
+    selectedProduct &&
+      resolveBuildSelection(selectedProduct, buildSelection)
+        .hasUnpricedEquipment
+  );
+  const submissionKind =
+    selectedProduct && selectedPurchaseMethod
+      ? checkoutSubmissionKind(
+          selectedProduct,
+          selectedPurchaseMethod,
+          configurationRequiresQuote
+        )
+      : "quote";
 
   useEffect(() => {
     if (!catalog || !selectedProductId) return;
@@ -401,6 +422,13 @@ export default function NationwidePurchaseFlow({
     }));
   }
 
+  function handleSelectPurchaseMethod(method: PurchaseMethodKey) {
+    submissionInProgress.current = false;
+    setSelectedPurchaseMethod(method);
+    setSubmitStatus("idle");
+    setSubmitError("");
+  }
+
   function goBack() {
     setStageIndex((currentIndex) => Math.max(currentIndex - 1, 0));
   }
@@ -417,11 +445,13 @@ export default function NationwidePurchaseFlow({
       !selectedProduct ||
       !isSelfServiceProduct(selectedProduct) ||
       !selectedPurchaseMethod ||
-      !locationComplete
+      !locationComplete ||
+      submissionInProgress.current
     ) {
       return;
     }
 
+    submissionInProgress.current = true;
     setSubmitStatus("submitting");
     setSubmitError("");
 
@@ -467,6 +497,80 @@ export default function NationwidePurchaseFlow({
       ? yarboIndividualItems
       : selectedOptionNames(build.selectedOptions);
     const purchaseMethodLabel = purchaseMethodLabels[selectedPurchaseMethod];
+
+    if (submissionKind !== "quote") {
+      const checkoutRequest: CheckoutRequest = {
+        requestId: crypto.randomUUID(),
+        paymentMethod: submissionKind,
+        selection: {
+          productId: selectedProduct.id,
+          variantId: build.selectedVariant?.id ?? null,
+          purchaseMode: build.isYarboCompleteSystem
+            ? "complete-system"
+            : build.isYarboIndividualEquipment
+              ? "individual-equipment"
+              : "standard",
+          packageId: build.selectedPackage?.id ?? null,
+          options: build.selectedOptions.map(({ option, quantity }) => ({
+            optionId: option.id,
+            quantity,
+          })),
+          includeBaseProduct: Boolean(build.yarboCoreSelected),
+        },
+        customer: {
+          name: customerInformation.fullName,
+          email: customerInformation.email.trim() || null,
+          phone: customerInformation.phone.trim() || null,
+        },
+        shippingAddress: {
+          line1: customerInformation.shippingAddress,
+          line2: null,
+          city: customerInformation.shippingRegion,
+          state: customerInformation.shippingState,
+          postalCode: customerInformation.shippingZip,
+          country: "US",
+        },
+      };
+
+      try {
+        const response = await fetch(checkoutEndpoint(submissionKind), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(checkoutRequest),
+        });
+        const payload = response.headers
+          .get("content-type")
+          ?.toLowerCase()
+          .includes("application/json")
+          ? ((await response.json()) as {
+              checkoutUrl?: string;
+              error?: string;
+            })
+          : null;
+
+        if (!response.ok) {
+          throw new Error(payload?.error ?? "Unable to start secure checkout.");
+        }
+
+        const redirectUrl = response.redirected
+          ? response.url
+          : payload?.checkoutUrl;
+        if (!redirectUrl) {
+          throw new Error("The checkout service did not return a payment URL.");
+        }
+
+        window.location.assign(redirectUrl);
+      } catch (error) {
+        submissionInProgress.current = false;
+        setSubmitStatus("error");
+        setSubmitError(
+          error instanceof Error
+            ? error.message
+            : "Unable to start secure checkout."
+        );
+      }
+      return;
+    }
 
     const requestSummary = [
       selectedProductIsYarbo
@@ -559,7 +663,9 @@ export default function NationwidePurchaseFlow({
       }
 
       setSubmitStatus("success");
+      submissionInProgress.current = false;
     } catch (error) {
+      submissionInProgress.current = false;
       setSubmitStatus("error");
       setSubmitError(
         error instanceof Error
@@ -617,8 +723,9 @@ export default function NationwidePurchaseFlow({
       return (
         <PurchaseMethod
           selectedMethod={selectedPurchaseMethod}
+          checkoutAvailable={!configurationRequiresQuote}
           hearthUrl={hearthFinancingUrl}
-          onSelectMethod={setSelectedPurchaseMethod}
+          onSelectMethod={handleSelectPurchaseMethod}
         />
       );
     }
@@ -645,6 +752,7 @@ export default function NationwidePurchaseFlow({
           customerInformation={customerInformation}
           submitStatus={submitStatus}
           submitError={submitError}
+          submissionKind={submissionKind}
           onSubmit={() => void submitRequest()}
         />
       );
@@ -714,7 +822,11 @@ export default function NationwidePurchaseFlow({
                 <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-black text-slate-950">
                   {index + 1}
                 </span>
-                {stage.label}
+                {stage.key === "summary"
+                  ? submissionKind === "quote"
+                    ? "Request"
+                    : "Review and Pay"
+                  : stage.label}
               </button>
             );
           })}

@@ -129,7 +129,11 @@ export type ProductConfigurationSelection = {
   quantityAccessorySelections: QuantityAccessorySelection[];
 };
 
-export type PurchaseMethodKey = "pay-in-full" | "hearth-financing";
+export type PurchaseMethodKey =
+  | "pay-in-full"
+  | "ach"
+  | "wire"
+  | "hearth-financing";
 
 export type SetupPreferenceKey =
   | "self-setup"

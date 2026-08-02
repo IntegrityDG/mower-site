@@ -11,6 +11,7 @@ import {
   yarboPackageDisplayName,
 } from "@/lib/catalog/yarbo";
 import type { CustomerInformationValues } from "@/lib/products/types";
+import type { CheckoutSubmissionKind } from "@/lib/checkout/handoff";
 
 type SubmitStatus = "idle" | "submitting" | "success" | "error";
 
@@ -21,6 +22,7 @@ type PurchaseSummaryProps = {
   customerInformation: CustomerInformationValues;
   submitStatus: SubmitStatus;
   submitError: string;
+  submissionKind: CheckoutSubmissionKind;
   onSubmit: () => void;
 };
 
@@ -43,26 +45,44 @@ export default function PurchaseSummary({
   customerInformation,
   submitStatus,
   submitError,
+  submissionKind,
   onSubmit,
 }: PurchaseSummaryProps) {
   const build = resolveBuildSelection(selectedProduct, buildSelection);
   const configuredTotalCents = build.equipmentTotalCents;
   const hasUnpricedItems = build.hasUnpricedEquipment;
   const selectedProductIsYarbo = isYarboProduct(selectedProduct);
+  const isQuote = submissionKind === "quote";
+  const heading = isQuote ? "Review and submit your equipment request." : "Review and Pay";
+  const intro =
+    submissionKind === "card"
+      ? "Review your configuration, then continue to Stripe's secure checkout to complete card payment."
+      : submissionKind === "ach_debit"
+        ? "Review your configuration, then continue to Stripe to authorize ACH payment. Your order remains pending until the funds clear."
+        : submissionKind === "wire_transfer"
+          ? "Review your configuration, then continue to Stripe for wire-transfer instructions. Your order remains pending until the funds clear."
+          : "Nothing is charged through this form. IDS will review availability, shipping and final pricing before preparing the order.";
+  const buttonLabel =
+    submissionKind === "card"
+      ? "Continue to Secure Payment"
+      : submissionKind === "ach_debit"
+        ? "Continue with ACH"
+        : submissionKind === "wire_transfer"
+          ? "Continue with Wire Transfer"
+          : "Submit Complete Purchase Request";
 
   return (
     <div>
       <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-        Request Summary
+        {isQuote ? "Request Summary" : "Order Summary"}
       </p>
 
       <h3 className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
-        Review and submit your equipment request.
+        {heading}
       </h3>
 
       <p className="mt-4 max-w-4xl leading-7 text-slate-600">
-        Nothing is charged through this form. IDS will review availability,
-        shipping and final pricing before preparing the order.
+        {intro}
       </p>
 
       {selectedProductIsYarbo ? (
@@ -99,7 +119,7 @@ export default function PurchaseSummary({
         </div>
       </section>
 
-      {submitStatus === "success" ? (
+      {isQuote && submitStatus === "success" ? (
         <div className="mt-6 rounded-2xl border border-emerald-300 bg-emerald-50 p-6 text-emerald-950">
           <p className="text-xl font-black">Request submitted successfully.</p>
           <p className="mt-2 leading-7">
@@ -114,9 +134,7 @@ export default function PurchaseSummary({
           disabled={submitStatus === "submitting"}
           className="mt-8 w-full rounded-2xl bg-emerald-600 px-5 py-5 text-lg font-black text-white shadow-xl transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-400"
         >
-          {submitStatus === "submitting"
-            ? "Submitting Request..."
-            : "Submit Complete Purchase Request"}
+          {submitStatus === "submitting" ? "Processing..." : buttonLabel}
         </button>
       )}
 

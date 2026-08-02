@@ -17,10 +17,21 @@ const YARBO_HIDDEN = new Set(["yarbo-plow-module", "yarbo-tow-hitch"]);
 const active = (row: { public_status: string }) => row.public_status === "active";
 const reject = (code: ConstructorParameters<typeof CheckoutRejectionError>[0], message: string): never => { throw new CheckoutRejectionError(code, message); };
 
+export function checkoutProductIsSupported(product: {
+  slug: string;
+  brand: string;
+}) {
+  return (
+    product.brand.toLowerCase() !== "pandag" &&
+    salesModeForProductSlug(product.slug) === "self_service" &&
+    (product.slug === "lymow-one-plus" || product.slug === "yarbo")
+  );
+}
+
 export function validateCheckoutEligibility(request: CheckoutRequest, catalog: CheckoutCatalog) {
   const { product } = catalog;
   if (product.id !== request.selection.productId) reject("UNKNOWN_CATALOG_RECORD", "Product was not found.");
-  if (product.slug === "pandag-g1" || product.brand.toLowerCase() === "pandag" || salesModeForProductSlug(product.slug) !== "self_service") reject("QUOTE_ONLY_PRODUCT", "This product is quote-only.");
+  if (!checkoutProductIsSupported(product)) reject("QUOTE_ONLY_PRODUCT", "This product is quote-only.");
   if (!active(product)) reject("INACTIVE_CATALOG_RECORD", "Product is not available for checkout.");
   const selectedOptions = request.selection.options.map(({ optionId, quantity }) => {
     const option = catalog.options.find((row) => row.id === optionId);
