@@ -719,10 +719,16 @@ export default function NationwidePurchaseFlow({
     }
 
     if (activeStage.key === "purchase") {
+      const configuredTotalCents = selectedProduct
+        ? resolveBuildSelection(selectedProduct, buildSelection)
+            .equipmentTotalCents
+        : 0;
+
       return (
         <PurchaseMethod
           selectedMethod={selectedPurchaseMethod}
           checkoutAvailable={!configurationRequiresQuote}
+          configuredTotalCents={configuredTotalCents}
           hearthUrl={hearthFinancingUrl}
           onSelectMethod={handleSelectPurchaseMethod}
         />

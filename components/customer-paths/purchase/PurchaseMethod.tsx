@@ -1,8 +1,10 @@
 import type { PurchaseMethodKey } from "@/lib/products/types";
+import { calculateAchDiscount } from "@/lib/checkout/payment-methods";
 
 type PurchaseMethodProps = {
   selectedMethod: PurchaseMethodKey | "";
   checkoutAvailable: boolean;
+  configuredTotalCents: number;
   hearthUrl: string;
   onSelectMethod: (method: PurchaseMethodKey) => void;
 };
@@ -10,12 +12,14 @@ type PurchaseMethodProps = {
 export default function PurchaseMethod({
   selectedMethod,
   checkoutAvailable,
+  configuredTotalCents,
   hearthUrl,
   onSelectMethod,
 }: PurchaseMethodProps) {
   const payInFullSelected = selectedMethod === "pay-in-full";
   const achSelected = selectedMethod === "ach";
   const hearthSelected = selectedMethod === "hearth-financing";
+  const achDisplay = calculateAchDiscount(configuredTotalCents);
 
   return (
     <div>
@@ -58,6 +62,15 @@ export default function PurchaseMethod({
               : "Record a pay-in-full preference with the equipment request."}
           </p>
 
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+              Configured total
+            </p>
+            <p className="mt-1 text-2xl font-black text-slate-950">
+              {achDisplay.formattedRegularCardTotal}
+            </p>
+          </div>
+
           <p className="mt-6 text-sm font-bold text-emerald-700">
             {payInFullSelected ? "Selected" : "Select this method"}
           </p>
@@ -81,6 +94,38 @@ export default function PurchaseMethod({
             Continue to Stripe to authorize an ACH payment. The order remains
             pending until the funds clear.
           </p>
+          <div className="mt-5 grid gap-3 rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
+                Save {achDisplay.formattedSavings}
+              </p>
+              <p className="mt-1 text-sm font-bold text-slate-700">
+                {achDisplay.discountRateLabel} ACH discount
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                  ACH total
+                </p>
+                <p className="mt-1 text-2xl font-black text-emerald-700">
+                  {achDisplay.formattedDiscountedAchTotal}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                  Card total
+                </p>
+                <p className="mt-1 text-lg font-black text-slate-950">
+                  {achDisplay.formattedRegularCardTotal}
+                </p>
+              </div>
+            </div>
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold leading-6 text-amber-950">
+              Clearing can take several business days. Fulfillment stays pending
+              until ACH payment succeeds.
+            </p>
+          </div>
           <p className="mt-6 text-sm font-bold text-emerald-700">
             {achSelected ? "Selected" : "Select this method"}
           </p>

@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "test": "tsx --test tests/**/*.test.tsx",
+    "test": "tsx --test tests/**/*.test.tsx lib/checkout/payment-methods.test.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

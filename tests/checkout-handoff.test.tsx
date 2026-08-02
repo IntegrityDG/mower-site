@@ -26,6 +26,7 @@ test("purchase method UI displays card, ACH, and Hearth without wire", () => {
     <PurchaseMethod
       selectedMethod=""
       checkoutAvailable
+      configuredTotalCents={354800}
       hearthUrl="https://example.com/hearth"
       onSelectMethod={() => undefined}
     />
@@ -34,6 +35,14 @@ test("purchase method UI displays card, ACH, and Hearth without wire", () => {
   assert.match(markup, />Card</);
   assert.match(markup, />ACH</);
   assert.match(markup, /Hearth/);
+  assert.match(markup, /Configured total/);
+  assert.match(markup, /\$3,548\.00/);
+  assert.match(markup, /Save \$97\.57/);
+  assert.match(markup, /2\.75% ACH discount/);
+  assert.match(markup, /ACH total/);
+  assert.match(markup, /\$3,450\.43/);
+  assert.match(markup, /Card total/);
+  assert.match(markup, /Fulfillment stays pending until ACH payment succeeds/);
   assert.doesNotMatch(markup, /wire/i);
 });
 
