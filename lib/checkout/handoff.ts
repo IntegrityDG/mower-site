@@ -2,14 +2,12 @@ import type { CatalogProduct } from "@/lib/catalog/types";
 import type { PurchaseMethodKey } from "@/lib/products/types";
 
 import { checkoutProductIsSupported } from "./eligibility";
-import type { CheckoutPaymentMethod } from "./types";
+export type CustomerCheckoutPaymentMethod = "card" | "ach_debit";
+export type CheckoutSubmissionKind = CustomerCheckoutPaymentMethod | "quote";
 
-export type CheckoutSubmissionKind = CheckoutPaymentMethod | "quote";
-
-const checkoutEndpoints: Record<CheckoutPaymentMethod, string> = {
+const checkoutEndpoints: Record<CustomerCheckoutPaymentMethod, string> = {
   card: "/api/checkout/session",
   ach_debit: "/api/checkout/ach/session",
-  wire_transfer: "/api/checkout/wire/session",
 };
 
 export function checkoutSubmissionKind(
@@ -27,10 +25,9 @@ export function checkoutSubmissionKind(
   }
 
   if (purchaseMethod === "ach") return "ach_debit";
-  if (purchaseMethod === "wire") return "wire_transfer";
   return "card";
 }
 
-export function checkoutEndpoint(paymentMethod: CheckoutPaymentMethod) {
+export function checkoutEndpoint(paymentMethod: CustomerCheckoutPaymentMethod) {
   return checkoutEndpoints[paymentMethod];
 }

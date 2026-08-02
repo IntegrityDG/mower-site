@@ -59,17 +59,13 @@ export default function PurchaseSummary({
       ? "Review your configuration, then continue to Stripe's secure checkout to complete card payment."
       : submissionKind === "ach_debit"
         ? "Review your configuration, then continue to Stripe to authorize ACH payment. Your order remains pending until the funds clear."
-        : submissionKind === "wire_transfer"
-          ? "Review your configuration, then continue to Stripe for wire-transfer instructions. Your order remains pending until the funds clear."
-          : "Nothing is charged through this form. IDS will review availability, shipping and final pricing before preparing the order.";
+        : "Nothing is charged through this form. IDS will review availability, shipping and final pricing before preparing the order.";
   const buttonLabel =
     submissionKind === "card"
       ? "Continue to Secure Payment"
       : submissionKind === "ach_debit"
         ? "Continue with ACH"
-        : submissionKind === "wire_transfer"
-          ? "Continue with Wire Transfer"
-          : "Submit Complete Purchase Request";
+        : "Submit Complete Purchase Request";
 
   return (
     <div>

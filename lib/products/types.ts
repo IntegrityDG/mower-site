@@ -132,7 +132,6 @@ export type ProductConfigurationSelection = {
 export type PurchaseMethodKey =
   | "pay-in-full"
   | "ach"
-  | "wire"
   | "hearth-financing";
 
 export type SetupPreferenceKey =

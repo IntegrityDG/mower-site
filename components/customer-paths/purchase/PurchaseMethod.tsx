@@ -15,7 +15,6 @@ export default function PurchaseMethod({
 }: PurchaseMethodProps) {
   const payInFullSelected = selectedMethod === "pay-in-full";
   const achSelected = selectedMethod === "ach";
-  const wireSelected = selectedMethod === "wire";
   const hearthSelected = selectedMethod === "hearth-financing";
 
   return (
@@ -30,7 +29,7 @@ export default function PurchaseMethod({
 
       <p className="mt-4 max-w-3xl leading-7 text-slate-600">
         {checkoutAvailable
-          ? "Card, ACH, and wire selections continue to Stripe's secure payment flow. Financing requests continue through the existing request process."
+          ? "Card and ACH selections continue to Stripe's secure payment flow. Financing requests continue through the existing request process."
           : "This configuration requires final review. Choose a purchase preference to include with the request; no payment is collected here."}
       </p>
 
@@ -50,7 +49,7 @@ export default function PurchaseMethod({
           </span>
 
           <h4 className="mt-5 text-2xl font-black text-slate-950">
-            Pay in full
+            Card
           </h4>
 
           <p className="mt-4 leading-7 text-slate-600">
@@ -84,31 +83,6 @@ export default function PurchaseMethod({
           </p>
           <p className="mt-6 text-sm font-bold text-emerald-700">
             {achSelected ? "Selected" : "Select this method"}
-          </p>
-        </button>}
-
-        {checkoutAvailable && <button
-          type="button"
-          onClick={() => onSelectMethod("wire")}
-          aria-pressed={wireSelected}
-          className={`rounded-[2rem] border p-6 text-left transition ${
-            wireSelected
-              ? "border-emerald-700 bg-emerald-50 shadow-xl"
-              : "border-slate-300 bg-white shadow-sm hover:-translate-y-1 hover:border-emerald-500 hover:shadow-xl"
-          }`}
-        >
-          <span className="inline-flex rounded-full bg-slate-950 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-white">
-            Bank Payment
-          </span>
-          <h4 className="mt-5 text-2xl font-black text-slate-950">
-            Wire transfer
-          </h4>
-          <p className="mt-4 leading-7 text-slate-600">
-            Continue to Stripe for wire instructions. The order remains pending
-            until the transferred funds clear.
-          </p>
-          <p className="mt-6 text-sm font-bold text-emerald-700">
-            {wireSelected ? "Selected" : "Select this method"}
           </p>
         </button>}
 

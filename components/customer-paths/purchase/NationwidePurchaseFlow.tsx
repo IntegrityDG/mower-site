@@ -72,9 +72,8 @@ const stages: { key: StageKey; label: string }[] = [
 ];
 
 const purchaseMethodLabels: Record<PurchaseMethodKey, string> = {
-  "pay-in-full": "Pay in full by card",
+  "pay-in-full": "Card",
   ach: "ACH bank payment",
-  wire: "Wire transfer",
   "hearth-financing": "Explore financing through Hearth",
 };
 
