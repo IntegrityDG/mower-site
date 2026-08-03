@@ -61,15 +61,48 @@ type SubmitStatus = "idle" | "submitting" | "success" | "error";
 const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
 
-const stages: { key: StageKey; label: string }[] = [
-  { key: "product", label: "Browse Equipment" },
-  { key: "configuration", label: "Select Equipment" },
-  { key: "review", label: "Review Equipment" },
-  { key: "location", label: "Availability" },
-  { key: "purchase", label: "Subtotal & Financing" },
-  { key: "customer", label: "Contact" },
-  { key: "summary", label: "Request" },
+const stages: { key: StageKey }[] = [
+  { key: "product" },
+  { key: "configuration" },
+  { key: "review" },
+  { key: "location" },
+  { key: "purchase" },
+  { key: "customer" },
+  { key: "summary" },
 ];
+
+export const purchaseProgressSteps = [
+  { label: "Build Your System", stageKeys: ["product", "configuration"] },
+  { label: "Review System", stageKeys: ["review"] },
+  { label: "Pricing & Financing", stageKeys: ["location", "purchase"] },
+  { label: "Delivery & Contact", stageKeys: ["customer"] },
+  { label: "Checkout", stageKeys: ["summary"] },
+] as const satisfies readonly {
+  label: string;
+  stageKeys: readonly StageKey[];
+}[];
+
+const stageIndexByKey = new Map(
+  stages.map((stage, index) => [stage.key, index])
+);
+
+function progressStepStageIndexes(
+  step: (typeof purchaseProgressSteps)[number]
+) {
+  return step.stageKeys.map((key) => stageIndexByKey.get(key) ?? 0);
+}
+
+function progressStepTargetIndex(
+  step: (typeof purchaseProgressSteps)[number],
+  currentStageIndex: number
+) {
+  const reachedIndexes = progressStepStageIndexes(step).filter(
+    (index) => index <= currentStageIndex
+  );
+
+  if (reachedIndexes.length === 0) return null;
+  return Math.max(...reachedIndexes);
+}
 
 const purchaseMethodLabels: Record<PurchaseMethodKey, string> = {
   "pay-in-full": "Card",
@@ -803,19 +836,28 @@ export default function NationwidePurchaseFlow({
   return (
     <div className="overflow-hidden rounded-[2rem] border border-slate-300 bg-white shadow-xl">
       <div className="border-b border-slate-200 bg-slate-50 p-5 md:p-7">
-        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
-          {stages.map((stage, index) => {
-            const isActive = index === stageIndex;
-            const isComplete = index < stageIndex;
+        <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
+          {purchaseProgressSteps.map((step, index) => {
+            const stepStageIndexes = progressStepStageIndexes(step);
+            const targetStageIndex = progressStepTargetIndex(step, stageIndex);
+            const isActive = (step.stageKeys as readonly StageKey[]).includes(
+              activeStage.key
+            );
+            const isComplete =
+              !isActive &&
+              stepStageIndexes.every((stepIndex) => stepIndex < stageIndex);
+            const isReachable = targetStageIndex !== null;
 
             return (
               <button
-                key={stage.key}
+                key={step.label}
                 type="button"
                 onClick={() => {
-                  if (index <= stageIndex) setStageIndex(index);
+                  if (targetStageIndex !== null) {
+                    setStageIndex(targetStageIndex);
+                  }
                 }}
-                disabled={index > stageIndex}
+                disabled={!isReachable}
                 className={`rounded-2xl border px-3 py-3 text-left text-sm font-bold transition ${
                   isActive
                     ? "border-emerald-700 bg-emerald-700 text-white"
@@ -827,11 +869,7 @@ export default function NationwidePurchaseFlow({
                 <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-xs font-black text-slate-950">
                   {index + 1}
                 </span>
-                {stage.key === "summary"
-                  ? submissionKind === "quote"
-                    ? "Request"
-                    : "Review and Pay"
-                  : stage.label}
+                {step.label}
               </button>
             );
           })}

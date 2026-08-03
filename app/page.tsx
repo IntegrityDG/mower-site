@@ -407,17 +407,17 @@ export default function Page() {
           className="scroll-mt-6 px-6 py-20 md:px-10"
         >
           <div className="mx-auto max-w-6xl">
-            <div className="mx-auto mb-10 max-w-3xl text-center">
+            <div className="mx-auto mb-8 max-w-3xl text-center md:mb-9">
               <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-                Request Information
+                BUILD YOUR SYSTEM
               </p>
-              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-                Select equipment, then provide delivery information.
+              <h2 className="mt-2 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
+                Choose your equipment and create the right setup for your property.
               </h2>
-              <p className="mt-5 text-lg leading-8 text-slate-600">
-                The request flow covers the selected equipment, configuration,
-                delivery location, purchase preference, and customer contact
-                information.
+              <p className="mt-4 text-base leading-7 text-slate-600 md:text-lg">
+                Select your machine, customize its configuration, review your
+                complete price and financing options, then provide delivery
+                information and continue to secure checkout.
               </p>
             </div>
 
