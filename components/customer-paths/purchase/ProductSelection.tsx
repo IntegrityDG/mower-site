@@ -27,21 +27,7 @@ export default function ProductSelection({
 
   return (
     <div>
-      <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-        Machine Information and Selection
-      </p>
-
-      <h3 className="mt-3 text-2xl font-black tracking-tight text-slate-950 md:text-3xl">
-        Compare each machine before choosing.
-      </h3>
-
-      <p className="mt-4 max-w-3xl leading-7 text-slate-600">
-        Open the details for capabilities, property fit, product information,
-        available configurations, packages, and options. Then select the system
-        you want to configure.
-      </p>
-
-      <div className="mt-7 grid gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-5">
         {products.map((product) => {
           const isSelected = selectedProductId === product.id;
 
