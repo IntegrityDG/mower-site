@@ -637,6 +637,7 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
   const options = customerFacingProductOptions(product);
   const included = options.filter((item) => item.isIncluded);
   const optional = options.filter((item) => !item.isIncluded);
+  const isLymowOnePlus = product.slug === "lymow-one-plus";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -680,20 +681,12 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                   {priceLabel(product)}
                 </p>
               )}
-              <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-                <Link
-                  href="/#location-and-customer-path"
-                  className="rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 hover:bg-emerald-400"
-                >
-                  Build Your System
-                </Link>
-                <Link
-                  href="/#location-and-customer-path"
-                  className="rounded-2xl border border-white/30 px-7 py-4 text-center font-bold hover:bg-white/10"
-                >
-                  Ask a Question
-                </Link>
-              </div>
+              <Link
+                href="/#location-and-customer-path"
+                className="mt-7 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 hover:bg-emerald-400"
+              >
+                Build Your System
+              </Link>
             </div>
             <div className="flex min-h-80 items-center justify-center rounded-[2rem] bg-white/95 p-8">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -758,18 +751,30 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
           <ProductPageSections sections={product.page?.sections ?? []} />
 
           <div id="compatible-equipment" className="mt-14 scroll-mt-8">
-            <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
-              Compatible equipment
-            </p>
-            <h2 className="mt-3 text-3xl font-black">
-              Included and optional equipment
-            </h2>
+            {isLymowOnePlus ? (
+              <p className="text-lg font-black uppercase leading-tight tracking-[0.02em] text-emerald-700 md:text-2xl lg:text-3xl">
+                Optional Parts and Accessories
+              </p>
+            ) : (
+              <>
+                <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
+                  Compatible equipment
+                </p>
+                <h2 className="mt-3 text-3xl font-black">
+                  Included and optional equipment
+                </h2>
+              </>
+            )}
             {included.length > 0 && (
               <EquipmentList title="Included with the system" items={included} />
             )}
             {optional.length > 0 && (
               <EquipmentList
-                title="Optional attachments and accessories"
+                title={
+                  isLymowOnePlus
+                    ? undefined
+                    : "Optional attachments and accessories"
+                }
                 items={optional}
               />
             )}
@@ -819,13 +824,15 @@ function EquipmentList({
   title,
   items,
 }: {
-  title: string;
+  title?: string;
   items: CatalogOption[];
 }) {
   return (
-    <div className="mt-7">
-      <h3 className="text-xl font-black">{title}</h3>
-      <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className={title ? "mt-7" : "mt-5"}>
+      {title && <h3 className="text-xl font-black">{title}</h3>}
+      <div
+        className={`${title ? "mt-4 " : ""}grid gap-4 md:grid-cols-2 xl:grid-cols-3`}
+      >
         {items.map((item) => (
           <article
             key={item.id}

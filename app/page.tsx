@@ -118,32 +118,38 @@ export default function Page() {
           </div>
 
           <div className="relative z-10 mx-auto w-full max-w-5xl text-center">
-            <p className="w-full text-center text-sm font-bold uppercase tracking-[0.28em] text-emerald-400">
-              Nationwide Autonomous Mower Sales
+            <p className="w-full text-center text-2xl font-bold uppercase leading-tight tracking-[0.02em] text-emerald-400 md:text-[2rem] md:tracking-[0.08em]">
+              <span className="block md:inline">A SMALL BUSINESS</span>{" "}
+              <span className="block md:inline">WITH A SIMPLE</span>{" "}
+              <span className="block md:inline">PURPOSE</span>
             </p>
 
-            <h1 className="mx-auto mt-5 max-w-4xl text-center text-4xl font-black leading-[1.08] tracking-tight md:text-6xl">
-              Autonomous lawn care, built on integrity.
+            <h1 className="mx-auto mt-5 max-w-4xl text-center text-4xl font-black leading-[1.08] tracking-tight md:text-5xl">
+              Helping people get more time back for what matters most.
             </h1>
 
-            <p className="mx-auto mt-7 max-w-3xl text-center text-lg leading-8 text-slate-200 md:text-xl">
-              Purchase autonomous mowing equipment nationwide, get help
-              identifying the right system, get help locating local resources for post-sale support, or add professional IDS setup and
-              support where regional service is available.
+            <p className="mx-auto mt-7 max-w-4xl text-center text-lg leading-8 text-slate-200 md:text-xl">
+              Integrity Distribution Systems is a small, Southeast
+              Missouri&ndash;based business built around honesty, practical
+              guidance, and doing right by the people we serve. We are not here
+              to push the most expensive machine or chase the biggest sale. Our
+              goal is to help each customer find a system that genuinely fits
+              their property, needs, and budget.
             </p>
 
-            <div className="mt-8 flex w-full justify-center">
-              <Link
-                href="/equipment"
-                className="rounded-2xl bg-emerald-500 px-8 py-4 text-lg font-black text-slate-950 shadow-xl transition hover:bg-emerald-400"
-              >
-                Browse Equipment
-              </Link>
-            </div>
+            <p className="mx-auto mt-5 max-w-4xl text-center text-lg leading-8 text-slate-200 md:text-xl">
+              After spending a great deal of my own life working away from
+              home, I understand how valuable time can be. Autonomous lawn care
+              can reduce the hours and expense tied up in routine property
+              maintenance, giving people more time with family, more room in
+              their budget, and a little more opportunity to slow down and enjoy
+              life.
+            </p>
 
             <div className="mt-8 flex w-full justify-center">
               <div className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/10 px-6 py-3 text-center text-sm font-semibold text-slate-100 backdrop-blur">
-                Nationwide Sales • Regional Hands-On Services
+                Southeast Missouri Based &bull; Nationwide Equipment Sales
+                &bull; Regional Hands-On Support
               </div>
             </div>
 
@@ -157,110 +163,22 @@ export default function Page() {
           </div>
         </section>
 
-        {/* HEARTH FINANCING */}
-        <section
-          id="financing"
-          className="relative overflow-hidden border-b border-slate-700 bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 px-6 py-20 text-white md:px-10 md:py-24"
-        >
-          <div className="pointer-events-none absolute inset-0 opacity-20">
-            <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-emerald-400 blur-3xl" />
-
-            <div className="absolute -bottom-40 -right-24 h-96 w-96 rounded-full bg-cyan-400 blur-3xl" />
-          </div>
-
-          <div className="relative z-10 mx-auto max-w-7xl">
-            <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
-              {/* FINANCING ARTWORK */}
-              <div className="mx-auto w-full max-w-2xl">
-                <div className="overflow-hidden rounded-[2rem] border border-white/20 bg-slate-900 shadow-2xl">
-                  <img
-                    src="/images/hearth-financing-background.png"
-                    alt="Integrity Distribution Systems financing through Hearth"
-                    className="h-auto w-full object-cover"
-                  />
-                </div>
-              </div>
-
-              {/* FINANCING INFORMATION */}
-              <div className="mx-auto w-full max-w-xl text-center lg:text-left">
-                <p className="text-sm font-bold uppercase tracking-[0.28em] text-emerald-400">
-                  Flexible Financing Available
-                </p>
-
-                <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
-                  Explore your financing options through Hearth.
-                </h2>
-
-                <p className="mt-6 text-lg leading-8 text-slate-200">
-                  Interested in an autonomous mower but prefer manageable
-                  payments? Use our secure Hearth financing link to explore
-                  potential options from participating lending partners.
-                </p>
-
-                <div className="mt-7 rounded-2xl border border-white/15 bg-white/10 p-5 text-left backdrop-blur">
-                  <p className="font-black text-white">
-                    Through the Hearth financing portal, you can:
-                  </p>
-
-                  <div className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
-                    <p>✓ Explore potential financing options online</p>
-                    <p>✓ Compare available payment choices</p>
-                    <p>✓ Submit your information securely</p>
-                    <p>✓ Continue shopping after checking your options</p>
-                  </div>
-                </div>
-
-                <a
-                  href={hearthFinancingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-8 py-5 text-center text-lg font-black text-slate-950 shadow-xl transition hover:scale-[1.02] hover:bg-emerald-400 sm:w-auto"
-                >
-                  Check Financing Options
-                  <span aria-hidden="true" className="ml-3 text-xl">
-                    ↗
-                  </span>
-                </a>
-
-                <p className="mt-5 text-sm leading-6 text-slate-300">
-                  The financing page will open in a new tab so you can return
-                  here when finished.
-                </p>
-
-                <p className="mt-5 text-xs leading-5 text-slate-400">
-                  Financing is provided through participating third-party
-                  lenders. Approval, rates, terms, fees, and availability are
-                  determined by the applicable lender.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* FEATURED EQUIPMENT */}
         <section className="bg-white px-6 py-20 md:px-10">
           <div className="mx-auto max-w-7xl">
-            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-                  Featured Machines
-                </p>
-                <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-                  Browse equipment before checking availability.
-                </h2>
-                <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
-                  Compare residential equipment, commercial equipment, complete
-                  systems, packages, attachments, accessories, and individual
-                  equipment first. Location is checked after you select what you
-                  want to review.
-                </p>
-              </div>
-              <Link
-                href="/equipment"
-                className="rounded-2xl bg-slate-950 px-7 py-4 text-center font-black text-white transition hover:bg-emerald-700"
-              >
-                Browse Equipment Catalog
-              </Link>
+            <div>
+              <p className="text-2xl font-bold uppercase leading-tight tracking-[0.02em] text-emerald-400 md:text-[2rem] md:tracking-[0.08em]">
+                Featured Machines
+              </p>
+              <h2 className="mt-3 max-w-3xl text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
+                Meet our top picks for helping you reclaim your time.
+              </h2>
+              <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+                Each system offers a different approach to autonomous lawn care,
+                from residential mowing to modular property maintenance and
+                heavy-duty commercial work. Take a look through the lineup and
+                explore the details.
+              </p>
             </div>
 
             <div className="mt-10 grid gap-6 lg:grid-cols-3">
@@ -283,7 +201,7 @@ export default function Page() {
                   slug: "pandag-g1",
                   label: "Commercial Equipment",
                   title: "Pandag G1",
-                  text: "Built primarily for solar farms, golf courses, large city parks, and expansive private estates, the Pandag G1 delivers heavy-duty autonomous mowing for properties where acreage, terrain, and labor demands exceed the capabilities of conventional robotic mowers.",
+                  text: "Built primarily for solar farms, golf courses, large city parks, and expansive private estates, the Pandag G1 delivers heavy-duty autonomous mowing for properties where acreage, terrain, and labor demands exceed the capabilities of conventional zero-turn mowers and smaller robotic platforms.",
                   href: "/equipment/pandag-g1",
                 },
               ].map((item) => {
@@ -397,6 +315,86 @@ export default function Page() {
                   {item}
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* HEARTH FINANCING */}
+        <section
+          id="financing"
+          className="relative overflow-hidden border-b border-slate-700 bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 px-6 py-20 text-white md:px-10 md:py-24"
+        >
+          <div className="pointer-events-none absolute inset-0 opacity-20">
+            <div className="absolute -left-32 top-0 h-96 w-96 rounded-full bg-emerald-400 blur-3xl" />
+
+            <div className="absolute -bottom-40 -right-24 h-96 w-96 rounded-full bg-cyan-400 blur-3xl" />
+          </div>
+
+          <div className="relative z-10 mx-auto max-w-7xl">
+            <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-14">
+              {/* FINANCING ARTWORK */}
+              <div className="mx-auto w-full max-w-2xl">
+                <div className="overflow-hidden rounded-[2rem] border border-white/20 bg-slate-900 shadow-2xl">
+                  <img
+                    src="/images/hearth-financing-background.png"
+                    alt="Integrity Distribution Systems financing through Hearth"
+                    className="h-auto w-full object-cover"
+                  />
+                </div>
+              </div>
+
+              {/* FINANCING INFORMATION */}
+              <div className="mx-auto w-full max-w-xl text-center lg:text-left">
+                <p className="text-sm font-bold uppercase tracking-[0.28em] text-emerald-400">
+                  Flexible Financing Available
+                </p>
+
+                <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
+                  Explore your financing options through Hearth.
+                </h2>
+
+                <p className="mt-6 text-lg leading-8 text-slate-200">
+                  Interested in an autonomous mower but prefer manageable
+                  payments? Use our secure Hearth financing link to explore
+                  potential options from participating lending partners.
+                </p>
+
+                <div className="mt-7 rounded-2xl border border-white/15 bg-white/10 p-5 text-left backdrop-blur">
+                  <p className="font-black text-white">
+                    Through the Hearth financing portal, you can:
+                  </p>
+
+                  <div className="mt-4 space-y-3 text-sm leading-6 text-slate-200">
+                    <p>✓ Explore potential financing options online</p>
+                    <p>✓ Compare available payment choices</p>
+                    <p>✓ Submit your information securely</p>
+                    <p>✓ Continue shopping after checking your options</p>
+                  </div>
+                </div>
+
+                <a
+                  href={hearthFinancingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-8 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-500 px-8 py-5 text-center text-lg font-black text-slate-950 shadow-xl transition hover:scale-[1.02] hover:bg-emerald-400 sm:w-auto"
+                >
+                  Check Financing Options
+                  <span aria-hidden="true" className="ml-3 text-xl">
+                    ↗
+                  </span>
+                </a>
+
+                <p className="mt-5 text-sm leading-6 text-slate-300">
+                  The financing page will open in a new tab so you can return
+                  here when finished.
+                </p>
+
+                <p className="mt-5 text-xs leading-5 text-slate-400">
+                  Financing is provided through participating third-party
+                  lenders. Approval, rates, terms, fees, and availability are
+                  determined by the applicable lender.
+                </p>
+              </div>
             </div>
           </div>
         </section>
