@@ -41,7 +41,8 @@ test("purchase method UI displays card, ACH, and Hearth without wire", () => {
   assert.match(markup, /2\.75% ACH discount/);
   assert.match(markup, /ACH total/);
   assert.match(markup, /\$3,450\.43/);
-  assert.match(markup, /Card total/);
+  assert.doesNotMatch(markup, /Card total/);
+  assert.doesNotMatch(markup, /instead of/i);
   assert.match(markup, /Fulfillment stays pending until ACH payment succeeds/);
   assert.doesNotMatch(markup, /wire/i);
 });

@@ -103,23 +103,13 @@ export default function PurchaseMethod({
                 {achDisplay.discountRateLabel} ACH discount
               </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                  ACH total
-                </p>
-                <p className="mt-1 text-2xl font-black text-emerald-700">
-                  {achDisplay.formattedDiscountedAchTotal}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                  Card total
-                </p>
-                <p className="mt-1 text-lg font-black text-slate-950">
-                  {achDisplay.formattedRegularCardTotal}
-                </p>
-              </div>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                ACH total
+              </p>
+              <p className="mt-1 text-2xl font-black text-emerald-700">
+                {achDisplay.formattedDiscountedAchTotal}
+              </p>
             </div>
             <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold leading-6 text-amber-950">
               Clearing can take several business days. Fulfillment stays pending
