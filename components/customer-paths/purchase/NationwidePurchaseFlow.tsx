@@ -172,6 +172,36 @@ const emptyBuildSelection: ProductBuildSelection = {
   optionQuantities: {},
 };
 
+export function productRequestedByBuildSearch(
+  catalog: CatalogResponse,
+  search: string
+) {
+  const requestedSlug = new URLSearchParams(search).get("product")?.trim();
+  if (!requestedSlug) return null;
+
+  return (
+    catalog.products.find(
+      (product) =>
+        product.slug === requestedSlug && isSelfServiceProduct(product)
+    ) ?? null
+  );
+}
+
+function initialBuildSelection(product: CatalogProduct): ProductBuildSelection {
+  return {
+    variantId: "",
+    packageId: "",
+    optionQuantities: Object.fromEntries(
+      customerFacingProductOptions(product)
+        .filter((option) => option.isIncluded)
+        .map((option) => [
+          option.id,
+          Math.max(1, option.defaultQuantity, option.minimumQuantity),
+        ])
+    ),
+  };
+}
+
 export default function NationwidePurchaseFlow({
   selectedState = "",
   selectedRegion = "",
@@ -200,6 +230,7 @@ export default function NationwidePurchaseFlow({
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
   const [submitError, setSubmitError] = useState("");
   const submissionInProgress = useRef(false);
+  const urlPreselectionApplied = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -231,6 +262,20 @@ export default function NationwidePurchaseFlow({
       cancelled = true;
     };
   }, [catalogReloadKey]);
+
+  useEffect(() => {
+    if (!catalog || urlPreselectionApplied.current) return;
+    urlPreselectionApplied.current = true;
+
+    const requestedProduct = productRequestedByBuildSearch(
+      catalog,
+      window.location.search
+    );
+    if (!requestedProduct) return;
+
+    setSelectedProductId(requestedProduct.id);
+    setBuildSelection(initialBuildSelection(requestedProduct));
+  }, [catalog]);
 
   useEffect(() => {
     setCustomerInformation((currentInformation) => ({
@@ -331,21 +376,8 @@ export default function NationwidePurchaseFlow({
       setBuildSelection(emptyBuildSelection);
       return;
     }
-    const includedQuantities = Object.fromEntries(
-      customerFacingProductOptions(product)
-        .filter((option) => option.isIncluded)
-        .map((option) => [
-          option.id,
-          Math.max(1, option.defaultQuantity, option.minimumQuantity),
-        ]) ?? []
-    );
-
     setSelectedProductId(productId);
-    setBuildSelection({
-      variantId: "",
-      packageId: "",
-      optionQuantities: includedQuantities,
-    });
+    setBuildSelection(initialBuildSelection(product));
     setSubmitStatus("idle");
     setSubmitError("");
   }

@@ -206,16 +206,14 @@ export default function EquipmentCatalog() {
                         quoteOnlyProduct
                           ? "/pandag/project-quote"
                           : yarboProduct
-                          ? `/equipment/${product.slug}#complete-yarbo-systems`
+                            ? "/?product=yarbo#location-and-customer-path"
                           : "/#location-and-customer-path"
                       }
                       className="rounded-xl bg-emerald-600 px-4 py-3 text-center font-black text-white hover:bg-emerald-700"
                     >
                       {quoteOnlyProduct
                         ? "Request Pricing & Information"
-                        : yarboProduct
-                          ? "View Yarbo Systems"
-                          : "Build Your System"}
+                        : "Build Your System"}
                     </Link>
                   </div>
                 </div>
