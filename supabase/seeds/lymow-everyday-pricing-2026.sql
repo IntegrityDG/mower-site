@@ -3,11 +3,11 @@
 -- this exact file before replacing only the terminal ROLLBACK with COMMIT.
 --
 -- Approved policy:
---   regular_price_cents = Lymow Everyday Price
---   sale_price_cents = IDS Everyday Price
+--   regular_price_cents = Lymow list price
+--   sale_price_cents = IDS Everyday Low Price
 --   sale_starts_at = NULL
 --   sale_ends_at = NULL
---   promotion_label = NULL
+--   promotion_label = IDS Everyday Low Price
 --
 -- Scope: exactly two active variants of public.catalog_products.slug =
 -- 'lymow-one-plus'. No product, option, package, service, relationship,
@@ -33,9 +33,9 @@ BEGIN
     ON product.id = variant.product_id
   JOIN (
     VALUES
-      ('lymow-one-plus-5a', 299900, 269900),
-      ('lymow-one-plus-10a', 319900, 284900)
-  ) AS expected(variant_slug, regular_price_cents, sale_price_cents)
+      ('lymow-one-plus-5a', 299900, 279900, 'IDS Everyday Low Price'),
+      ('lymow-one-plus-10a', 319900, 299900, 'IDS Everyday Low Price')
+  ) AS expected(variant_slug, regular_price_cents, sale_price_cents, promotion_label)
     ON expected.variant_slug = variant.variant_slug
   WHERE product.slug = 'lymow-one-plus'
     AND lower(product.brand) = 'lymow'
@@ -52,9 +52,9 @@ BEGIN
     SELECT 1
     FROM (
       VALUES
-        ('lymow-one-plus-5a', 299900, 269900),
-        ('lymow-one-plus-10a', 319900, 284900)
-    ) AS expected(variant_slug, regular_price_cents, sale_price_cents)
+        ('lymow-one-plus-5a', 299900, 279900, 'IDS Everyday Low Price'),
+        ('lymow-one-plus-10a', 319900, 299900, 'IDS Everyday Low Price')
+    ) AS expected(variant_slug, regular_price_cents, sale_price_cents, promotion_label)
     LEFT JOIN public.catalog_product_variants variant
       ON variant.variant_slug = expected.variant_slug
     LEFT JOIN public.catalog_products product
@@ -73,11 +73,12 @@ $verify$;
 WITH expected (
   variant_slug,
   regular_price_cents,
-  sale_price_cents
+  sale_price_cents,
+  promotion_label
 ) AS (
   VALUES
-    ('lymow-one-plus-5a', 299900, 269900),
-    ('lymow-one-plus-10a', 319900, 284900)
+    ('lymow-one-plus-5a', 299900, 279900, 'IDS Everyday Low Price'),
+    ('lymow-one-plus-10a', 319900, 299900, 'IDS Everyday Low Price')
 )
 UPDATE public.catalog_product_variants variant
 SET
@@ -85,7 +86,7 @@ SET
   sale_price_cents = expected.sale_price_cents,
   sale_starts_at = NULL,
   sale_ends_at = NULL,
-  promotion_label = NULL,
+  promotion_label = expected.promotion_label,
   show_public_price = true,
   contact_for_pricing = false,
   updated_at = now()
@@ -109,9 +110,9 @@ BEGIN
     ON product.id = variant.product_id
   JOIN (
     VALUES
-      ('lymow-one-plus-5a', 299900, 269900),
-      ('lymow-one-plus-10a', 319900, 284900)
-  ) AS expected(variant_slug, regular_price_cents, sale_price_cents)
+      ('lymow-one-plus-5a', 299900, 279900, 'IDS Everyday Low Price'),
+      ('lymow-one-plus-10a', 319900, 299900, 'IDS Everyday Low Price')
+  ) AS expected(variant_slug, regular_price_cents, sale_price_cents, promotion_label)
     ON expected.variant_slug = variant.variant_slug
   WHERE product.slug = 'lymow-one-plus'
     AND lower(product.brand) = 'lymow'
@@ -121,7 +122,7 @@ BEGIN
     AND variant.sale_price_cents = expected.sale_price_cents
     AND variant.sale_starts_at IS NULL
     AND variant.sale_ends_at IS NULL
-    AND variant.promotion_label IS NULL
+    AND variant.promotion_label = expected.promotion_label
     AND variant.show_public_price
     AND NOT variant.contact_for_pricing;
 
@@ -147,9 +148,9 @@ JOIN public.catalog_products product
   ON product.id = variant.product_id
 JOIN (
   VALUES
-    ('lymow-one-plus-5a', 299900, 269900),
-    ('lymow-one-plus-10a', 319900, 284900)
-) AS expected(variant_slug, regular_price_cents, sale_price_cents)
+    ('lymow-one-plus-5a', 299900, 279900, 'IDS Everyday Low Price'),
+    ('lymow-one-plus-10a', 319900, 299900, 'IDS Everyday Low Price')
+) AS expected(variant_slug, regular_price_cents, sale_price_cents, promotion_label)
   ON expected.variant_slug = variant.variant_slug
 WHERE product.slug = 'lymow-one-plus'
   AND lower(product.brand) = 'lymow'

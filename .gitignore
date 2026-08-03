@@ -42,7 +42,9 @@ next-env.d.ts
 
 public/videos/
 
-catalog-data/
+catalog-data/*
+!catalog-data/overrides/
+!catalog-data/overrides/**
 *.xlsx
 
 catalog-assets/

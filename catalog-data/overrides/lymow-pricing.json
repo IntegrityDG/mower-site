@@ -1,0 +1,20 @@
+{
+  "productVariants": [
+    {
+      "variant_slug": "lymow-one-plus-5a",
+      "regular_price_cents": 299900,
+      "sale_price_cents": 279900,
+      "sale_starts_at": null,
+      "sale_ends_at": null,
+      "promotion_label": "IDS Everyday Low Price"
+    },
+    {
+      "variant_slug": "lymow-one-plus-10a",
+      "regular_price_cents": 319900,
+      "sale_price_cents": 299900,
+      "sale_starts_at": null,
+      "sale_ends_at": null,
+      "promotion_label": "IDS Everyday Low Price"
+    }
+  ]
+}

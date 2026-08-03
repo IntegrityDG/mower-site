@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $seedPath = Join-Path $PSScriptRoot "lymow-everyday-pricing-2026.sql"
-$expectedSha256 = "3c58746370a9d5ba1eb2f469eb8ae811d336633e592395aea6007f4ff2e469d8"
+$expectedSha256 = "c065195b463baadacabd7e1e7664a3a2b6e0362f90e75996bb54657a8b65dc68"
 $actualSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $seedPath).Hash.ToLowerInvariant()
 
 if ($actualSha256 -ne $expectedSha256) {

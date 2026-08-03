@@ -1,41 +1,70 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import * as XLSX from "xlsx";
 
 const WORKBOOK_PATH = "catalog-data/IDS_Master_Catalog_Product_Pages_Ready.xlsx";
+const LYMOW_PRICING_OVERRIDES_PATH = "catalog-data/overrides/lymow-pricing.json";
+const PRODUCT_VARIANTS_SHEET = "Product Variants";
+const REQUIRED_LYMOW_PRICING_VARIANT_SLUGS = [
+  "lymow-one-plus-5a",
+  "lymow-one-plus-10a",
+] as readonly string[];
 type Row = Record<string, unknown>;
 type IdMap = Map<string, string>;
+export type CatalogRows = Map<string, Row[]>;
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+type DbClient = ReturnType<ReturnType<typeof createClient>["schema"]>;
 
-if (!url || !serviceRoleKey) {
-  throw new Error(
-    "Missing environment variables. Set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY.",
+type LymowVariantPricingOverride = {
+  variant_slug: string;
+  regular_price_cents: number;
+  sale_price_cents: number;
+  sale_starts_at: null;
+  sale_ends_at: null;
+  promotion_label: string;
+};
+
+type LymowPricingOverrides = {
+  productVariants: LymowVariantPricingOverride[];
+};
+
+type OverrideLogger = Pick<Console, "warn">;
+
+function normalizeWorkbookRow(row: Row): Row {
+  return Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [
+      key.trim(),
+      typeof value === "string" ? value.trim() || null : value,
+    ]),
   );
 }
 
-const supabase = createClient(url, serviceRoleKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
-const publicCatalog = supabase.schema("public");
-const privateCatalog = supabase.schema("catalog_private");
-type DbClient = typeof publicCatalog | typeof privateCatalog;
+export function parseWorkbookRows(workbook: XLSX.WorkBook): CatalogRows {
+  const catalogRows: CatalogRows = new Map();
 
-const workbook = XLSX.readFile(WORKBOOK_PATH, { cellDates: true });
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
 
-function rows(sheetName: string): Row[] {
-  const sheet = workbook.Sheets[sheetName];
-  if (!sheet) return [];
-  return XLSX.utils
-    .sheet_to_json<Row>(sheet, { defval: null, raw: true })
-    .map((row) =>
-      Object.fromEntries(
-        Object.entries(row).map(([key, value]) => [
-          key.trim(),
-          typeof value === "string" ? value.trim() || null : value,
-        ]),
-      ),
+    catalogRows.set(
+      sheetName,
+      XLSX.utils
+        .sheet_to_json<Row>(sheet, { defval: null, raw: true })
+        .map(normalizeWorkbookRow),
     );
+  }
+
+  return catalogRows;
+}
+
+function loadWorkbookRows(workbookPath = WORKBOOK_PATH): CatalogRows {
+  return parseWorkbookRows(XLSX.readFile(workbookPath, { cellDates: true }));
+}
+
+function rows(catalogRows: CatalogRows, sheetName: string): Row[] {
+  return catalogRows.get(sheetName) ?? [];
 }
 
 function text(value: unknown): string | null {
@@ -99,6 +128,162 @@ function lookup(map: IdMap, value: unknown, label: string): string {
 
 function compact<T extends Record<string, unknown>>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
+}
+
+function record(value: unknown, label: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function requiredInteger(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) {
+    throw new Error(`${label} must be a safe integer.`);
+  }
+  return value;
+}
+
+function requiredNull(value: unknown, label: string): null {
+  if (value !== null) throw new Error(`${label} must be null.`);
+  return null;
+}
+
+export function validateLymowPricingOverrides(value: unknown): LymowPricingOverrides {
+  const root = record(value, "Lymow pricing override file");
+  if (!Array.isArray(root.productVariants)) {
+    throw new Error("Lymow pricing override file must contain productVariants.");
+  }
+
+  const seen = new Set<string>();
+  const productVariants = root.productVariants.map((item, index) => {
+    const override = record(item, `Lymow pricing override productVariants[${index}]`);
+    const variantSlug = required(text(override.variant_slug), `productVariants[${index}].variant_slug`);
+
+    if (seen.has(variantSlug)) {
+      throw new Error(`Duplicate Lymow pricing override for variant_slug ${variantSlug}.`);
+    }
+    if (!REQUIRED_LYMOW_PRICING_VARIANT_SLUGS.includes(variantSlug)) {
+      throw new Error(`Unsupported Lymow pricing override variant_slug ${variantSlug}.`);
+    }
+    seen.add(variantSlug);
+
+    return {
+      variant_slug: variantSlug,
+      regular_price_cents: requiredInteger(
+        override.regular_price_cents,
+        `productVariants[${index}].regular_price_cents`,
+      ),
+      sale_price_cents: requiredInteger(
+        override.sale_price_cents,
+        `productVariants[${index}].sale_price_cents`,
+      ),
+      sale_starts_at: requiredNull(override.sale_starts_at, `productVariants[${index}].sale_starts_at`),
+      sale_ends_at: requiredNull(override.sale_ends_at, `productVariants[${index}].sale_ends_at`),
+      promotion_label: required(text(override.promotion_label), `productVariants[${index}].promotion_label`),
+    };
+  });
+
+  for (const variantSlug of REQUIRED_LYMOW_PRICING_VARIANT_SLUGS) {
+    if (!seen.has(variantSlug)) {
+      throw new Error(`Lymow pricing override file is missing expected variant_slug ${variantSlug}.`);
+    }
+  }
+
+  return { productVariants };
+}
+
+export function loadLymowPricingOverrides(
+  overridesPath = LYMOW_PRICING_OVERRIDES_PATH,
+): LymowPricingOverrides {
+  return validateLymowPricingOverrides(JSON.parse(fs.readFileSync(overridesPath, "utf8")));
+}
+
+function rawLogValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "null";
+  if (value instanceof Date) return value.toISOString();
+  return JSON.stringify(value) ?? String(value);
+}
+
+export function applyTrackedCatalogOverrides(
+  catalogRows: CatalogRows,
+  lymowPricingOverrides = loadLymowPricingOverrides(),
+  logger: OverrideLogger = console,
+) {
+  const variantRows = rows(catalogRows, PRODUCT_VARIANTS_SHEET);
+  const variantsBySlug = new Map<string, Row>();
+
+  for (const row of variantRows) {
+    const variantSlug = slug(row.variant_slug);
+    if (!variantSlug) continue;
+    if (variantsBySlug.has(variantSlug)) {
+      throw new Error(`Tracked Lymow pricing override found duplicate Product Variants row ${variantSlug}.`);
+    }
+    variantsBySlug.set(variantSlug, row);
+  }
+
+  for (const override of lymowPricingOverrides.productVariants) {
+    const row = variantsBySlug.get(override.variant_slug);
+    if (!row) {
+      throw new Error(
+        `Tracked Lymow pricing override expected Product Variants row ${override.variant_slug}, but it is missing.`,
+      );
+    }
+
+    const previous = {
+      regular_price_cents: row.regular_price_cents ?? row.regular_price_dollars,
+      sale_price_cents: row.sale_price_cents ?? row.sale_price_dollars,
+      sale_starts_at: row.sale_starts_at,
+      sale_ends_at: row.sale_ends_at,
+      promotion_label: row.promotion_label,
+    };
+
+    row.regular_price_cents = override.regular_price_cents;
+    row.sale_price_cents = override.sale_price_cents;
+    row.sale_starts_at = override.sale_starts_at;
+    row.sale_ends_at = override.sale_ends_at;
+    row.promotion_label = override.promotion_label;
+
+    logger.warn(
+      `Tracked Lymow pricing override applied to ${PRODUCT_VARIANTS_SHEET}.${override.variant_slug}: ` +
+        `regular_price_cents ${rawLogValue(previous.regular_price_cents)} -> ${override.regular_price_cents}; ` +
+        `sale_price_cents ${rawLogValue(previous.sale_price_cents)} -> ${override.sale_price_cents}; ` +
+        `promotion_label ${rawLogValue(previous.promotion_label)} -> ${rawLogValue(override.promotion_label)}; ` +
+        `sale_starts_at ${rawLogValue(previous.sale_starts_at)} -> null; ` +
+        `sale_ends_at ${rawLogValue(previous.sale_ends_at)} -> null.`,
+    );
+  }
+}
+
+function loadCatalogRows(
+  workbookPath = WORKBOOK_PATH,
+  lymowPricingOverrides: LymowPricingOverrides | null = null,
+  logger: OverrideLogger = console,
+): CatalogRows {
+  const catalogRows = loadWorkbookRows(workbookPath);
+  applyTrackedCatalogOverrides(catalogRows, lymowPricingOverrides ?? loadLymowPricingOverrides(), logger);
+  return catalogRows;
+}
+
+function createCatalogClients() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRoleKey) {
+    throw new Error(
+      "Missing environment variables. Set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY.",
+    );
+  }
+
+  const supabase = createClient(url, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+
+  return {
+    supabase,
+    publicCatalog: supabase.schema("public"),
+    privateCatalog: supabase.schema("catalog_private"),
+  };
 }
 
 const LYMOW_CHARGER_CONFIGURATIONS = new Set([
@@ -174,18 +359,18 @@ async function updateOrInsert(
   if (result.error) throw new Error(`${table}: ${result.error.message}`);
 }
 
-function validateWorkbook() {
-  const productSlugs = new Set(rows("Products").map((row) => required(slug(row.product_slug), "product_slug")));
-  const serviceSlugs = new Set(rows("Services").map((row) => required(slug(row.service_slug), "service_slug")));
+export function validateWorkbook(catalogRows: CatalogRows) {
+  const productSlugs = new Set(rows(catalogRows, "Products").map((row) => required(slug(row.product_slug), "product_slug")));
+  const serviceSlugs = new Set(rows(catalogRows, "Services").map((row) => required(slug(row.service_slug), "service_slug")));
   const groupKeys = new Set(
-    rows("Option Groups").map((row) => `${required(slug(row.product_slug), "product_slug")}:${required(slug(row.group_slug), "group_slug")}`),
+    rows(catalogRows, "Option Groups").map((row) => `${required(slug(row.product_slug), "product_slug")}:${required(slug(row.group_slug), "group_slug")}`),
   );
-  const optionRows = [...rows("Options"), ...rows("Accessories")];
+  const optionRows = [...rows(catalogRows, "Options"), ...rows(catalogRows, "Accessories")];
   const optionSlugs = new Set(
     optionRows.map((row) => required(slug(row.option_slug ?? row.accessory_slug), "option_slug/accessory_slug")),
   );
-  const packageSlugs = new Set(rows("Packages").map((row) => required(slug(row.package_slug), "package_slug")));
-  const variantSlugs = new Set(rows("Product Variants").map((row) => required(slug(row.variant_slug), "variant_slug")));
+  const packageSlugs = new Set(rows(catalogRows, "Packages").map((row) => required(slug(row.package_slug), "package_slug")));
+  const variantSlugs = new Set(rows(catalogRows, "Product Variants").map((row) => required(slug(row.variant_slug), "variant_slug")));
 
   if (productSlugs.has("yarbo-pro")) throw new Error("Invalid product_slug yarbo-pro; Yarbo Pro is a package/configuration, not a product.");
   if (optionSlugs.has("yarbo-core")) throw new Error("Invalid option_slug yarbo-core.");
@@ -194,22 +379,22 @@ function validateWorkbook() {
     "Product Variants", "Option Groups", "Options", "Accessories", "Packages", "Product Services", "Media", "Product Pages",
   ];
   for (const sheet of productReferences) {
-    for (const row of rows(sheet)) {
+    for (const row of rows(catalogRows, sheet)) {
       const value = required(slug(row.product_slug), `${sheet}.product_slug`);
       if (!productSlugs.has(value)) throw new Error(`${sheet} references unknown product_slug ${value}.`);
     }
   }
-  for (const row of rows("Options")) {
+  for (const row of rows(catalogRows, "Options")) {
     const group = slug(row.group_slug);
     if (group && !groupKeys.has(`${slug(row.product_slug)}:${group}`)) throw new Error(`Options references unknown group_slug ${group}.`);
   }
-  for (const row of rows("Package Items")) {
+  for (const row of rows(catalogRows, "Package Items")) {
     const packageSlug = required(slug(row.package_slug), "Package Items.package_slug");
     const optionSlug = required(slug(row.option_slug), "Package Items.option_slug");
     if (!packageSlugs.has(packageSlug)) throw new Error(`Package Items references unknown package_slug ${packageSlug}.`);
     if (!optionSlugs.has(optionSlug)) throw new Error(`Package Items references unknown option_slug ${optionSlug}.`);
   }
-  for (const row of rows("Variant Option Links")) {
+  for (const row of rows(catalogRows, "Variant Option Links")) {
     const variant = required(slug(row.variant_slug), "Variant Option Links.variant_slug");
     const option = required(slug(row.option_slug), "Variant Option Links.option_slug");
     if (!variantSlugs.has(variant)) throw new Error(`Variant Option Links references unknown variant_slug ${variant}.`);
@@ -220,20 +405,20 @@ function validateWorkbook() {
     }
   }
   for (const sheet of ["Service Payment Options", "Product Services", "Service Regions"]) {
-    for (const row of rows(sheet)) {
+    for (const row of rows(catalogRows, sheet)) {
       const value = required(slug(row.service_slug), `${sheet}.service_slug`);
       if (!serviceSlugs.has(value)) throw new Error(`${sheet} references unknown service_slug ${value}.`);
     }
   }
 
   // Pandag prices are allowed only as workbook-entered values. Source monitoring must remain manual/private.
-  for (const row of rows("Sources")) {
+  for (const row of rows(catalogRows, "Sources")) {
     if (/pandag/i.test(text(row.source_name) ?? "") && !/manual-only|private/i.test(text(row.notes) ?? "")) {
       throw new Error("The Pandag source is not marked manual/private in Sources.notes.");
     }
   }
 
-  for (const row of rows("Price Schedule")) {
+  for (const row of rows(catalogRows, "Price Schedule")) {
     const pandagRelated = /pandag/i.test(
       [row.item_type, row.item_slug, row.item_name].map(text).filter(Boolean).join(" "),
     );
@@ -251,14 +436,16 @@ function validateWorkbook() {
 }
 
 async function main() {
-  validateWorkbook();
+  const catalogRows = loadCatalogRows();
+  validateWorkbook(catalogRows);
+  const { supabase, publicCatalog, privateCatalog } = createCatalogClients();
   const summary = {
     products: 0, variants: 0, options: 0, packages: 0, services: 0,
     servicePaymentOptions: 0, productPages: 0, media: 0, internalPricing: 0,
     skippedTestimonials: 0,
   };
 
-  const productRecords = rows("Products").map((row) => ({
+  const productRecords = rows(catalogRows, "Products").map((row) => ({
     slug: required(slug(row.product_slug), "Products.product_slug"),
     brand: required(text(row.brand), "Products.brand"),
     name: required(text(row.product_name), "Products.product_name"),
@@ -277,7 +464,7 @@ async function main() {
   summary.products = productRecords.length;
   const products = await refreshMap(publicCatalog, "catalog_products", "slug");
 
-  const variantRecords = rows("Product Variants").map((row) => ({
+  const variantRecords = rows(catalogRows, "Product Variants").map((row) => ({
     product_id: lookup(products, row.product_slug, "product_slug"),
     variant_slug: required(slug(row.variant_slug), "variant_slug"), sku: text(row.sku),
     name: required(text(row.variant_name), "variant_name"), description: text(row.description),
@@ -292,7 +479,7 @@ async function main() {
   summary.variants = variantRecords.length;
   const variants = await refreshMap(publicCatalog, "catalog_product_variants", "variant_slug");
 
-  for (const row of rows("Media")) {
+  for (const row of rows(catalogRows, "Media")) {
     const record = {
       product_id: lookup(products, row.product_slug, "product_slug"), media_type: text(row.media_type) ?? "image",
       url: required(text(row.file_or_url), "Media.file_or_url"), alt_text: text(row.alt_text), caption: text(row.caption),
@@ -303,7 +490,7 @@ async function main() {
     summary.media++;
   }
 
-  for (const row of rows("Product Pages")) {
+  for (const row of rows(catalogRows, "Product Pages")) {
     const productId = lookup(products, row.product_slug, "product_slug");
     await upsert(publicCatalog, "catalog_product_pages", [{
       product_id: productId, seo_title: text(row.seo_title), seo_description: text(row.seo_description),
@@ -313,7 +500,7 @@ async function main() {
     summary.productPages++;
   }
   const pages = await refreshMap(publicCatalog, "catalog_product_pages", "product_id");
-  for (const row of rows("Product Pages")) {
+  for (const row of rows(catalogRows, "Product Pages")) {
     const productId = lookup(products, row.product_slug, "product_slug");
     const pageId = lookup(pages, productId, "product page");
     const sections = [1, 2, 3].flatMap((position) => {
@@ -333,7 +520,7 @@ async function main() {
     }
   }
 
-  const groupRecords = rows("Option Groups").map((row) => ({
+  const groupRecords = rows(catalogRows, "Option Groups").map((row) => ({
     product_id: lookup(products, row.product_slug, "product_slug"),
     group_slug: required(slug(row.group_slug), "group_slug"), group_name: required(text(row.group_name), "group_name"),
     group_description: text(row.description), selection_type: text(row.selection_type) ?? "multiple",
@@ -344,7 +531,7 @@ async function main() {
   await upsert(publicCatalog, "catalog_option_groups", groupRecords, "product_id,group_slug");
   const groups = await refreshMap(publicCatalog, "catalog_option_groups", "group_slug", "product_id");
 
-  const optionRecords = rows("Options").map((row) => {
+  const optionRecords = rows(catalogRows, "Options").map((row) => {
     const productId = lookup(products, row.product_slug, "product_slug");
     const productSlug = required(slug(row.product_slug), "product_slug");
     const groupSlug = slug(row.group_slug);
@@ -362,7 +549,7 @@ async function main() {
       sort_order: integer(row.sort_order, 0), updated_at: new Date().toISOString(),
     };
   });
-  const accessoryRecords = rows("Accessories").map((row) => ({
+  const accessoryRecords = rows(catalogRows, "Accessories").map((row) => ({
     product_id: lookup(products, row.product_slug, "product_slug"), option_group_id: null,
     option_slug: required(slug(row.accessory_slug), "accessory_slug"), name: required(text(row.accessory_name), "accessory_name"),
     description: [text(row.description), text(row.compatibility_notes)].filter(Boolean).join("\n\n") || null,
@@ -378,7 +565,7 @@ async function main() {
   summary.options = optionRecords.length + accessoryRecords.length;
   const options = await refreshMap(publicCatalog, "catalog_options", "option_slug");
 
-  for (const row of rows("Variant Option Links")) {
+  for (const row of rows(catalogRows, "Variant Option Links")) {
     const variantSlug = required(slug(row.variant_slug), "variant_slug");
     const optionSlug = required(slug(row.option_slug), "option_slug");
     await upsert(publicCatalog, "catalog_variant_options", [{
@@ -389,7 +576,7 @@ async function main() {
     }], "variant_id,option_id,relationship_type");
   }
 
-  const packageRecords = rows("Packages").map((row) => ({
+  const packageRecords = rows(catalogRows, "Packages").map((row) => ({
     product_id: lookup(products, row.product_slug, "product_slug"), package_slug: required(slug(row.package_slug), "package_slug"),
     package_name: required(text(row.package_name), "package_name"), description: text(row.description),
     public_status: text(row.public_status) ?? "hidden", regular_price_cents: cents(row, "regular_price_cents", "regular_price_dollars"),
@@ -401,7 +588,7 @@ async function main() {
   await upsert(publicCatalog, "catalog_packages", packageRecords, "product_id,package_slug");
   summary.packages = packageRecords.length;
   const packages = await refreshMap(publicCatalog, "catalog_packages", "package_slug");
-  for (const row of rows("Package Items")) {
+  for (const row of rows(catalogRows, "Package Items")) {
     await upsert(publicCatalog, "catalog_package_items", [{
       package_id: lookup(packages, row.package_slug, "package_slug"), option_id: lookup(options, row.option_slug, "option_slug"),
       quantity: integer(row.quantity, 1), included_in_package_price: bool(row.included_in_package_price, true),
@@ -409,7 +596,7 @@ async function main() {
     }], "package_id,option_id");
   }
 
-  const serviceRecords = rows("Services").map((row) => ({
+  const serviceRecords = rows(catalogRows, "Services").map((row) => ({
     service_slug: required(slug(row.service_slug), "service_slug"), name: required(text(row.service_name), "service_name"),
     description: text(row.description), service_category: text(row.service_category), billing_type: text(row.billing_type),
     requires_local_service: bool(row.requires_local_service), requires_property_review: bool(row.requires_property_review),
@@ -425,7 +612,7 @@ async function main() {
   summary.services = serviceRecords.length;
   const services = await refreshMap(publicCatalog, "catalog_services", "service_slug");
 
-  const paymentRecords = rows("Service Payment Options").map((row) => ({
+  const paymentRecords = rows(catalogRows, "Service Payment Options").map((row) => ({
     service_id: lookup(services, row.service_slug, "service_slug"),
     payment_option_slug: required(slug(row.payment_option_slug), "payment_option_slug"),
     payment_option_name: required(text(row.display_name), "display_name"), billing_type: text(row.billing_type),
@@ -437,7 +624,7 @@ async function main() {
   await upsert(publicCatalog, "catalog_service_payment_options", paymentRecords, "payment_option_slug");
   summary.servicePaymentOptions = paymentRecords.length;
 
-  const productServiceRecords = rows("Product Services").map((row) => ({
+  const productServiceRecords = rows(catalogRows, "Product Services").map((row) => ({
     product_id: lookup(products, row.product_slug, "product_slug"), service_id: lookup(services, row.service_slug, "service_slug"),
     is_available: bool(row.is_available, true), is_recommended: bool(row.is_recommended), is_required: bool(row.is_required),
     override_regular_price_cents: cents(row, "price_override_cents", "price_override_dollars"), sort_order: 0,
@@ -450,7 +637,7 @@ async function main() {
   for (const item of psData ?? []) productServices.set(`${item.product_id}:${item.service_id}`, item.id);
 
   // The current schema stores regions globally, not per-service. Service slugs are validated above, then regions are deduplicated.
-  const regionRecords = [...new Map(rows("Service Regions").map((row) => {
+  const regionRecords = [...new Map(rows(catalogRows, "Service Regions").map((row) => {
     const state = required(text(row.state), "Service Regions.state");
     const region = required(text(row.region), "Service Regions.region");
     return [`${state}:${region}`, {
@@ -467,7 +654,7 @@ async function main() {
     return { type, id: lookup(maps[type], itemSlug, `${itemType} item_slug`) };
   };
 
-  for (const row of rows("Price Schedule")) {
+  for (const row of rows(catalogRows, "Price Schedule")) {
     const itemType = required(slug(row.item_type), "Price Schedule.item_type");
     const itemSlug = required(slug(row.item_slug), "Price Schedule.item_slug");
     const target = targetFor(itemType, itemSlug);
@@ -486,7 +673,7 @@ async function main() {
     });
   }
 
-  for (const row of rows("Internal Pricing")) {
+  for (const row of rows(catalogRows, "Internal Pricing")) {
     const itemType = slug(row.item_type);
     const itemSlug = slug(row.item_slug);
     if (!itemType && !itemSlug) continue;
@@ -515,10 +702,10 @@ async function main() {
   }
 
   // Sources lacks target_type/item_slug, source_url, and source_kind, so it cannot safely map to catalog_source_targets.
-  const sourceRowsSkipped = rows("Sources").length;
+  const sourceRowsSkipped = rows(catalogRows, "Sources").length;
   if (sourceRowsSkipped) console.warn(`Skipped ${sourceRowsSkipped} Sources rows: the sheet does not identify a catalog target or source URL.`);
 
-  const testimonialRows = rows("Testimonials");
+  const testimonialRows = rows(catalogRows, "Testimonials");
   for (const row of testimonialRows) {
     const approved = text(row.permission_status) === "approved" && text(row.public_status) === "active";
     const demo = /demo|sample|placeholder/i.test([row.testimonial_slug, row.customer_display_name, row.testimonial_text].map(text).join(" "));
@@ -537,10 +724,12 @@ async function main() {
   });
 }
 
-main().catch((error) => {
-  console.error("Catalog import failed:", error instanceof Error ? error.message : error);
-  if (String(error).includes("schema") || String(error).includes("permission denied")) {
-    console.error("Ensure catalog_private is exposed to the Data API for service_role only and has the required service_role grants.");
-  }
-  process.exitCode = 1;
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error("Catalog import failed:", error instanceof Error ? error.message : error);
+    if (String(error).includes("schema") || String(error).includes("permission denied")) {
+      console.error("Ensure catalog_private is exposed to the Data API for service_role only and has the required service_role grants.");
+    }
+    process.exitCode = 1;
+  });
+}
