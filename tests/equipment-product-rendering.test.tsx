@@ -641,7 +641,7 @@ test("Lymow and Yarbo build links preselect only a self-service catalog product"
   assert.equal(productRequestedByBuildSearch(catalog, ""), null);
 });
 
-test("Build Your System keeps other machines available after Lymow is preselected", () => {
+test("Build Your System machine cards show only the machine-selection action", () => {
   const lymow = lymowProduct();
   const yarbo = yarboProduct();
   const html = renderToStaticMarkup(
@@ -654,11 +654,27 @@ test("Build Your System keeps other machines available after Lymow is preselecte
 
   assert.match(html, /Lymow One Plus/);
   assert.match(html, /Yarbo Core/);
-  assert.match(html, />Selected<\/button>/);
-  assert.match(html, />Select Machine<\/button>/);
+  assert.match(html, />Selected<\/span>/);
+  assert.equal((html.match(/>Select Machine<\/button>/g) ?? []).length, 2);
+  assert.equal((html.match(/<button/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /\d+ packages/);
+  assert.doesNotMatch(html, /View Full Details/);
+  assert.equal(lymow.packages.length, 0);
+  assert.equal(yarbo.packages.length, 1);
 });
 
-test("Yarbo package selection remains available in Build Your System", () => {
+test("equipment catalog detail links remain outside the machine-selection screen", () => {
+  const catalogSource = readFileSync(
+    join(process.cwd(), "components", "equipment", "EquipmentCatalog.tsx"),
+    "utf8"
+  );
+
+  assert.match(catalogSource, /href={`\/equipment\/\${product\.slug}`}/);
+  assert.match(catalogSource, /View Details/);
+  assert.match(catalogSource, /View Pandag G1/);
+});
+
+test("Yarbo package records remain available after machine selection", () => {
   const product = yarboProduct();
   const selection: ProductBuildSelection = {
     variantId: "",
@@ -679,6 +695,7 @@ test("Yarbo package selection remains available in Build Your System", () => {
     />
   );
 
+  assert.equal(product.packages.length, 1);
   assert.match(html, /Complete Yarbo Systems/);
   assert.match(html, /Yarbo Lawn Mower System/);
   assert.match(html, /1 packages/);
