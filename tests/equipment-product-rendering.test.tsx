@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -11,6 +13,10 @@ import ProductBuildCta from "../components/equipment/ProductBuildCta";
 import ProductPageSections from "../components/equipment/ProductPageSections";
 import QuoteOnlyNotice from "../components/equipment/QuoteOnlyNotice";
 import YarboInformationSections from "../components/equipment/YarboInformationSections";
+import {
+  YARBO_BROCHURE_IMAGE_PATHS,
+  YARBO_OMITTED_BROCHURE_SPECS,
+} from "../components/equipment/yarboBrochureContent";
 import type {
   CatalogOption,
   CatalogPageSection,
@@ -148,12 +154,19 @@ test("Yarbo detail information replaces package grids with catalog-driven sectio
   );
 
   for (const heading of [
-    "Product overview",
-    "Key strengths",
-    "Property considerations and limitations",
-    "Specifications",
-    "How the Yarbo system works",
-    "Included base equipment",
+    "Understand the Yarbo platform before building a system.",
+    "Product Overview",
+    "Key Strengths",
+    "Property Considerations and Limitations",
+    "Yarbo Core Specifications",
+    "Navigation, Mapping, and Obstacle Detection",
+    "Power, Battery, Charging, and Docking",
+    "Terrain and Mobility",
+    "Controls and Connectivity",
+    "How the Yarbo System Works",
+    "Included Base Equipment",
+    "Designed to handle more than a single season.",
+    "Yarbo brings navigation, tracked mobility, charging, controls, and modular task equipment into one expandable property-care platform.",
     "Yarbo system components",
     "Build one platform around the work your property needs.",
   ]) {
@@ -171,16 +184,56 @@ test("Yarbo detail information replaces package grids with catalog-driven sectio
     assert.match(html, new RegExp(component));
   }
 
+  for (const specification of [
+    "27 x 22 x 20 in",
+    "145.5 lbs / 66 kg",
+    "1.38 kWh",
+    "90 min from 20% to 80%",
+    "RTK, vision, IMU, ODOM",
+    "70% (35 degrees)",
+    "24 in / 600 mm",
+    "174 MPH",
+    "6,500 RPM",
+  ]) {
+    assert.match(html, new RegExp(specification.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+
+  for (const feature of [
+    "One Core, Multiple Seasons",
+    "Precision Mapping and Route Keeping",
+    "Vision-Led Obstacle Detection",
+    "Tracked Mobility for Challenging Terrain",
+    "Automatic Charging and Docking",
+    "App and Remote Operation",
+  ]) {
+    assert.match(html, new RegExp(feature));
+  }
+
+  for (const filename of [
+    "yarbo-auto-docking.webp",
+    "yarbo-obstacle-detection.webp",
+    "yarbo-lawn-mower-module.webp",
+    "yarbo-snow-blower-module.webp",
+  ]) {
+    assert.match(html, new RegExp(filename));
+  }
+
   assert.match(html, /grid-cols-\[repeat\(auto-fit,minmax\(min\(100%,18rem\),1fr\)\)\]/);
   assert.match(html, /requires a Yarbo Core to operate/g);
-  assert.match(html, /not currently published in the normalized IDS catalog/);
   assert.doesNotMatch(html, /Complete Yarbo Systems/);
   assert.doesNotMatch(html, /Complete packages grouped by use case/);
   assert.doesNotMatch(html, /Request A Yarbo Package/);
+  assert.doesNotMatch(html, /Request Yarbo Equipment/);
+  assert.doesNotMatch(html, /No payment is collected online/);
   assert.doesNotMatch(html, /Yarbo Lawn Mower<\/h/);
+  assert.doesNotMatch(html, /<h3[^>]*>[^<]*(Snow Plow|Tow Hitch|Sweeper)/);
+  assert.doesNotMatch(
+    html,
+    /Brochure features|brochure shows|normalized IDS catalog|active customer-facing catalog|currently published in the catalog|review documents|brochure context|internal laboratory|implementation|sourcing explanations/i
+  );
 });
 
-test("Yarbo missing information degrades with explicit catalog notices", () => {
+test("Yarbo missing information degrades with customer-facing wording", () => {
   const html = renderToStaticMarkup(
     <YarboInformationSections
       product={
@@ -198,9 +251,28 @@ test("Yarbo missing information degrades with explicit catalog notices", () => {
     />
   );
 
-  assert.match(html, /Product overview information is not currently published/);
-  assert.match(html, /Detailed Core and module technical specifications/);
-  assert.match(html, /No customer-facing Yarbo task modules/);
+  assert.match(html, /Yarbo overview details are temporarily unavailable/);
+  assert.match(html, /Yarbo Core Specifications/);
+  assert.match(html, /27 x 22 x 20 in/);
+  assert.match(html, /Yarbo task modules are not available for online configuration/);
+  assert.doesNotMatch(html, /2-Year Warranty|30-Day Hassle-Free Returns/);
+  assert.ok(YARBO_OMITTED_BROCHURE_SPECS.includes("Warranty terms"));
+});
+
+test("Yarbo brochure image paths point to local public assets", () => {
+  assert.ok(YARBO_BROCHURE_IMAGE_PATHS.length >= 10);
+
+  for (const imagePath of YARBO_BROCHURE_IMAGE_PATHS) {
+    assert.ok(
+      imagePath.startsWith("/equipment/yarbo/brochure/"),
+      `${imagePath} should be a local brochure asset`
+    );
+    assert.equal(
+      existsSync(join(process.cwd(), "public", imagePath)),
+      true,
+      `${imagePath} should exist under public`
+    );
+  }
 });
 
 test("shared Lymow and Yarbo build banners keep the approved purchase route", () => {
