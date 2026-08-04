@@ -15,11 +15,12 @@ export default function HomepageContactSection() {
           id="homepage-contact-heading"
           className="mt-3 max-w-3xl text-3xl font-black tracking-tight sm:text-4xl"
         >
-          Have a question before choosing your next step?
+          Have Questions? We’re Here to Help.
         </h2>
         <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-          Reach out by phone, email, or Facebook for help with equipment,
-          availability, and the right fit for your property.
+          Need help choosing the right system? Have a complex property that may
+          require multiple machines? Contact us today and let our team help you
+          build the right solution.
         </p>
         <ContactInformationModal triggerClassName="mt-7 inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 shadow-lg transition hover:bg-emerald-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300" />
       </div>

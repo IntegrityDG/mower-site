@@ -33,6 +33,11 @@ test("the homepage contact section appears after the request flow and before the
   const footerStart = homepageSource.indexOf("{/* FOOTER */}");
 
   assert.match(html, /Contact Integrity Distribution Systems/);
+  assert.match(html, /Have Questions\? We’re Here to Help\./);
+  assert.match(
+    html,
+    /Need help choosing the right system\? Have a complex property that may require multiple machines\? Contact us today and let our team help you build the right solution\./
+  );
   assert.match(html, /<button[^>]*>Contact Us<\/button>/);
   assert.ok(requestFlowStart >= 0);
   assert.ok(contactSectionStart > requestFlowStart);
