@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import ContactInformationModal from "@/components/contact/ContactInformationModal";
 import HomepageContactSection from "@/components/contact/HomepageContactSection";
 import NationwidePurchaseFlow from "@/components/customer-paths/purchase/NationwidePurchaseFlow";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
@@ -286,37 +287,32 @@ export default function Page() {
           </div>
         </section>
 
-        {/* EQUIPMENT REQUEST PROCESS */}
-        <section className="border-y border-slate-300 bg-slate-100 px-6 py-20 md:px-10">
-          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">
-                Equipment Request Process
-              </p>
-              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-                Build and review an equipment-only request.
-              </h2>
-              <p className="mt-5 text-lg leading-8 text-slate-600">
-                Compare machines, packages, modules, attachments, and accessories,
-                then provide delivery and contact information for review.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              {[
-                "Browse public equipment without entering a ZIP.",
-                "Select a machine, package, module, attachment, or accessory.",
-                "Enter the delivery or installation address after selection.",
-                "Review the configured equipment estimate before submitting.",
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-2xl border border-slate-300 bg-white p-5 font-bold leading-7 text-slate-700"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
+        {/* PRICE MATCH */}
+        <section
+          aria-labelledby="price-match-heading"
+          className="relative overflow-hidden border-y border-emerald-900 bg-gradient-to-br from-emerald-950 via-slate-950 to-slate-900 px-6 py-20 text-white md:px-10 md:py-24"
+        >
+          <div
+            aria-hidden="true"
+            className="absolute -left-24 top-1/2 h-72 w-72 -translate-y-1/2 rounded-full bg-emerald-400/20 blur-3xl"
+          />
+          <div
+            aria-hidden="true"
+            className="absolute -right-28 top-0 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl"
+          />
+          <div className="relative mx-auto max-w-5xl text-center">
+            <h2
+              id="price-match-heading"
+              className="text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl"
+            >
+              We’ll Do Our Absolute Best Meet or Beat Any Verified Competitor
+              Price
+            </h2>
+            <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-200 sm:text-xl">
+              Found a better price? Send us the competitor’s current advertised
+              price and give us the opportunity to save you even more.
+            </p>
+            <ContactInformationModal triggerClassName="mt-8 inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-8 py-4 text-lg font-black text-slate-950 shadow-xl transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-200" />
           </div>
         </section>
 

@@ -43,6 +43,33 @@ test("the homepage contact section appears after the request flow and before the
   );
 });
 
+test("the homepage price-match section replaces the equipment request process", () => {
+  const homepageSource = readFileSync(
+    join(process.cwd(), "app", "page.tsx"),
+    "utf8"
+  );
+  const featuredEquipmentEnd = homepageSource.indexOf(
+    "{/* PRICE MATCH */}"
+  );
+  const financingStart = homepageSource.indexOf("{/* HEARTH FINANCING */}");
+
+  assert.match(
+    homepageSource,
+    /We’ll Do Our Absolute Best Meet or Beat Any Verified Competitor\s+Price/
+  );
+  assert.match(
+    homepageSource,
+    /Found a better price\? Send us the competitor’s current advertised\s+price and give us the opportunity to save you even more\./
+  );
+  assert.match(homepageSource, /<ContactInformationModal triggerClassName=/);
+  assert.doesNotMatch(
+    homepageSource,
+    /Equipment Request Process|Build and review an equipment-only request|Browse public equipment without entering a ZIP/
+  );
+  assert.ok(featuredEquipmentEnd >= 0);
+  assert.ok(financingStart > featuredEquipmentEnd);
+});
+
 test("the equipment build banner keeps only its existing Build Your System action", () => {
   const supportingText =
     "Choose your equipment, then check delivery and service availability.";
