@@ -12,6 +12,7 @@ import {
 } from "@/lib/catalog/yarbo";
 import type { CustomerInformationValues } from "@/lib/products/types";
 import type { CheckoutSubmissionKind } from "@/lib/checkout/handoff";
+import { calculateAchDiscount } from "@/lib/checkout/payment-methods";
 
 type SubmitStatus = "idle" | "submitting" | "success" | "error";
 
@@ -53,6 +54,8 @@ export default function PurchaseSummary({
   const hasUnpricedItems = build.hasUnpricedEquipment;
   const selectedProductIsYarbo = isYarboProduct(selectedProduct);
   const isQuote = submissionKind === "quote";
+  const isAch = submissionKind === "ach_debit";
+  const achDisplay = calculateAchDiscount(configuredTotalCents);
   const heading = isQuote ? "Review and submit your equipment request." : "Review and Pay";
   const intro =
     submissionKind === "card"
@@ -99,17 +102,43 @@ export default function PurchaseSummary({
 
       <section className="mt-6 rounded-[2rem] bg-slate-950 p-6 text-white md:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
+          <div className="w-full">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">
-              Configured Price Estimate
+              {isAch ? "ACH Payment Total" : "Configured Price Estimate"}
             </p>
-            <p className="mt-2 text-4xl font-black">
-              {formatCents(configuredTotalCents)}
-              {hasUnpricedItems ? " + items requiring a quote" : ""}
-            </p>
+
+            {isAch ? (
+              <div className="mt-3 max-w-xl space-y-3">
+                <div className="flex items-center justify-between gap-6 text-sm font-semibold text-slate-300">
+                  <span>Configured price</span>
+                  <span>{achDisplay.formattedRegularCardTotal}</span>
+                </div>
+
+                <div className="flex items-center justify-between gap-6 text-sm font-bold text-emerald-400">
+                  <span>{achDisplay.discountRateLabel} ACH discount</span>
+                  <span>-{achDisplay.formattedSavings}</span>
+                </div>
+
+                <div className="border-t border-slate-700 pt-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                    Discounted ACH total
+                  </p>
+                  <p className="mt-1 text-4xl font-black text-emerald-400">
+                    {achDisplay.formattedDiscountedAchTotal}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-2 text-4xl font-black">
+                {formatCents(configuredTotalCents)}
+                {hasUnpricedItems ? " + items requiring a quote" : ""}
+              </p>
+            )}
+
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
-              Taxes, shipping, site-specific labor, and quote-required items are
-              not included until IDS reviews the request.
+              {isAch
+                ? "Stripe will collect the discounted ACH total shown above. Taxes, shipping, and site-specific labor are not included."
+                : "Taxes, shipping, site-specific labor, and quote-required items are not included until IDS reviews the request."}
             </p>
           </div>
         </div>
