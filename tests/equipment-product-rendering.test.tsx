@@ -13,6 +13,8 @@ import {
 import ProductBuildCta from "../components/equipment/ProductBuildCta";
 import LymowInformationSections from "../components/equipment/LymowInformationSections";
 import { LYMOW_BROCHURE_IMAGE_PATHS } from "../components/equipment/lymowBrochureContent";
+import PandagInformationSections from "../components/equipment/PandagInformationSections";
+import { PANDAG_BROCHURE_IMAGE_PATHS } from "../components/equipment/pandagBrochureContent";
 import ProductPageSections from "../components/equipment/ProductPageSections";
 import QuoteOnlyNotice from "../components/equipment/QuoteOnlyNotice";
 import YarboInformationSections from "../components/equipment/YarboInformationSections";
@@ -264,6 +266,137 @@ function lymowProduct(
   };
 }
 
+const pandagPrice = {
+  displayMsrpPriceCents: 10000,
+  regularPriceCents: null,
+  salePriceCents: null,
+  currentPriceCents: null,
+  showPublicPrice: false,
+  contactForPricing: true,
+  promotionLabel: null,
+  saleIsActive: false,
+};
+
+function pandagOption(
+  slug: string,
+  name: string,
+  description: string,
+  sortOrder: number,
+  isIncluded: boolean
+): CatalogOption {
+  return {
+    id: slug,
+    slug,
+    name,
+    description,
+    optionGroupId: "pandag-charging",
+    isRequired: isIncluded,
+    isIncluded,
+    isRecommended: !isIncluded,
+    defaultQuantity: isIncluded ? 1 : 0,
+    minimumQuantity: isIncluded ? 1 : 0,
+    maximumQuantity: 1,
+    sortOrder,
+    ...pandagPrice,
+  };
+}
+
+const pandagChargingCable = pandagOption(
+  "pandag-charging-cable",
+  "Pandag G1 Charging Cable",
+  "Standard charging cable included with the Pandag G1.",
+  1,
+  true
+);
+const pandagChargingDock = pandagOption(
+  "pandag-charging-dock",
+  "Pandag G1 Charging Dock",
+  "Optional charging dock for high-use commercial deployments.",
+  2,
+  false
+);
+
+function pandagProduct(
+  overrides: Partial<CatalogProduct> = {}
+): CatalogProduct {
+  return {
+    id: "pandag",
+    slug: "pandag-g1",
+    brand: "Pandag",
+    name: "Pandag G1",
+    homepageSummary:
+      "A commercial autonomous mowing platform for large properties and demanding applications.",
+    fullDescription:
+      "A heavy-duty autonomous mower for commercial and institutional properties.",
+    capabilityLevel: "Commercial autonomous mowing",
+    propertyScale: "Large commercial and institutional properties",
+    customerGuidance: "Request a property review and commercial proposal.",
+    brochureUrl: null,
+    videoUrl: null,
+    imageUrl: "/products/pandag-thumb.png",
+    imageAlt: "Pandag G1 commercial autonomous mower",
+    sortOrder: 3,
+    salesMode: "quote_only",
+    page: {
+      heroHeading: "Pandag G1",
+      heroSubheading: "Autonomous mowing for large commercial properties.",
+      longFormContent: null,
+      sections: [],
+    },
+    media: [],
+    variants: [
+      {
+        id: "pandag-m1500-sd",
+        slug: "pandag-g1-m1500-sd",
+        sku: null,
+        name: "Pandag G1 M1500 SD",
+        description: "Side-discharge commercial configuration.",
+        sortOrder: 1,
+        definingOptionIds: [],
+        ...pandagPrice,
+      },
+      {
+        id: "pandag-m1500-rd",
+        slug: "pandag-g1-m1500-rd",
+        sku: null,
+        name: "Pandag G1 M1500 RD",
+        description: "Rear-discharge commercial configuration.",
+        sortOrder: 2,
+        definingOptionIds: [],
+        ...pandagPrice,
+      },
+      {
+        id: "pandag-pro-m3000",
+        slug: "pandag-g1-pro-m3000",
+        sku: null,
+        name: "Pandag G1 PRO M3000",
+        description: "High-power commercial configuration.",
+        sortOrder: 3,
+        definingOptionIds: [],
+        ...pandagPrice,
+      },
+    ],
+    optionGroups: [
+      {
+        id: "pandag-charging",
+        slug: "pandag-charging",
+        name: "Charging Equipment",
+        description: "Pandag charging equipment.",
+        selectionType: "multiple",
+        isRequired: false,
+        minimumSelections: 0,
+        maximumSelections: null,
+        sortOrder: 1,
+        options: [pandagChargingCable, pandagChargingDock],
+      },
+    ],
+    ungroupedOptions: [],
+    packages: [],
+    ...pandagPrice,
+    ...overrides,
+  };
+}
+
 test("equipment detail routing resolves lymow-one-plus from the catalog payload", () => {
   const lymow = lymowProduct();
   const yarbo = yarboProduct();
@@ -303,6 +436,157 @@ test("quote-only notice renders the required Pandag language and existing reques
   assert.match(html, /href="\/pandag\/project-quote"/);
   assert.doesNotMatch(html, /Build Your System/);
   assert.doesNotMatch(html, /checkout/i);
+});
+
+test("Pandag detail information renders the complete commercial platform story", () => {
+  const html = renderToStaticMarkup(
+    <PandagInformationSections product={pandagProduct()} />
+  );
+
+  for (const heading of [
+    "A commercial mowing platform planned around the site and the work.",
+    "Choose the G1 configuration around the mowing assignment.",
+    "Built for repeatable operation across complex properties.",
+    "Coordinate mapped work across demanding sites.",
+    "Configure traction for the ground the machine has to cross.",
+    "A 48-inch deck with model-specific discharge and blade systems.",
+    "Plan charging around the operating schedule.",
+    "Multiple sensing layers inform route decisions.",
+    "One platform family for a wide range of large-property work.",
+    "Compare the technical details without blending the models together.",
+    "Match the charging approach to site access and daily demand.",
+    "Start with the property, the mowing standard, and the operating plan.",
+  ]) {
+    assert.match(
+      html,
+      new RegExp(heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    );
+  }
+
+  for (const model of [
+    "Pandag G1 M1500SD",
+    "Pandag G1 M1500RD",
+    "Pandag G1 PRO M3000",
+  ]) {
+    assert.match(html, new RegExp(model));
+  }
+
+  for (const specification of [
+    "Up to 8 acres",
+    "Up to 12 acres",
+    "Up to 11 acres",
+    "5,400W",
+    "7,500W",
+    "12,000W",
+    "3 × 800W",
+    "3 × 1,500W",
+    "3 × 3,000W",
+    "8 kWh ternary lithium",
+    "16 kWh LiFePO₄",
+    "Up to 42°",
+    "Up to 38°",
+    "2205 × 1280 × 600 mm",
+    "2350 × 1280 × 660 mm",
+  ]) {
+    assert.match(
+      html,
+      new RegExp(specification.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    );
+  }
+
+  for (const filename of [
+    "pandag-m1500sd.webp",
+    "pandag-m1500rd.webp",
+    "pandag-pro-m3000.webp",
+    "pandag-fleet-control.webp",
+    "pandag-slope-performance.webp",
+    "pandag-cutting-deck.webp",
+    "pandag-auto-recharge.webp",
+    "pandag-obstacle-navigation.webp",
+    "pandag-solar-farm.webp",
+    "pandag-golf-course.webp",
+  ]) {
+    assert.match(html, new RegExp(filename));
+  }
+
+  assert.match(html, /href="\/pandag\/project-quote\?model=m1500_sd"/);
+  assert.match(html, /href="\/pandag\/project-quote\?model=m1500_rd"/);
+  assert.match(html, /href="\/pandag\/project-quote\?model=pro_m3000"/);
+  assert.match(html, /href="\/pandag\/project-quote\?model=recommend"/);
+  assert.match(html, /Request a Commercial Proposal/);
+  assert.match(html, /Pandag G1 Charging Cable/);
+  assert.match(html, /Pandag G1 Charging Dock/);
+
+  const cableCardStart = html.indexOf("Pandag G1 Charging Cable");
+  const dockCardStart = html.indexOf("Pandag G1 Charging Dock");
+  assert.ok(cableCardStart >= 0);
+  assert.ok(dockCardStart > cableCardStart);
+
+  const cableCard = html.slice(cableCardStart, dockCardStart);
+  assert.match(cableCard, /Included with Every Pandag G1/);
+  assert.doesNotMatch(cableCard, /Request Pricing/);
+  assert.doesNotMatch(cableCard, /href=/);
+  assert.equal((html.match(/Published coverage/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /Build Your System/);
+  assert.doesNotMatch(html, /checkout|card payment|\bACH\b/i);
+  assert.doesNotMatch(html, /residential lawn|homeowner/i);
+});
+
+test("Pandag brochure image paths point to optimized local assets", () => {
+  assert.equal(PANDAG_BROCHURE_IMAGE_PATHS.length, 16);
+
+  for (const imagePath of PANDAG_BROCHURE_IMAGE_PATHS) {
+    assert.ok(
+      imagePath.startsWith("/equipment/pandag/brochure/"),
+      `${imagePath} should be a local Pandag image`
+    );
+    assert.ok(imagePath.endsWith(".webp"));
+    assert.equal(
+      existsSync(join(process.cwd(), "public", imagePath)),
+      true,
+      `${imagePath} should exist under public`
+    );
+  }
+});
+
+test("Pandag structured content contains no hardcoded pricing or source commentary", () => {
+  const content = readFileSync(
+    join(
+      process.cwd(),
+      "components",
+      "equipment",
+      "pandagBrochureContent.ts"
+    ),
+    "utf8"
+  );
+
+  assert.doesNotMatch(content, /\$\s*\d/);
+  assert.doesNotMatch(
+    content,
+    /regularPriceCents|salePriceCents|currentPriceCents|displayMsrpPriceCents/
+  );
+  assert.doesNotMatch(
+    content,
+    /brochure-derived|brochure features|normalized catalog|internal source|current catalog guidance|internal laboratory|source reference/i
+  );
+  assert.doesNotMatch(content, /warranty|testimonial|phone number|QR code/i);
+});
+
+test("Pandag route delegates to the quote-only commercial page architecture", () => {
+  const routeSource = readFileSync(
+    join(process.cwd(), "app", "equipment", "[slug]", "page.tsx"),
+    "utf8"
+  );
+  const pandagStart = routeSource.indexOf("function PandagProductPage");
+  const pandagEnd = routeSource.indexOf("function YarboProductPage");
+  const pandagRoute = routeSource.slice(pandagStart, pandagEnd);
+
+  assert.ok(pandagStart >= 0);
+  assert.ok(pandagEnd > pandagStart);
+  assert.match(pandagRoute, /PandagInformationSections/);
+  assert.match(pandagRoute, /pandagImages\.platformLineup/);
+  assert.match(pandagRoute, /QuoteOnlyNotice/);
+  assert.doesNotMatch(pandagRoute, /ProductBuildCta|Build Your System/);
 });
 
 test("Lymow detail information renders the complete residential mower story", () => {
