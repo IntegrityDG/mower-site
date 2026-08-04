@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import ProductConfiguration from "../components/customer-paths/purchase/ProductConfiguration";
+import ProductSelection from "../components/customer-paths/purchase/ProductSelection";
 import {
   productRequestedByBuildSearch,
   purchaseProgressSteps,
 } from "../components/customer-paths/purchase/NationwidePurchaseFlow";
 import ProductBuildCta from "../components/equipment/ProductBuildCta";
+import LymowInformationSections from "../components/equipment/LymowInformationSections";
+import { LYMOW_BROCHURE_IMAGE_PATHS } from "../components/equipment/lymowBrochureContent";
 import ProductPageSections from "../components/equipment/ProductPageSections";
 import QuoteOnlyNotice from "../components/equipment/QuoteOnlyNotice";
 import YarboInformationSections from "../components/equipment/YarboInformationSections";
@@ -23,6 +26,7 @@ import type {
   CatalogProduct,
   ProductBuildSelection,
 } from "../lib/catalog/types";
+import { findCatalogProductBySlug } from "../lib/catalog/product-routing";
 
 const catalogPrice = {
   regularPriceCents: 10000,
@@ -136,6 +140,159 @@ function yarboProduct(
   };
 }
 
+function lymowOption(
+  slug: string,
+  name: string,
+  sortOrder: number,
+  optionGroupId = "lymow-accessories"
+): CatalogOption {
+  return {
+    id: slug,
+    slug,
+    name,
+    description: `${name} catalog description.`,
+    optionGroupId,
+    isRequired: false,
+    isIncluded: false,
+    isRecommended: false,
+    defaultQuantity: 0,
+    minimumQuantity: 0,
+    maximumQuantity: 1,
+    sortOrder,
+    ...catalogPrice,
+  };
+}
+
+const lymowCharger5 = lymowOption(
+  "lymow-5a-charger",
+  "5A Charger Configuration",
+  1,
+  "lymow-charger-config"
+);
+const lymowCharger10 = lymowOption(
+  "lymow-10a-charger",
+  "10A Charger Configuration",
+  2,
+  "lymow-charger-config"
+);
+const lymowAccessories = [
+  lymowOption("lymow-battery-528wh", "Lymow One Plus Battery", 1),
+  lymowOption("lymow-straight-blade-2", "Straight Blade 2.0", 2),
+  lymowOption("lymow-tracks-pair", "Replacement Lymow Track", 3),
+];
+
+function lymowProduct(
+  overrides: Partial<CatalogProduct> = {}
+): CatalogProduct {
+  return {
+    id: "lymow",
+    slug: "lymow-one-plus",
+    brand: "Lymow",
+    name: "Lymow One Plus",
+    homepageSummary:
+      "A tracked virtual-boundary mower for demanding residential lawns.",
+    fullDescription:
+      "A tracked robotic mower for segmented, sloped, uneven, and multi-zone residential lawns.",
+    capabilityLevel: "Tracked autonomous mowing",
+    propertyScale: "Complex residential properties",
+    customerGuidance: "Choose a configuration based on daily mowing demand.",
+    brochureUrl: null,
+    videoUrl: null,
+    imageUrl: "/lymow.png",
+    imageAlt: "Lymow One Plus",
+    sortOrder: 1,
+    salesMode: "self_service",
+    page: {
+      heroHeading: "Lymow One Plus",
+      heroSubheading: "Tracked autonomous mowing.",
+      longFormContent: null,
+      sections: [],
+    },
+    media: [],
+    variants: [
+      {
+        id: "lymow-5a",
+        slug: "lymow-one-plus-5a",
+        sku: null,
+        name: "Lymow One Plus — 5A Configuration",
+        description: "5A mower configuration.",
+        sortOrder: 1,
+        definingOptionIds: [lymowCharger5.id],
+        ...catalogPrice,
+      },
+      {
+        id: "lymow-10a",
+        slug: "lymow-one-plus-10a",
+        sku: null,
+        name: "Lymow One Plus — 10A Configuration",
+        description: "10A mower configuration.",
+        sortOrder: 2,
+        definingOptionIds: [lymowCharger10.id],
+        ...catalogPrice,
+      },
+    ],
+    optionGroups: [
+      {
+        id: "lymow-charger-config",
+        slug: "lymow-charger-config",
+        name: "Charger Configuration",
+        description: null,
+        selectionType: "single",
+        isRequired: true,
+        minimumSelections: 1,
+        maximumSelections: 1,
+        sortOrder: 1,
+        options: [lymowCharger5, lymowCharger10],
+      },
+      {
+        id: "lymow-accessories",
+        slug: "lymow-accessories",
+        name: "Optional Parts and Accessories",
+        description: null,
+        selectionType: "multiple",
+        isRequired: false,
+        minimumSelections: 0,
+        maximumSelections: null,
+        sortOrder: 2,
+        options: lymowAccessories,
+      },
+    ],
+    ungroupedOptions: [],
+    packages: [],
+    ...catalogPrice,
+    ...overrides,
+  };
+}
+
+test("equipment detail routing resolves lymow-one-plus from the catalog payload", () => {
+  const lymow = lymowProduct();
+  const yarbo = yarboProduct();
+  const pandag = yarboProduct({
+    id: "pandag",
+    slug: "pandag-g1",
+    name: "Pandag G1",
+    salesMode: "quote_only",
+  });
+  const catalog = {
+    products: [lymow, yarbo, pandag],
+    generatedAt: "2026-08-04T00:00:00.000Z",
+  };
+
+  assert.equal(findCatalogProductBySlug(catalog, "lymow-one-plus"), lymow);
+  assert.equal(findCatalogProductBySlug(catalog, "yarbo"), yarbo);
+  assert.equal(findCatalogProductBySlug(catalog, "pandag-g1"), pandag);
+  assert.equal(findCatalogProductBySlug(catalog, "missing-product"), null);
+
+  const routeSource = readFileSync(
+    join(process.cwd(), "app", "equipment", "[slug]", "page.tsx"),
+    "utf8"
+  );
+  assert.match(routeSource, /export const dynamic = "force-dynamic"/);
+  assert.match(routeSource, /loadPublicCatalog\(\)/);
+  assert.match(routeSource, /findCatalogProductBySlug\(payload, slug\)/);
+  assert.doesNotMatch(routeSource, /loadPublicCatalog\(slug\)/);
+});
+
 test("quote-only notice renders the required Pandag language and existing request route", () => {
   const html = renderToStaticMarkup(<QuoteOnlyNotice />);
 
@@ -146,6 +303,157 @@ test("quote-only notice renders the required Pandag language and existing reques
   assert.match(html, /href="\/pandag\/project-quote"/);
   assert.doesNotMatch(html, /Build Your System/);
   assert.doesNotMatch(html, /checkout/i);
+});
+
+test("Lymow detail information renders the complete residential mower story", () => {
+  const html = renderToStaticMarkup(
+    <LymowInformationSections product={lymowProduct()} />
+  );
+
+  for (const heading of [
+    "Choose 5A or 10A in Build Your System.",
+    "A dedicated autonomous mower for complex residential lawns.",
+    "Property Fit",
+    "Machine specifications",
+    "Navigation and connectivity",
+    "Terrain and mobility",
+    "Cutting system",
+    "Power and charging",
+    "Detection and autonomy",
+    "Tracked autonomous mowing built for demanding residential properties.",
+    "Map the lawn, not a perimeter wire.",
+    "Traction for the parts of a lawn that demand more.",
+    "A wide rotary cut with practical height control.",
+    "Choose the charging cadence that fits the workday.",
+    "Multiple sensing layers support safer route decisions.",
+    "Built for changing residential lawn conditions.",
+    "The mower, charging equipment, and RTK setup arrive together.",
+    "Replacement and optional equipment for an active Lymow system.",
+  ]) {
+    assert.match(
+      html,
+      new RegExp(heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    );
+  }
+
+  for (const specification of [
+    "Up to 45°",
+    "16-inch dual rotary",
+    "RTK + VSLAM",
+    "29.5 x 23.6 x 12.6 in",
+    "78.5 lb ±1 lb",
+    "680 W / 1,785 W",
+    "1.2 to 4.0 in",
+    "3,000 to 6,000 RPM",
+    "IPX6",
+    "Approximately 1.1 acres per day",
+    "Approximately 1.73 acres per day",
+    "150 minutes from 10% to 90%",
+    "90 minutes from 10% to 90%",
+  ]) {
+    assert.match(
+      html,
+      new RegExp(specification.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    );
+  }
+
+  for (const item of [
+    "Lymow One Plus — 5A Configuration",
+    "Lymow One Plus — 10A Configuration",
+    "Lymow One Plus Battery",
+    "Straight Blade 2.0",
+    "Replacement Lymow Track",
+    "Charging-station adapter matched to the selected configuration",
+    "The charger is included with the selected mower configuration",
+  ]) {
+    assert.match(html, new RegExp(item));
+  }
+
+  for (const filename of [
+    "lymow-one-plus-closeup.webp",
+    "lymow-tracked-drive.webp",
+    "lymow-dual-rotary-blades.webp",
+    "lymow-daily-coverage.webp",
+    "lymow-obstacle-avoidance.webp",
+    "lymow-included-equipment.webp",
+  ]) {
+    assert.match(html, new RegExp(filename));
+  }
+
+  assert.match(
+    html,
+    /grid-cols-\[repeat\(auto-fit,minmax\(min\(100%,18rem\),1fr\)\)\]/
+  );
+  assert.match(html, /Manufacturer ratings describe maximum or estimated performance/);
+  assert.doesNotMatch(html, /Choose the charging configuration for your property/);
+  assert.doesNotMatch(html, /Complete packages|package selection/i);
+  assert.doesNotMatch(html, /5A Charger Configuration|10A Charger Configuration/);
+  assert.doesNotMatch(html, /approximately 5 acres|up to 5 acres/i);
+  assert.doesNotMatch(html, /Super Swing|trained on thousands|always improving/i);
+  assert.doesNotMatch(
+    html,
+    /brochure-derived|brochure features|normalized catalog|internal source|current catalog guidance|internal laboratory/i
+  );
+});
+
+test("Lymow brochure image paths point to optimized local assets", () => {
+  assert.equal(LYMOW_BROCHURE_IMAGE_PATHS.length, 10);
+
+  for (const imagePath of LYMOW_BROCHURE_IMAGE_PATHS) {
+    assert.ok(
+      imagePath.startsWith("/equipment/lymow/brochure/"),
+      `${imagePath} should be a local Lymow image`
+    );
+    assert.ok(imagePath.endsWith(".webp"));
+    assert.equal(
+      existsSync(join(process.cwd(), "public", imagePath)),
+      true,
+      `${imagePath} should exist under public`
+    );
+  }
+});
+
+test("Lymow structured content contains no hardcoded pricing", () => {
+  const content = readFileSync(
+    join(
+      process.cwd(),
+      "components",
+      "equipment",
+      "lymowBrochureContent.ts"
+    ),
+    "utf8"
+  );
+
+  assert.doesNotMatch(content, /\$\s*\d/);
+  assert.doesNotMatch(
+    content,
+    /regularPriceCents|salePriceCents|currentPriceCents|displayMsrpPriceCents/
+  );
+});
+
+test("Lymow Build Your System keeps both mower variants and hides charger mirrors", () => {
+  const product = lymowProduct();
+  const selection: ProductBuildSelection = {
+    variantId: "",
+    packageId: "",
+    optionQuantities: {},
+  };
+  const html = renderToStaticMarkup(
+    <ProductConfiguration
+      product={product}
+      selection={selection}
+      onSelectVariant={() => undefined}
+      onSelectPackage={() => undefined}
+      onChangeOptionQuantity={() => undefined}
+      onSelectPurchaseMode={() => undefined}
+      onToggleBaseProduct={() => undefined}
+    />
+  );
+
+  assert.match(html, /Lymow One Plus — 5A Configuration/);
+  assert.match(html, /Lymow One Plus — 10A Configuration/);
+  assert.doesNotMatch(html, /5A Charger Configuration|10A Charger Configuration/);
+  assert.doesNotMatch(html, />Charger Configuration</);
 });
 
 test("Yarbo detail information replaces package grids with catalog-driven sections and components", () => {
@@ -277,7 +585,10 @@ test("Yarbo brochure image paths point to local public assets", () => {
 
 test("shared Lymow and Yarbo build banners keep the approved purchase route", () => {
   const lymowHtml = renderToStaticMarkup(
-    <ProductBuildCta supportingText="Choose your Lymow One Plus configuration and compatible accessories first, then check delivery and service availability." />
+    <ProductBuildCta
+      supportingText="Choose your Lymow One Plus configuration and compatible accessories first, then check delivery and service availability."
+      productSlug="lymow-one-plus"
+    />
   );
   const yarboHtml = renderToStaticMarkup(
     <ProductBuildCta
@@ -291,14 +602,18 @@ test("shared Lymow and Yarbo build banners keep the approved purchase route", ()
     assert.match(html, />Build Your System<\/a>/);
     assert.doesNotMatch(html, /Request Yarbo Equipment|equipment request flow/);
   }
-  assert.match(lymowHtml, /href="\/#location-and-customer-path"/);
+  assert.match(
+    lymowHtml,
+    /href="\/\?product=lymow-one-plus#location-and-customer-path"/
+  );
   assert.match(
     yarboHtml,
     /href="\/\?product=yarbo#location-and-customer-path"/
   );
 });
 
-test("Yarbo build links preselect only a self-service catalog product", () => {
+test("Lymow and Yarbo build links preselect only a self-service catalog product", () => {
+  const lymow = lymowProduct();
   const yarbo = yarboProduct();
   const pandag = yarboProduct({
     id: "pandag",
@@ -307,10 +622,14 @@ test("Yarbo build links preselect only a self-service catalog product", () => {
     salesMode: "quote_only",
   });
   const catalog = {
-    products: [yarbo, pandag],
+    products: [lymow, yarbo, pandag],
     generatedAt: "2026-08-03T00:00:00.000Z",
   };
 
+  assert.equal(
+    productRequestedByBuildSearch(catalog, "?product=lymow-one-plus")?.id,
+    lymow.id
+  );
   assert.equal(
     productRequestedByBuildSearch(catalog, "?product=yarbo")?.id,
     yarbo.id
@@ -320,6 +639,23 @@ test("Yarbo build links preselect only a self-service catalog product", () => {
     null
   );
   assert.equal(productRequestedByBuildSearch(catalog, ""), null);
+});
+
+test("Build Your System keeps other machines available after Lymow is preselected", () => {
+  const lymow = lymowProduct();
+  const yarbo = yarboProduct();
+  const html = renderToStaticMarkup(
+    <ProductSelection
+      products={[lymow, yarbo]}
+      selectedProductId={lymow.id}
+      onSelectProduct={() => undefined}
+    />
+  );
+
+  assert.match(html, /Lymow One Plus/);
+  assert.match(html, /Yarbo Core/);
+  assert.match(html, />Selected<\/button>/);
+  assert.match(html, />Select Machine<\/button>/);
 });
 
 test("Yarbo package selection remains available in Build Your System", () => {

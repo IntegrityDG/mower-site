@@ -49,3 +49,6 @@ catalog-data/*
 
 catalog-assets/
 supabase/.temp/
+
+# local visual QA artifacts
+.tmp-lymow-*

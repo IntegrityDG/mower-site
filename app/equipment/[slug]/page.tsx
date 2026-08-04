@@ -1,7 +1,10 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import CatalogHeader from "@/components/equipment/CatalogHeader";
+import LymowInformationSections from "@/components/equipment/LymowInformationSections";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
+import { lymowImages } from "@/components/equipment/lymowBrochureContent";
 import ProductBuildCta from "@/components/equipment/ProductBuildCta";
 import ProductPageSections from "@/components/equipment/ProductPageSections";
 import QuoteOnlyNotice from "@/components/equipment/QuoteOnlyNotice";
@@ -10,6 +13,7 @@ import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPrice
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
 import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { loadPublicCatalog } from "@/lib/catalog/load-public-catalog";
+import { findCatalogProductBySlug } from "@/lib/catalog/product-routing";
 import {
   hasCompletePandagSpecifications,
   pandagApplications,
@@ -18,6 +22,8 @@ import {
 import { isQuoteOnlyProduct } from "@/lib/catalog/sales-mode";
 import type { CatalogOption, CatalogProduct } from "@/lib/catalog/types";
 import { isYarboProduct } from "@/lib/catalog/yarbo";
+
+export const dynamic = "force-dynamic";
 
 export default async function ProductPage({
   params,
@@ -29,8 +35,8 @@ export default async function ProductPage({
   let loadFailed = false;
 
   try {
-    const payload = await loadPublicCatalog(slug);
-    product = payload.products[0] ?? null;
+    const payload = await loadPublicCatalog();
+    product = findCatalogProductBySlug(payload, slug);
   } catch {
     loadFailed = true;
   }
@@ -389,7 +395,7 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
-      <CatalogHeader />
+      <CatalogHeader productSlug={isLymowOnePlus ? product.slug : undefined} />
       <main>
         <section className="bg-gradient-to-br from-slate-950 to-emerald-950 px-5 py-14 text-white sm:px-8">
           <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2">
@@ -401,15 +407,17 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                 Back to equipment catalog
               </Link>
               <p className="mt-8 text-sm font-black uppercase tracking-[0.22em] text-emerald-400">
-                {product.brand}
+                {isLymowOnePlus ? "Lymow One Plus features" : product.brand}
               </p>
               <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">
                 {product.page?.heroHeading ?? product.name}
               </h1>
               <p className="mt-6 text-lg leading-8 text-slate-200">
-                {product.page?.heroSubheading ??
-                  product.fullDescription ??
-                  product.homepageSummary}
+                {isLymowOnePlus
+                  ? "Tracked autonomous mowing built for demanding residential properties."
+                  : product.page?.heroSubheading ??
+                    product.fullDescription ??
+                    product.homepageSummary}
               </p>
               {product.slug === "lymow-one-plus" ? (
                 <div className="mt-7">
@@ -423,6 +431,17 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                     labelClassName="text-xs font-bold uppercase tracking-[0.14em] text-slate-300"
                     regularClassName="text-lg font-bold text-slate-300 line-through"
                   />
+                  <div className="mt-5 flex flex-wrap gap-2 text-xs font-black uppercase tracking-[0.12em] text-slate-100">
+                    <span className="rounded-full border border-white/20 bg-white/10 px-4 py-2">
+                      5A configuration
+                    </span>
+                    <span className="rounded-full border border-white/20 bg-white/10 px-4 py-2">
+                      10A configuration
+                    </span>
+                    <span className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-emerald-200">
+                      Charger included
+                    </span>
+                  </div>
                 </div>
               ) : (
                 <p className="mt-7 text-3xl font-black">
@@ -430,111 +449,88 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                 </p>
               )}
               <Link
-                href="/#location-and-customer-path"
+                href={
+                  isLymowOnePlus
+                    ? "/?product=lymow-one-plus#location-and-customer-path"
+                    : "/#location-and-customer-path"
+                }
                 className="mt-7 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 hover:bg-emerald-400"
               >
                 Build Your System
               </Link>
             </div>
-            <div className="flex min-h-80 items-center justify-center rounded-[2rem] bg-white/95 p-8">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={product.imageUrl}
-                alt={product.imageAlt}
-                className="max-h-[28rem] w-full object-contain"
-              />
+            <div className="flex min-h-80 items-center justify-center overflow-hidden rounded-[2rem] bg-white/95">
+              {isLymowOnePlus ? (
+                <Image
+                  src={lymowImages.hero.src}
+                  alt={lymowImages.hero.alt}
+                  width={lymowImages.hero.width}
+                  height={lymowImages.hero.height}
+                  className="h-full min-h-80 w-full object-cover"
+                  priority
+                  sizes="(min-width: 1024px) 50vw, 100vw"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={product.imageUrl}
+                  alt={product.imageAlt}
+                  className="max-h-[28rem] w-full object-contain p-8"
+                />
+              )}
             </div>
           </div>
         </section>
 
         <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
-          {product.slug === "lymow-one-plus" &&
-            product.variants.length > 0 && (
-              <div>
-                <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
-                  Available configurations
-                </p>
-                <h2 className="mt-3 text-3xl font-black">
-                  Choose the charging configuration for your property
-                </h2>
-                <div className="mt-5 grid gap-5 md:grid-cols-2">
-                  {product.variants.map((variant) => (
-                    <article
-                      key={variant.id}
-                      className="rounded-3xl border border-slate-200 bg-white p-7"
-                    >
-                      <h3 className="text-xl font-black">{variant.name}</h3>
-                      {variant.description && (
-                        <p className="mt-3 leading-7 text-slate-600">
-                          {variant.description}
-                        </p>
-                      )}
-                      <LymowPriceDisplay
-                        variant={variant}
-                        className="mt-5"
-                        priceClassName="text-2xl font-black text-emerald-700"
-                      />
-                    </article>
-                  ))}
-                </div>
+          {isLymowOnePlus ? (
+            <LymowInformationSections product={product} />
+          ) : (
+            <>
+              <div className="grid gap-5 md:grid-cols-3">
+                {product.propertyScale && (
+                  <Info label="Best fit" value={product.propertyScale} />
+                )}
+                {product.capabilityLevel && (
+                  <Info label="Capability" value={product.capabilityLevel} />
+                )}
+                {product.customerGuidance && (
+                  <Info label="IDS guidance" value={product.customerGuidance} />
+                )}
               </div>
-            )}
 
-          <div
-            className={`grid gap-5 md:grid-cols-3 ${
-              product.slug === "lymow-one-plus" ? "mt-14" : ""
-            }`}
-          >
-            {product.propertyScale && (
-              <Info label="Best fit" value={product.propertyScale} />
-            )}
-            {product.capabilityLevel && (
-              <Info label="Capability" value={product.capabilityLevel} />
-            )}
-            {product.customerGuidance && (
-              <Info label="IDS guidance" value={product.customerGuidance} />
-            )}
-          </div>
+              <ProductPageSections sections={product.page?.sections ?? []} />
 
-          <ProductPageSections sections={product.page?.sections ?? []} />
-
-          <div id="compatible-equipment" className="mt-14 scroll-mt-8">
-            {isLymowOnePlus ? (
-              <p className="text-lg font-black uppercase leading-tight tracking-[0.02em] text-emerald-700 md:text-2xl lg:text-3xl">
-                Optional Parts and Accessories
-              </p>
-            ) : (
-              <>
+              <div id="compatible-equipment" className="mt-14 scroll-mt-8">
                 <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
                   Compatible equipment
                 </p>
                 <h2 className="mt-3 text-3xl font-black">
                   Included and optional equipment
                 </h2>
-              </>
-            )}
-            {included.length > 0 && (
-              <EquipmentList title="Included with the system" items={included} />
-            )}
-            {optional.length > 0 && (
-              <EquipmentList
-                title={
-                  isLymowOnePlus
-                    ? undefined
-                    : "Optional attachments and accessories"
-                }
-                items={optional}
-              />
-            )}
-            {!options.length && (
-              <p className="mt-5 rounded-2xl bg-white p-6 text-slate-600">
-                No compatible equipment is currently published for this product.
-              </p>
-            )}
-          </div>
+                {included.length > 0 && (
+                  <EquipmentList title="Included with the system" items={included} />
+                )}
+                {optional.length > 0 && (
+                  <EquipmentList
+                    title="Optional attachments and accessories"
+                    items={optional}
+                  />
+                )}
+                {!options.length && (
+                  <p className="mt-5 rounded-2xl bg-white p-6 text-slate-600">
+                    No compatible equipment is currently published for this product.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
 
           {isLymowOnePlus ? (
-            <ProductBuildCta supportingText="Choose your Lymow One Plus configuration and compatible accessories first, then check delivery and service availability." />
+            <ProductBuildCta
+              supportingText="Choose your Lymow One Plus configuration and compatible accessories first, then check delivery and service availability."
+              productSlug="lymow-one-plus"
+            />
           ) : (
             <div className="mt-14 rounded-[2rem] bg-slate-950 p-8 text-white sm:p-10">
               <h2 className="text-3xl font-black">
