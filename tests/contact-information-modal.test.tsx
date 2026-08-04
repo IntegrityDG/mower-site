@@ -60,7 +60,7 @@ test("the homepage price-match section replaces the equipment request process", 
 
   assert.match(
     homepageSource,
-    /We’ll Do Our Absolute Best Meet or Beat Any Verified Competitor\s+Price/
+    /We’ll Do Our Absolute Best To Meet or Beat Any Verified Competitor\s+Price/
   );
   assert.match(
     homepageSource,

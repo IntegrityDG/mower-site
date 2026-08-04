@@ -305,7 +305,7 @@ export default function Page() {
               id="price-match-heading"
               className="text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl"
             >
-              We’ll Do Our Absolute Best Meet or Beat Any Verified Competitor
+              We’ll Do Our Absolute Best To Meet or Beat Any Verified Competitor
               Price
             </h2>
             <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-200 sm:text-xl">
