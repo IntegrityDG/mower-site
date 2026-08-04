@@ -884,6 +884,7 @@ test("shared Lymow and Yarbo build banners keep the approved purchase route", ()
   for (const html of [lymowHtml, yarboHtml]) {
     assert.match(html, /Ready to Build Your System\?/);
     assert.match(html, />Build Your System<\/a>/);
+    assert.doesNotMatch(html, /Contact Us|role="dialog"/);
     assert.doesNotMatch(html, /Request Yarbo Equipment|equipment request flow/);
   }
   assert.match(

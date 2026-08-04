@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import HomepageContactSection from "@/components/contact/HomepageContactSection";
 import NationwidePurchaseFlow from "@/components/customer-paths/purchase/NationwidePurchaseFlow";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
@@ -422,6 +423,8 @@ export default function Page() {
             <NationwidePurchaseFlow />
           </div>
         </section>
+
+        <HomepageContactSection />
       </main>
 
       {/* FOOTER */}

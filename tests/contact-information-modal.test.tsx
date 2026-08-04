@@ -1,39 +1,69 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
 import { renderToStaticMarkup } from "react-dom/server";
 
-import ProductBuildCta, {
+import {
   ContactInformationDialog,
   contactDialogReducer,
   type ContactDialogCloseReason,
-} from "../components/equipment/ProductBuildCta";
+} from "../components/contact/ContactInformationModal";
+import HomepageContactSection from "../components/contact/HomepageContactSection";
+import ProductBuildCta from "../components/equipment/ProductBuildCta";
 import { SITE_CONTACT } from "../lib/site-contact";
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-test("the bottom build banner keeps its existing action and adds Contact Us", () => {
+test("the homepage contact section appears after the request flow and before the footer", () => {
+  const html = renderToStaticMarkup(<HomepageContactSection />);
+  const homepageSource = readFileSync(
+    join(process.cwd(), "app", "page.tsx"),
+    "utf8"
+  );
+  const requestFlowStart = homepageSource.indexOf(
+    'id="location-and-customer-path"'
+  );
+  const contactSectionStart = homepageSource.indexOf(
+    "<HomepageContactSection />"
+  );
+  const footerStart = homepageSource.indexOf("{/* FOOTER */}");
+
+  assert.match(html, /Contact Integrity Distribution Systems/);
+  assert.match(html, /<button[^>]*>Contact Us<\/button>/);
+  assert.ok(requestFlowStart >= 0);
+  assert.ok(contactSectionStart > requestFlowStart);
+  assert.ok(footerStart > contactSectionStart);
+  assert.match(
+    homepageSource,
+    /<NationwidePurchaseFlow \/>\s*<\/div>\s*<\/section>\s*<HomepageContactSection \/>/
+  );
+});
+
+test("the equipment build banner keeps only its existing Build Your System action", () => {
+  const supportingText =
+    "Choose your equipment, then check delivery and service availability.";
   const html = renderToStaticMarkup(
     <ProductBuildCta
-      supportingText="Choose your equipment, then check delivery and service availability."
+      supportingText={supportingText}
       productSlug="lymow-one-plus"
     />
   );
 
   assert.match(html, /Ready to Build Your System\?/);
+  assert.match(html, new RegExp(supportingText));
   assert.match(html, />Build Your System<\/a>/);
   assert.match(
     html,
     /href="\/\?product=lymow-one-plus#location-and-customer-path"/
   );
-  assert.match(html, /<button[^>]*>Contact Us<\/button>/);
+  assert.doesNotMatch(html, /Contact Us|role="dialog"|aria-haspopup="dialog"/);
 });
 
-test("the contact modal state opens and all supported close paths close it", () => {
+test("the homepage contact modal opens and all supported close paths close it", () => {
   assert.equal(contactDialogReducer(false, { type: "open" }), true);
 
   for (const reason of [
