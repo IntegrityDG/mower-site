@@ -28,7 +28,7 @@ const record = (value: unknown): value is Record<string, unknown> => Boolean(val
 const nullableString = (value: unknown) => value === null || typeof value === "string";
 
 export function parseCheckoutRequest(value: unknown): CheckoutRequest {
-  if (!record(value) || !allowed(value, ["requestId", "paymentMethod", "selection", "customer", "shippingAddress"])) throw new Error("Invalid or unknown checkout request properties.");
+  if (!record(value) || !allowed(value, ["requestId", "paymentMethod", "selection", "customer", "referral", "shippingAddress"])) throw new Error("Invalid or unknown checkout request properties.");
   if (typeof value.requestId !== "string" || !uuid.test(value.requestId)) throw new Error("Invalid request UUID.");
   if (value.paymentMethod !== "card" && value.paymentMethod !== "ach_debit" && value.paymentMethod !== "wire_transfer") throw new Error("Unsupported payment method.");
   if (!record(value.selection) || !allowed(value.selection, ["productId", "variantId", "purchaseMode", "packageId", "options", "includeBaseProduct"])) throw new Error("Invalid or unknown selection properties.");
@@ -52,10 +52,18 @@ export function parseCheckoutRequest(value: unknown): CheckoutRequest {
   const customerPhone = typeof value.customer.phone === "string" ? value.customer.phone.trim() : null;
   if (!customerName || customerName.length > 200 || (customerEmail?.length ?? 0) > 254 || (customerPhone?.length ?? 0) > 50 || (!customerEmail && !customerPhone)) throw new Error("Valid customer contact information is required.");
   if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) throw new Error("Invalid customer email.");
+  let referral: CheckoutRequest["referral"] = null;
+  if (value.referral !== null && value.referral !== undefined) {
+    if (!record(value.referral) || !allowed(value.referral, ["referrerName", "referrerEmail"])) throw new Error("Invalid referral properties.");
+    const referrerName = typeof value.referral.referrerName === "string" ? value.referral.referrerName.trim() : "";
+    const referrerEmail = typeof value.referral.referrerEmail === "string" ? value.referral.referrerEmail.trim().toLowerCase() : "";
+    if (!referrerName || referrerName.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(referrerEmail) || referrerEmail.length > 254) throw new Error("A valid referrer name and email are required together.");
+    referral = { referrerName, referrerEmail };
+  }
   if (!record(value.shippingAddress) || !allowed(value.shippingAddress, ["line1", "line2", "city", "state", "postalCode", "country"])) throw new Error("Invalid shipping address properties.");
   const address = value.shippingAddress;
   if ([address.line1, address.city, address.state, address.postalCode].some((part) => typeof part !== "string") || !nullableString(address.line2) || address.country !== "US") throw new Error("Only structured US shipping addresses are supported.");
   const shipping = { line1: (address.line1 as string).trim(), line2: typeof address.line2 === "string" ? address.line2.trim() || null : null, city: (address.city as string).trim(), state: (address.state as string).trim().toUpperCase(), postalCode: (address.postalCode as string).trim(), country: "US" as const };
   if (!shipping.line1 || !shipping.city || !shipping.state || !shipping.postalCode || shipping.line1.length > 200 || (shipping.line2?.length ?? 0) > 200 || shipping.city.length > 100 || shipping.state.length > 50 || shipping.postalCode.length > 20) throw new Error("Invalid shipping address.");
-  return { requestId: value.requestId, paymentMethod: value.paymentMethod, selection: { productId: selection.productId, variantId: selection.variantId as string | null, purchaseMode: selection.purchaseMode as CheckoutRequest["selection"]["purchaseMode"], packageId: selection.packageId as string | null, options, includeBaseProduct: selection.includeBaseProduct }, customer: { name: customerName, email: customerEmail, phone: customerPhone }, shippingAddress: shipping };
+  return { requestId: value.requestId, paymentMethod: value.paymentMethod, selection: { productId: selection.productId, variantId: selection.variantId as string | null, purchaseMode: selection.purchaseMode as CheckoutRequest["selection"]["purchaseMode"], packageId: selection.packageId as string | null, options, includeBaseProduct: selection.includeBaseProduct }, customer: { name: customerName, email: customerEmail, phone: customerPhone }, referral, shippingAddress: shipping };
 }

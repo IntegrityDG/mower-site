@@ -20,6 +20,8 @@ export default function CustomerInformation({
       values.shippingState.trim() &&
       values.shippingRegion.trim()
   );
+  const hasPartialReferral =
+    Boolean(values.referrerName.trim()) !== Boolean(values.referrerEmail.trim());
 
   return (
     <div>
@@ -155,6 +157,24 @@ export default function CustomerInformation({
             className={inputClassName}
           />
         </div>
+      </div>
+
+      <div className="mt-8 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-6">
+        <h4 className="text-xl font-black text-slate-950">Referred by someone?</h4>
+        <p className="mt-2 leading-7 text-slate-600">
+          Optional — help us make sure they get credit.
+        </p>
+        <div className="mt-5 grid gap-6 md:grid-cols-2">
+          <div>
+            <label className="text-base font-bold text-slate-950" htmlFor="referrer-name">Referrer&apos;s Name</label>
+            <input id="referrer-name" type="text" value={values.referrerName} onChange={(event) => onChange("referrerName", event.target.value)} className={inputClassName} autoComplete="off" />
+          </div>
+          <div>
+            <label className="text-base font-bold text-slate-950" htmlFor="referrer-email">Referrer&apos;s Email</label>
+            <input id="referrer-email" type="email" value={values.referrerEmail} onChange={(event) => onChange("referrerEmail", event.target.value)} className={inputClassName} autoComplete="off" />
+          </div>
+        </div>
+        {hasPartialReferral && <p className="mt-4 text-sm font-semibold text-amber-900">Provide both the referrer&apos;s name and email, or leave both fields blank.</p>}
       </div>
 
       {(!hasName || !hasContact) && (

@@ -147,4 +147,6 @@ export type CustomerInformationValues = {
   shippingZip: string;
   shippingState: string;
   shippingRegion: string;
+  referrerName: string;
+  referrerEmail: string;
 };

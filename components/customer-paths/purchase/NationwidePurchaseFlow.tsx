@@ -226,6 +226,8 @@ export default function NationwidePurchaseFlow({
       shippingZip: "",
       shippingState: selectedState,
       shippingRegion: selectedRegion,
+      referrerName: "",
+      referrerEmail: "",
     });
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
   const [submitError, setSubmitError] = useState("");
@@ -333,7 +335,9 @@ export default function NationwidePurchaseFlow({
   );
   const customerInformationComplete = Boolean(
     customerInformation.fullName.trim() &&
-      (customerInformation.email.trim() || customerInformation.phone.trim())
+      (customerInformation.email.trim() || customerInformation.phone.trim()) &&
+      (Boolean(customerInformation.referrerName.trim()) ===
+        Boolean(customerInformation.referrerEmail.trim()))
   );
 
   const currentStageComplete =
@@ -586,6 +590,14 @@ export default function NationwidePurchaseFlow({
           email: customerInformation.email.trim() || null,
           phone: customerInformation.phone.trim() || null,
         },
+        referral:
+          customerInformation.referrerName.trim() &&
+          customerInformation.referrerEmail.trim()
+            ? {
+                referrerName: customerInformation.referrerName.trim(),
+                referrerEmail: customerInformation.referrerEmail.trim(),
+              }
+            : null,
         shippingAddress: {
           line1: customerInformation.shippingAddress,
           line2: null,
@@ -671,6 +683,12 @@ export default function NationwidePurchaseFlow({
       ).toLocaleString("en-US")}`,
       build.hasUnpricedEquipment
         ? "One or more selected items require final pricing confirmation."
+        : null,
+      customerInformation.referrerName.trim() && customerInformation.referrerEmail.trim()
+        ? `Referred by: ${customerInformation.referrerName.trim()}`
+        : null,
+      customerInformation.referrerName.trim() && customerInformation.referrerEmail.trim()
+        ? `Referrer email: ${customerInformation.referrerEmail.trim()}`
         : null,
     ]
       .filter(Boolean)

@@ -18,6 +18,10 @@ export async function sendLeadEmail(
   content: string,
   subject = "New Mower Lead"
 ) {
+  return sendIdsNotification({ subject, text: content });
+}
+
+export async function sendIdsNotification({ subject, text }: { subject: string; text: string }) {
   const notifyEmail = process.env.NOTIFY_EMAIL;
 
   if (!notifyEmail) {
@@ -28,11 +32,11 @@ export async function sendLeadEmail(
     from: "onboarding@resend.dev",
     to: notifyEmail,
     subject,
-    text: content,
+    text,
   });
 
   if ("error" in result && result.error) {
-    throw new Error("Resend failed to send lead email.");
+    throw new Error("Resend failed to send IDS notification.");
   }
 
   return result;

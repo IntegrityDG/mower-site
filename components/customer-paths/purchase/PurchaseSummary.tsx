@@ -466,6 +466,12 @@ function PurchaseAndCustomerSummary({
             {summaryValue(customerInformation.shippingRegion)},{" "}
             {summaryValue(customerInformation.shippingState)}
           </p>
+          {(customerInformation.referrerName.trim() || customerInformation.referrerEmail.trim()) && (
+            <p>
+              <span className="font-bold text-slate-950">Referred by:</span>{" "}
+              {summaryValue(customerInformation.referrerName)} ({summaryValue(customerInformation.referrerEmail)})
+            </p>
+          )}
         </div>
       </section>
     </>

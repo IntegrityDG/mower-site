@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { PUBLIC_REVIEW_COLUMNS, toPublicReview } from "@/lib/reviews/public";
 import { validateReviewSubmission } from "@/lib/reviews/validation";
+import { notifyReviewSubmitted } from "@/lib/reviews/notification";
 
 export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
@@ -50,5 +51,6 @@ export async function POST(request: NextRequest) {
     status: "pending", submission_fingerprint: fingerprint,
   });
   if (error) return NextResponse.json({ error: "Your review could not be saved. Please try again." }, { status: 500 });
+  await notifyReviewSubmitted(value);
   return NextResponse.json({ success: true }, { status: 201 });
 }

@@ -53,6 +53,7 @@ export type CheckoutRequest = {
     includeBaseProduct: boolean;
   };
   customer: { name: string; email: string | null; phone: string | null };
+  referral?: { referrerName: string; referrerEmail: string } | null;
   shippingAddress: StructuredShippingAddress;
 };
 

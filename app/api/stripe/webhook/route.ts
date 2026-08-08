@@ -7,6 +7,8 @@ import { reconcileAchIntent, reconcileAchSession } from "@/lib/stripe/ach-webhoo
 import { assertTestEvent, reconcileCompletedSession, reconcileExpiredSession, reconcileFinancialObject, WebhookReconciliationError } from "@/lib/stripe/webhook-policy";
 import { reconcileWireIntent, reconcileWireSession } from "@/lib/stripe/wire-webhook-policy";
 import { IdsPaymentIntentResolutionError, resolvePaymentIntent } from "@/lib/stripe/payment-intent-resolution";
+import { notifyPaymentBusinessEvent } from "@/lib/notifications/payment-notifications";
+import { refundNotificationSemanticId } from "@/lib/notifications/notification-keys";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,12 +25,17 @@ async function listIntentSessions(id: string) { return (await getStripeServerCli
 async function applyAchIntent(record: CheckoutRecord, intent: Stripe.PaymentIntent, session: Stripe.Checkout.Session | null = null, forcedKind?: "failed" | "expired") {
   const kind = forcedKind ?? reconcileAchIntent(intentShape(intent), record);
   await applyAchEventV1({ p_kind: kind, p_session_id: session?.id ?? record.sessionId, p_payment_intent_id: intent.id, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: intent.amount, p_currency: intent.currency, p_stripe_session_status: session?.status ?? null, p_stripe_payment_status: session?.payment_status ?? null, p_payment_intent_status: intent.status, p_refunded: null });
+  if (kind === "processing") await notifyPaymentBusinessEvent({ orderId: record.orderId, type: "ach_processing" });
+  else if (kind === "paid") await notifyPaymentBusinessEvent({ orderId: record.orderId, type: "paid" });
+  else if (kind === "failed") await notifyPaymentBusinessEvent({ orderId: record.orderId, type: "payment_failed", semanticId: record.attemptId });
 }
 
 async function applyWireIntent(record: CheckoutRecord, intent: Stripe.PaymentIntent, session: Stripe.Checkout.Session | null = null, forcedKind?: "failed" | "expired", eventId: string | null = null) {
   const resolved = reconcileWireIntent(wireIntentShape(intent), record);
   const kind = forcedKind ?? resolved.kind;
   await applyWireEventV1({ p_kind: kind, p_event_id: kind === "overpayment" ? eventId : null, p_session_id: session?.id ?? record.sessionId, p_payment_intent_id: intent.id, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: intent.amount, p_currency: intent.currency, p_stripe_session_status: session?.status ?? null, p_stripe_payment_status: session?.payment_status ?? null, p_payment_intent_status: intent.status, p_funded: resolved.funded, p_remaining: resolved.remaining, p_refunded: null });
+  if (kind === "paid") await notifyPaymentBusinessEvent({ orderId: record.orderId, type: "paid" });
+  else if (kind === "failed") await notifyPaymentBusinessEvent({ orderId: record.orderId, type: "payment_failed", semanticId: record.attemptId });
 }
 
 async function handleSession(eventType: string, session: Stripe.Checkout.Session, eventId: string) {
@@ -41,6 +48,7 @@ async function handleSession(eventType: string, session: Stripe.Checkout.Session
       const paymentIntentId = objectId(session.payment_intent); const stripeCustomerId = objectId(session.customer);
       if (!paymentIntentId || !stripeCustomerId) throw new WebhookReconciliationError("Paid Session is missing required Stripe references.");
       await applyCardEventV2({ p_kind: kind, p_session_id: session.id, p_payment_intent_id: paymentIntentId, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: session.amount_total, p_currency: session.currency, p_stripe_session_status: session.status, p_stripe_payment_status: session.payment_status, p_refunded: null, p_stripe_customer_id: stripeCustomerId, p_contact: { email: session.customer_details?.email, name: session.customer_details?.name, phone: session.customer_details?.phone, billingAddress: session.customer_details?.address, shippingAddress: session.collected_information?.shipping_details?.address } });
+      await notifyPaymentBusinessEvent({ orderId: record.orderId, type: "paid" });
       return;
     }
     if (eventType === "checkout.session.expired") {
@@ -83,6 +91,7 @@ async function handleIntent(intent: Stripe.PaymentIntent, eventId: string) {
     const stripeCustomerId = objectId(session.customer);
     if (!stripeCustomerId) throw new IdsPaymentIntentResolutionError("Paid IDS card Session is missing its Stripe customer.", { paymentIntentId: intent.id, sessionId: session.id });
     await applyCardEventV2({ p_kind: kind, p_session_id: session.id, p_payment_intent_id: intent.id, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: session.amount_total, p_currency: session.currency, p_stripe_session_status: session.status, p_stripe_payment_status: session.payment_status, p_refunded: null, p_stripe_customer_id: stripeCustomerId, p_contact: { email: session.customer_details?.email, name: session.customer_details?.name, phone: session.customer_details?.phone, billingAddress: session.customer_details?.address, shippingAddress: session.collected_information?.shipping_details?.address } });
+    await notifyPaymentBusinessEvent({ orderId: record.orderId, type: "paid" });
     return;
   }
   throw new WebhookReconciliationError("Unsupported card PaymentIntent event.");
@@ -94,10 +103,11 @@ async function handleFinancial(event: Stripe.Event) {
   const record = await findByPaymentIntentId(paymentIntentId); if (!record) throw new Error("PaymentIntent not linked yet");
   reconcileFinancialObject({ livemode: stripeObject.livemode, amount: stripeObject.amount, currency: stripeObject.currency }, record, event.type === "charge.dispute.created");
   const kind = event.type === "charge.refunded" ? "refund" : "dispute";
-  const refunded = event.type === "charge.refunded" ? (stripeObject as Stripe.Charge).amount_refunded : null;
-  if (paymentMethod(record) === "card") await applyCardEventV2({ p_kind: kind, p_session_id: record.sessionId, p_payment_intent_id: paymentIntentId, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: stripeObject.amount, p_currency: stripeObject.currency, p_stripe_session_status: null, p_stripe_payment_status: null, p_refunded: refunded });
-  else if (paymentMethod(record) === "ach_debit") await applyAchEventV1({ p_kind: kind, p_session_id: record.sessionId, p_payment_intent_id: paymentIntentId, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: stripeObject.amount, p_currency: stripeObject.currency, p_stripe_session_status: null, p_stripe_payment_status: null, p_payment_intent_status: null, p_refunded: refunded });
-  else await applyWireEventV1({ p_kind: kind, p_event_id: event.id, p_session_id: record.sessionId, p_payment_intent_id: paymentIntentId, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: record.totalCents, p_currency: record.currency, p_stripe_session_status: null, p_stripe_payment_status: null, p_payment_intent_status: null, p_funded: record.fundedAmountCents ?? record.totalCents, p_remaining: record.amountRemainingCents ?? 0, p_refunded: refunded });
+  const cumulativeRefunded = event.type === "charge.refunded" ? (stripeObject as Stripe.Charge).amount_refunded : null;
+  if (paymentMethod(record) === "card") await applyCardEventV2({ p_kind: kind, p_session_id: record.sessionId, p_payment_intent_id: paymentIntentId, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: stripeObject.amount, p_currency: stripeObject.currency, p_stripe_session_status: null, p_stripe_payment_status: null, p_refunded: cumulativeRefunded });
+  else if (paymentMethod(record) === "ach_debit") await applyAchEventV1({ p_kind: kind, p_session_id: record.sessionId, p_payment_intent_id: paymentIntentId, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: stripeObject.amount, p_currency: stripeObject.currency, p_stripe_session_status: null, p_stripe_payment_status: null, p_payment_intent_status: null, p_refunded: cumulativeRefunded });
+  else await applyWireEventV1({ p_kind: kind, p_event_id: event.id, p_session_id: record.sessionId, p_payment_intent_id: paymentIntentId, p_order_id: record.orderId, p_attempt_id: record.attemptId, p_amount: record.totalCents, p_currency: record.currency, p_stripe_session_status: null, p_stripe_payment_status: null, p_payment_intent_status: null, p_funded: record.fundedAmountCents ?? record.totalCents, p_remaining: record.amountRemainingCents ?? 0, p_refunded: cumulativeRefunded });
+  await notifyPaymentBusinessEvent({ orderId: record.orderId, type: kind, semanticId: kind === "refund" ? refundNotificationSemanticId(cumulativeRefunded!) : stripeObject.id });
 }
 
 async function handleCashBalance(event: Stripe.Event) {
