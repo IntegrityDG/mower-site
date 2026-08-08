@@ -9,6 +9,7 @@ import NationwidePurchaseFlow from "@/components/customer-paths/purchase/Nationw
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
 import HomeReviews from "@/components/reviews/HomeReviews";
+import HomeSalesSpecial from "@/components/promotions/HomeSalesSpecial";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import type { CatalogProduct } from "@/lib/catalog/types";
 
@@ -167,6 +168,8 @@ export default function Page() {
         </section>
 
         <HomeReviews />
+
+        <HomeSalesSpecial />
 
         {/* FEATURED EQUIPMENT */}
         <section className="bg-white px-6 py-20 md:px-10">
