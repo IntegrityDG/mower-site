@@ -8,12 +8,11 @@ import type {
 import {
   isYarboModuleOption,
   isYarboProduct,
-  selectedYarboIndividualModules,
   yarboCoreIsSelected,
   yarboHasIndividualSelection,
   yarboOptionDisplayName,
 } from "./yarbo";
-import { customerFacingProductOptions } from "./customer-facing-options";
+import { builderAccessoryOptions, customerFacingProductOptions } from "./customer-facing-options";
 
 export function allProductOptions(product: CatalogProduct) {
   const options = customerFacingProductOptions(product);
@@ -44,10 +43,9 @@ export function resolveBuildSelection(
       .map((item) => item.optionId) ?? []
   );
 
+  const yarboAccessoryIds = new Set(builderAccessoryOptions(product).map((option) => option.id));
   const selectedOptions = (
-    yarboIndividualMode
-      ? selectedYarboIndividualModules(product, selection)
-      : allProductOptions(product).map((option) => ({
+    allProductOptions(product).map((option) => ({
           option,
           quantity: selection.optionQuantities[option.id] ?? 0,
         }))
@@ -56,9 +54,11 @@ export function resolveBuildSelection(
       ({ option, quantity }) =>
         quantity > 0 &&
         !option.isIncluded &&
-        !yarboCompleteSystemMode &&
         !packageIncludedOptionIds.has(option.id) &&
-        (!yarboIndividualMode || isYarboModuleOption(option))
+        (!yarboProduct ||
+          (yarboCompleteSystemMode
+            ? yarboAccessoryIds.has(option.id)
+            : isYarboModuleOption(option) || yarboAccessoryIds.has(option.id)))
     );
 
   const includedOptions = allProductOptions(product).filter(

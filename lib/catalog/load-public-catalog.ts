@@ -280,6 +280,18 @@ export async function loadPublicCatalog(
       minimumQuantity: option.minimum_quantity,
       maximumQuantity: option.maximum_quantity,
       sortOrder: option.sort_order,
+      accessoryListingEnabled: option.accessory_listing_enabled ?? false,
+      accessoryTab: option.accessory_tab ?? null,
+      accessoryImageUrl: option.accessory_image_url ?? null,
+      accessoryImageAlt: option.accessory_image_alt ?? null,
+      accessoryBadge: option.accessory_badge ?? null,
+      idsExclusive: option.ids_exclusive ?? false,
+      showInBuilder: option.show_in_builder ?? false,
+      accessoryActionType: option.accessory_action_type ?? null,
+      accessoryActionLabel: option.accessory_action_label ?? null,
+      accessoryActionUrl: option.accessory_action_url ?? null,
+      accessoryPriceText: option.accessory_price_text ?? null,
+      manufacturerName: option.manufacturer_name ?? null,
       ...priceFromRow(option),
     }));
 
@@ -287,7 +299,7 @@ export async function loadPublicCatalog(
       const salesMode = salesModeForProductSlug(product.slug);
       const publicPrice = (row: PriceRow) =>
         salesMode === "quote_only"
-          ? { ...quoteOnlyPublicPrice, displayMsrpPriceCents: row.regular_price_cents }
+          ? quoteOnlyPublicPrice
           : priceFromRow(row);
       const productMedia = media
         .filter((item) => item.product_id === product.id)
@@ -312,14 +324,7 @@ export async function loadPublicCatalog(
         .map((option) => {
           if (salesMode !== "quote_only") return option;
 
-          return {
-            ...option,
-            ...quoteOnlyPublicPrice,
-            displayMsrpPriceCents:
-              option.slug === "pandag-charging-dock"
-                ? option.regularPriceCents
-                : null,
-          };
+          return { ...option, ...quoteOnlyPublicPrice };
         });
 
       const normalizedVariants = variants

@@ -28,10 +28,7 @@ export type YarboPurchaseMode = "complete-system" | "individual-equipment";
 export type YarboPackageGroupKey =
   | "mowing"
   | "mower-pro"
-  | "snow"
-  | "cleanup-trimming"
-  | "multi-season"
-  | "full-property-care";
+  | "core-utility";
 
 export type YarboPackageGroup = {
   key: YarboPackageGroupKey;
@@ -42,33 +39,18 @@ export type YarboPackageGroup = {
 export const YARBO_PACKAGE_GROUPS: YarboPackageGroup[] = [
   {
     key: "mowing",
-    label: "Mowing Systems",
+    label: "Mower Packages",
     description: "Complete systems built around the Standard Lawn Mower Module.",
   },
   {
     key: "mower-pro",
-    label: "Mower Pro Systems",
+    label: "Mower PRO Packages",
     description: "Complete systems built around the Lawn Mower Pro Module.",
   },
   {
-    key: "snow",
-    label: "Snow Systems",
-    description: "Complete systems built around the Snow Blower Module.",
-  },
-  {
-    key: "cleanup-trimming",
-    label: "Cleanup and Trimming Systems",
-    description: "Complete systems for blower and trimmer-led property care.",
-  },
-  {
-    key: "multi-season",
-    label: "Multi-Season Systems",
-    description: "Complete systems that combine mowing or Mower Pro with snow or cleanup modules.",
-  },
-  {
-    key: "full-property-care",
-    label: "Full Property-Care Systems",
-    description: "Complete systems with mower, snow, blower, and trimmer capability.",
+    key: "core-utility",
+    label: "Core + Utility",
+    description: "Complete systems without a mower module, built for snow, cleanup, and trimming.",
   },
 ];
 
@@ -108,32 +90,6 @@ const YARBO_PACKAGE_DISPLAY_NAMES: Record<string, string> = {
     "Yarbo Lawn Mower + Snow Blower + Blower + Trimmer System",
   "yarbo-pro-snow-leaf-trimmer":
     "Yarbo Lawn Mower Pro + Snow Blower + Blower + Trimmer System",
-};
-
-const YARBO_PACKAGE_GROUP_BY_SLUG: Record<string, YarboPackageGroupKey> = {
-  "yarbo-lawn-mower": "mowing",
-  "yarbo-lawn-mower-trimmer": "mowing",
-  "yarbo-lawn-leaf": "mowing",
-  "yarbo-lawn-leaf-trimmer": "mowing",
-  "yarbo-lawn-mower-pro": "mower-pro",
-  "yarbo-lawn-mower-pro-trimmer": "mower-pro",
-  "yarbo-pro-leaf": "mower-pro",
-  "yarbo-pro-leaf-trimmer": "mower-pro",
-  "yarbo-snow-blower": "snow",
-  "yarbo-snow-blower-trimmer": "snow",
-  "yarbo-snow-leaf": "snow",
-  "yarbo-snow-leaf-trimmer": "snow",
-  "yarbo-leaf-blower": "cleanup-trimming",
-  "yarbo-trimmer": "cleanup-trimming",
-  "yarbo-leaf-blower-trimmer": "cleanup-trimming",
-  "yarbo-snow-lawn": "multi-season",
-  "yarbo-snow-lawn-trimmer": "multi-season",
-  "yarbo-pro-snow": "multi-season",
-  "yarbo-pro-snow-trimmer": "multi-season",
-  "yarbo-lawn-snow-leaf": "multi-season",
-  "yarbo-pro-snow-leaf": "multi-season",
-  "yarbo-lawn-snow-leaf-trimmer": "full-property-care",
-  "yarbo-pro-snow-leaf-trimmer": "full-property-care",
 };
 
 export function isYarboProduct(product: CatalogProduct) {
@@ -190,26 +146,14 @@ export function yarboPackageMowerType(catalogPackage: CatalogPackage) {
 export function inferYarboPackageGroup(
   catalogPackage: CatalogPackage
 ): YarboPackageGroupKey {
-  const mappedGroup = YARBO_PACKAGE_GROUP_BY_SLUG[catalogPackage.slug];
-  if (mappedGroup) return mappedGroup;
-
   const hasStandardMower = packageHasModule(catalogPackage, "yarbo-mower-module");
   const hasMowerPro = packageHasModule(
     catalogPackage,
     "yarbo-lawn-mower-pro-module"
   );
-  const hasSnow = packageHasModule(catalogPackage, "yarbo-snow-blower-module");
-  const hasBlower = packageHasModule(catalogPackage, "yarbo-leaf-blower-module");
-  const hasTrimmer = packageHasModule(catalogPackage, "yarbo-trimmer-module");
-  const moduleCount = [hasStandardMower, hasMowerPro, hasSnow, hasBlower, hasTrimmer]
-    .filter(Boolean).length;
-
-  if (moduleCount >= 4) return "full-property-care";
-  if (hasSnow && (hasStandardMower || hasMowerPro)) return "multi-season";
   if (hasMowerPro) return "mower-pro";
   if (hasStandardMower) return "mowing";
-  if (hasSnow) return "snow";
-  return "cleanup-trimming";
+  return "core-utility";
 }
 
 export function groupYarboPackages(packages: CatalogPackage[]) {
@@ -223,8 +167,6 @@ export function groupYarboPackages(packages: CatalogPackage[]) {
 
 export function yarboPackageBestFit(catalogPackage: CatalogPackage) {
   const group = inferYarboPackageGroup(catalogPackage);
-  const mowerType = yarboPackageMowerType(catalogPackage);
-
   if (group === "mowing") {
     return "Best for customers starting with standard autonomous mowing and optional warm-season cleanup.";
   }
@@ -233,19 +175,7 @@ export function yarboPackageBestFit(catalogPackage: CatalogPackage) {
     return "Best for customers who want the Mower Pro starting point and optional cleanup capability.";
   }
 
-  if (group === "snow") {
-    return "Best for customers starting with snow removal and optional cleanup or trimming capability.";
-  }
-
-  if (group === "cleanup-trimming") {
-    return "Best for customers focused on blower and trimmer-led property care.";
-  }
-
-  if (group === "full-property-care") {
-    return `Best for customers who want the broadest Yarbo package with ${mowerType.toLowerCase()}, snow, blower, and trimmer capability.`;
-  }
-
-  return `Best for customers combining ${mowerType.toLowerCase()} with another seasonal Yarbo capability.`;
+  return "Best for customers focused on snow removal, blower, or trimming capability without a mower module.";
 }
 
 export function yarboIndividualModules(product: CatalogProduct) {

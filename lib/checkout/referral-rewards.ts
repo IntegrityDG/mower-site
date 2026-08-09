@@ -25,7 +25,7 @@ export function privateReferralRecord(
   request: CheckoutRequest,
   snapshot: OrderPriceSnapshot
 ) {
-  if (!request.referral) return null;
+  if (!request.referral || request.selection.purchaseMode === "accessories") return null;
   const schedule = referralRewardForProduct(snapshot.product);
   return {
     ...(orderId ? { order_id: orderId } : {}),

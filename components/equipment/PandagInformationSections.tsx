@@ -13,7 +13,6 @@ import {
   type PandagSpec,
 } from "@/components/equipment/pandagBrochureContent";
 import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
-import { formatCents } from "@/lib/catalog/pricing";
 import type {
   CatalogOption,
   CatalogPrice,
@@ -102,22 +101,8 @@ function SpecList({ specs }: { specs: readonly PandagSpec[] }) {
 }
 
 function CatalogPricing({ item }: { item: CatalogPrice }) {
-  if (item.displayMsrpPriceCents == null) {
-    return (
-      <p className="text-lg font-black text-emerald-700">Request Pricing</p>
-    );
-  }
-
-  return (
-    <div>
-      <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-        MSRP Everyday Price
-      </p>
-      <p className="mt-1 text-2xl font-black text-emerald-700">
-        {formatCents(item.displayMsrpPriceCents)}
-      </p>
-    </div>
-  );
+  void item;
+  return <p className="text-lg font-black text-emerald-700">Contact IDS for a Commercial Quote Today</p>;
 }
 
 function CommercialCapabilities({ product }: { product: CatalogProduct }) {

@@ -12,7 +12,7 @@ import ProductPageSections from "@/components/equipment/ProductPageSections";
 import QuoteOnlyNotice from "@/components/equipment/QuoteOnlyNotice";
 import YarboInformationSections from "@/components/equipment/YarboInformationSections";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
-import { formatCents, priceLabel } from "@/lib/catalog/pricing";
+import { priceLabel } from "@/lib/catalog/pricing";
 import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { loadPublicCatalog } from "@/lib/catalog/load-public-catalog";
 import { findCatalogProductBySlug } from "@/lib/catalog/product-routing";
@@ -94,16 +94,7 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
                 charging access, and operating schedule shape the final model
                 recommendation and commercial proposal.
               </p>
-              {product.displayMsrpPriceCents != null && (
-                <div className="mt-6">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">
-                    Starting MSRP Everyday Price
-                  </p>
-                  <p className="mt-1 text-3xl font-black text-white">
-                    {formatCents(product.displayMsrpPriceCents)}
-                  </p>
-                </div>
-              )}
+              <p className="mt-6 text-xl font-black text-emerald-300">Contact IDS for a Commercial Quote Today</p>
               <QuoteOnlyNotice className="mt-7" />
             </div>
             <div className="relative flex min-h-96 items-center justify-center overflow-hidden rounded-[2rem] border border-white/10 bg-white/95 p-4 shadow-2xl sm:p-8">

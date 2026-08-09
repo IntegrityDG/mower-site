@@ -78,6 +78,18 @@ export type CatalogOption = CatalogPrice & {
   minimumQuantity: number;
   maximumQuantity: number | null;
   sortOrder: number;
+  accessoryListingEnabled?: boolean;
+  accessoryTab?: "lymow" | "yarbo" | "aftermarket" | null;
+  accessoryImageUrl?: string | null;
+  accessoryImageAlt?: string | null;
+  accessoryBadge?: string | null;
+  idsExclusive?: boolean;
+  showInBuilder?: boolean;
+  accessoryActionType?: "builder" | "contact" | "external" | "none" | null;
+  accessoryActionLabel?: string | null;
+  accessoryActionUrl?: string | null;
+  accessoryPriceText?: string | null;
+  manufacturerName?: string | null;
 };
 
 export type CatalogOptionGroup = {

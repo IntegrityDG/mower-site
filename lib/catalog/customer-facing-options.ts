@@ -62,3 +62,15 @@ export function customerFacingGroupOptions(
 export function customerFacingUngroupedOptions(product: CatalogProduct) {
   return customerFacingOptions(product.ungroupedOptions, product.variants);
 }
+
+export function builderAccessoryOptions(product: CatalogProduct) {
+  return customerFacingProductOptions(product).filter(
+    (option) =>
+      option.accessoryListingEnabled &&
+      option.showInBuilder &&
+      option.accessoryActionType === "builder" &&
+      option.accessoryTab === (product.slug === "yarbo" ? "yarbo" : "lymow") &&
+      option.currentPriceCents !== null &&
+      !option.contactForPricing,
+  );
+}

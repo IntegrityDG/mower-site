@@ -1,90 +1,17 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
 
 import ContactInformationModal from "@/components/contact/ContactInformationModal";
 import HomepageContactSection from "@/components/contact/HomepageContactSection";
 import NationwidePurchaseFlow from "@/components/customer-paths/purchase/NationwidePurchaseFlow";
-import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
-import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
+import EquipmentCatalog from "@/components/equipment/EquipmentCatalog";
 import HomeReviews from "@/components/reviews/HomeReviews";
 import HomeSalesSpecial from "@/components/promotions/HomeSalesSpecial";
-import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
-import type { CatalogProduct } from "@/lib/catalog/types";
 
 const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
 
-const featuredMachineImages: Record<string, string> = {
-  "lymow-one-plus": "/images/featured-machines/lymow-one-plus.jpg",
-  yarbo: "/images/featured-machines/yarbo-mower.jpg",
-  "pandag-g1": "/images/featured-machines/pandag-g1.jpg",
-};
-
-function FeaturedMachineImage({
-  product,
-  productName,
-  productSlug,
-}: {
-  product: CatalogProduct | undefined;
-  productName: string;
-  productSlug: string;
-}) {
-  const [failedImageUrls, setFailedImageUrls] = useState<string[]>([]);
-  const imageUrl = [
-    featuredMachineImages[productSlug],
-    product?.imageUrl,
-  ].find((candidate) => candidate && !failedImageUrls.includes(candidate));
-
-  return (
-    <div className="flex aspect-[16/10] w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      {imageUrl ? (
-        // The homepage uses dedicated local imagery with catalog media as fallback.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={imageUrl}
-          alt={product?.imageAlt ?? productName}
-          className="h-full w-full object-cover object-center"
-          onError={() =>
-            setFailedImageUrls((failedUrls) =>
-              failedUrls.includes(imageUrl)
-                ? failedUrls
-                : [...failedUrls, imageUrl]
-            )
-          }
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-emerald-50 px-6 text-center">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700">
-              Integrity Distribution Systems
-            </p>
-            <p className="mt-3 text-xl font-black text-slate-950">
-              {productName}
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function Page() {
-  const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetchCatalog({ signal: controller.signal })
-      .then((catalog) => setCatalogProducts(catalog.products))
-      .catch(() => {
-        // Featured cards retain their branded placeholders if catalog loading fails.
-      });
-
-    return () => controller.abort();
-  }, []);
-
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950">
       {/* HEADER */}
@@ -189,7 +116,10 @@ export default function Page() {
               </p>
             </div>
 
-            <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            <div className="mt-10">
+              <EquipmentCatalog />
+            </div>
+            {/*
               {[
                 {
                   slug: "lymow-one-plus",
@@ -289,7 +219,7 @@ export default function Page() {
                   </article>
                 );
               })}
-            </div>
+            */}
           </div>
         </section>
 

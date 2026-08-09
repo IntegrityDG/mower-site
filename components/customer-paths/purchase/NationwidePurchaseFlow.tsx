@@ -10,8 +10,9 @@ import {
   selectedOptionNames,
 } from "@/lib/catalog/selection";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
-import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
+import { builderAccessoryOptions, customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { isSelfServiceProduct } from "@/lib/catalog/sales-mode";
+import { isPublicEquipmentProductSlug } from "@/lib/catalog/product-routing";
 import {
   checkoutEndpoint,
   checkoutSubmissionKind,
@@ -19,6 +20,7 @@ import {
 import type { CheckoutRequest } from "@/lib/checkout/types";
 import type {
   CatalogProduct,
+  CatalogOption,
   CatalogResponse,
   ProductBuildSelection,
 } from "@/lib/catalog/types";
@@ -72,8 +74,8 @@ const stages: { key: StageKey }[] = [
 ];
 
 export const purchaseProgressSteps = [
-  { label: "Build Your System", stageKeys: ["product", "configuration"] },
-  { label: "Review System", stageKeys: ["review"] },
+  { label: "Make Your Selections", stageKeys: ["product", "configuration"] },
+  { label: "Review Selections", stageKeys: ["review"] },
   { label: "Pricing & Financing", stageKeys: ["location", "purchase"] },
   { label: "Delivery & Contact", stageKeys: ["customer"] },
   { label: "Checkout", stageKeys: ["summary"] },
@@ -182,9 +184,16 @@ export function productRequestedByBuildSearch(
   return (
     catalog.products.find(
       (product) =>
-        product.slug === requestedSlug && isSelfServiceProduct(product)
+        product.slug === requestedSlug &&
+        isPublicEquipmentProductSlug(product.slug) &&
+        isSelfServiceProduct(product)
     ) ?? null
   );
+}
+
+export function accessoryRequestedByBuildSearch(product: CatalogProduct, search: string) {
+  const slug = new URLSearchParams(search).get("accessory")?.trim();
+  return slug ? builderAccessoryOptions(product).find((option) => option.slug === slug) ?? null : null;
 }
 
 function initialBuildSelection(product: CatalogProduct): ProductBuildSelection {
@@ -276,7 +285,9 @@ export default function NationwidePurchaseFlow({
     if (!requestedProduct) return;
 
     setSelectedProductId(requestedProduct.id);
-    setBuildSelection(initialBuildSelection(requestedProduct));
+    const initial = initialBuildSelection(requestedProduct);
+    const accessory = accessoryRequestedByBuildSearch(requestedProduct, window.location.search);
+    setBuildSelection(accessory ? { ...initial, optionQuantities: { ...initial.optionQuantities, [accessory.id]: 1 } } : initial);
   }, [catalog]);
 
   useEffect(() => {
@@ -298,13 +309,28 @@ export default function NationwidePurchaseFlow({
       null,
     [catalog, selectedProductId]
   );
+  const accessoryMode = selectedProductId === "accessories";
+  const accessoryChoices = useMemo(() => (catalog?.products ?? []).flatMap((product) => {
+    const purchasable = builderAccessoryOptions(product);
+    const aftermarket = customerFacingProductOptions(product).filter(
+      (option) => option.accessoryListingEnabled && option.accessoryTab === "aftermarket"
+    );
+    return [...purchasable, ...aftermarket].map((option) => ({ product, option }));
+  }), [catalog]);
+  const selectedAccessoryChoices = accessoryChoices.filter(({ option }) => (buildSelection.optionQuantities[option.id] ?? 0) > 0);
   const configurationRequiresQuote = Boolean(
     selectedProduct &&
       resolveBuildSelection(selectedProduct, buildSelection)
         .hasUnpricedEquipment
   );
   const submissionKind =
-    selectedProduct && selectedPurchaseMethod
+    accessoryMode && selectedPurchaseMethod
+      ? selectedPurchaseMethod === "ach"
+        ? "ach_debit"
+        : selectedPurchaseMethod === "pay-in-full"
+          ? "card"
+          : "quote"
+      : selectedProduct && selectedPurchaseMethod
       ? checkoutSubmissionKind(
           selectedProduct,
           selectedPurchaseMethod,
@@ -314,6 +340,7 @@ export default function NationwidePurchaseFlow({
 
   useEffect(() => {
     if (!catalog || !selectedProductId) return;
+    if (selectedProductId === "accessories") return;
 
     const product = catalog.products.find(
       (item) => item.id === selectedProductId
@@ -331,7 +358,7 @@ export default function NationwidePurchaseFlow({
       customerInformation.shippingRegion.trim()
   );
   const buildComplete = Boolean(
-    selectedProduct && productBuildIsComplete(selectedProduct, buildSelection)
+    accessoryMode ? selectedAccessoryChoices.length > 0 : selectedProduct && productBuildIsComplete(selectedProduct, buildSelection)
   );
   const customerInformationComplete = Boolean(
     customerInformation.fullName.trim() &&
@@ -341,7 +368,7 @@ export default function NationwidePurchaseFlow({
   );
 
   const currentStageComplete =
-    (activeStage.key === "product" && Boolean(selectedProduct)) ||
+    (activeStage.key === "product" && (Boolean(selectedProduct) || accessoryMode)) ||
     (activeStage.key === "configuration" && buildComplete) ||
     (activeStage.key === "review" && buildComplete) ||
     (activeStage.key === "location" && locationComplete) ||
@@ -374,6 +401,13 @@ export default function NationwidePurchaseFlow({
   function handleProductSelect(productId: string) {
     if (productId === selectedProductId) return;
 
+    if (productId === "accessories") {
+      setSelectedProductId(productId);
+      setBuildSelection(emptyBuildSelection);
+      setSubmitStatus("idle");
+      setSubmitError("");
+      return;
+    }
     const product = catalog?.products.find((item) => item.id === productId);
     if (!product || !isSelfServiceProduct(product)) {
       setSelectedProductId("");
@@ -415,7 +449,7 @@ export default function NationwidePurchaseFlow({
         packageId,
         purchaseMode: "complete-system",
         includeBaseProduct: false,
-        optionQuantities: {},
+        optionQuantities: Object.fromEntries(Object.entries(currentSelection.optionQuantities).filter(([id])=>builderAccessoryOptions(selectedProduct).some(option=>option.id===id))),
       }));
       return;
     }
@@ -436,13 +470,15 @@ export default function NationwidePurchaseFlow({
   }
 
   function handleOptionQuantityChange(optionId: string, quantity: number) {
-    const option = selectedProduct
+    const option = accessoryMode
+      ? accessoryChoices.find((item) => item.option.id === optionId)?.option ?? null
+      : selectedProduct
       ? customerFacingProductOptions(selectedProduct).find(
           (item) => item.id === optionId
         )
       : null;
     const maximum =
-      selectedProduct &&
+      !accessoryMode && selectedProduct &&
       option &&
       isYarboProduct(selectedProduct) &&
       isYarboModuleOption(option)
@@ -453,11 +489,12 @@ export default function NationwidePurchaseFlow({
       Math.max(0, Math.trunc(quantity))
     );
 
+    const yarboModule = Boolean(selectedProduct && isYarboProduct(selectedProduct) && option && isYarboModuleOption(option));
     setBuildSelection((currentSelection) => ({
       ...currentSelection,
-      ...(selectedProduct && isYarboProduct(selectedProduct)
+      ...(yarboModule
         ? { packageId: "", purchaseMode: "individual-equipment" as const }
-        : {}),
+          : {}),
       optionQuantities: {
         ...currentSelection.optionQuantities,
         [optionId]: normalizedQuantity,
@@ -477,7 +514,7 @@ export default function NationwidePurchaseFlow({
       optionQuantities:
         mode === "individual-equipment"
           ? currentSelection.optionQuantities
-          : {},
+          : Object.fromEntries(Object.entries(currentSelection.optionQuantities).filter(([id])=>selectedProduct?builderAccessoryOptions(selectedProduct).some(option=>option.id===id):false)),
     }));
   }
 
@@ -510,8 +547,7 @@ export default function NationwidePurchaseFlow({
 
   async function submitRequest() {
     if (
-      !selectedProduct ||
-      !isSelfServiceProduct(selectedProduct) ||
+      (!accessoryMode && (!selectedProduct || !isSelfServiceProduct(selectedProduct))) ||
       !selectedPurchaseMethod ||
       !locationComplete ||
       submissionInProgress.current
@@ -523,6 +559,14 @@ export default function NationwidePurchaseFlow({
     setSubmitStatus("submitting");
     setSubmitError("");
 
+    if (accessoryMode) {
+      const anchor = selectedAccessoryChoices[0]?.product;
+      if (!anchor || submissionKind === "quote") { submissionInProgress.current = false; setSubmitStatus("error"); setSubmitError("Choose a card or ACH payment method for eligible accessories."); return; }
+      const checkoutRequest: CheckoutRequest = { requestId: crypto.randomUUID(), paymentMethod: submissionKind, selection: { productId: anchor.id, variantId: null, purchaseMode: "accessories", packageId: null, options: selectedAccessoryChoices.map(({ option }) => ({ optionId: option.id, quantity: buildSelection.optionQuantities[option.id] })), includeBaseProduct: false }, customer: { name: customerInformation.fullName, email: customerInformation.email.trim() || null, phone: customerInformation.phone.trim() || null }, referral: null, shippingAddress: { line1: customerInformation.shippingAddress, line2: null, city: customerInformation.shippingRegion, state: customerInformation.shippingState, postalCode: customerInformation.shippingZip, country: "US" } };
+      try { const response = await fetch(checkoutEndpoint(submissionKind), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(checkoutRequest) }); const payload = response.headers.get("content-type")?.includes("application/json") ? await response.json() as { checkoutUrl?: string; error?: string } : null; if (!response.ok) throw new Error(payload?.error ?? "Unable to start secure checkout."); const redirectUrl = response.redirected ? response.url : payload?.checkoutUrl; if (!redirectUrl) throw new Error("The checkout service did not return a payment URL."); window.location.assign(redirectUrl); } catch (error) { submissionInProgress.current = false; setSubmitStatus("error"); setSubmitError(error instanceof Error ? error.message : "Unable to start secure checkout."); }
+      return;
+    }
+    if (!selectedProduct) return;
     const build = resolveBuildSelection(selectedProduct, buildSelection);
     const selectedProductIsYarbo = isYarboProduct(selectedProduct);
     const selectedYarboPackage = selectedProductIsYarbo
@@ -768,6 +812,10 @@ export default function NationwidePurchaseFlow({
       );
     }
 
+    if (activeStage.key === "configuration" && accessoryMode) {
+      return <AccessoryPurchaseConfiguration choices={accessoryChoices} quantities={buildSelection.optionQuantities} onChange={handleOptionQuantityChange} />;
+    }
+
     if (activeStage.key === "configuration" && selectedProduct) {
       return (
         <ProductConfiguration
@@ -780,6 +828,10 @@ export default function NationwidePurchaseFlow({
           onToggleBaseProduct={handleToggleBaseProduct}
         />
       );
+    }
+
+    if (activeStage.key === "review" && accessoryMode) {
+      return <AccessoryOnlyReview choices={selectedAccessoryChoices} quantities={buildSelection.optionQuantities} />;
     }
 
     if (activeStage.key === "review" && selectedProduct) {
@@ -802,7 +854,9 @@ export default function NationwidePurchaseFlow({
     }
 
     if (activeStage.key === "purchase") {
-      const configuredTotalCents = selectedProduct
+      const configuredTotalCents = accessoryMode
+        ? selectedAccessoryChoices.reduce((sum, { option }) => sum + (option.currentPriceCents ?? 0) * buildSelection.optionQuantities[option.id], 0)
+        : selectedProduct
         ? resolveBuildSelection(selectedProduct, buildSelection)
             .equipmentTotalCents
         : 0;
@@ -825,6 +879,10 @@ export default function NationwidePurchaseFlow({
           onChange={updateCustomerInformation}
         />
       );
+    }
+
+    if (accessoryMode) {
+      return <AccessoryOnlySummary choices={selectedAccessoryChoices} quantities={buildSelection.optionQuantities} purchaseMethodLabel={selectedPurchaseMethod ? purchaseMethodLabels[selectedPurchaseMethod] : "Not selected"} customerInformation={customerInformation} submitStatus={submitStatus} submitError={submitError} onSubmit={() => void submitRequest()} />;
     }
 
     if (selectedProduct) {
@@ -953,6 +1011,30 @@ export default function NationwidePurchaseFlow({
       </div>
     </div>
   );
+}
+
+type AccessoryChoice = { product: CatalogProduct; option: CatalogOption };
+
+function AccessoryPurchaseConfiguration(props: { choices: AccessoryChoice[]; quantities: Record<string, number>; onChange: (id: string, quantity: number) => void }) {
+  const purchasable = props.choices.filter(({ option }) => option.accessoryTab !== "aftermarket" || option.showInBuilder === true);
+  const aftermarket = props.choices.filter(({ option }) => option.accessoryTab === "aftermarket" && option.showInBuilder !== true);
+  return <><AccessoryOnlyConfiguration {...props} choices={purchasable} />{aftermarket.length > 0 && <section className="mt-8"><h3 className="text-2xl font-black">Aftermarket Products</h3><p className="mt-2 text-slate-600">These products are sold by their manufacturers and cannot be added to IDS checkout.</p><div className="mt-5 grid gap-4 lg:grid-cols-2">{aftermarket.map(({ option }) => <article key={option.id} className="rounded-2xl border border-slate-300 p-5"><p className="text-xs font-black uppercase text-emerald-700">{option.manufacturerName || "Aftermarket"}</p><h4 className="mt-2 text-lg font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p>{option.accessoryActionUrl && <a href={option.accessoryActionUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-600 px-4 py-3 font-black text-white">{option.accessoryActionLabel || "Go to Manufacturer's Site"}</a>}</article>)}</div></section>}</>;
+}
+
+function AccessoryOnlyConfiguration({ choices, quantities, onChange }: { choices: AccessoryChoice[]; quantities: Record<string, number>; onChange: (id: string, quantity: number) => void }) {
+  const [search, setSearch] = useState("");
+  const visible = choices.filter(({ option, product }) => `${product.brand} ${option.name}`.toLowerCase().includes(search.toLowerCase()));
+  return <div><p className="text-sm font-bold uppercase tracking-[.25em] text-emerald-700">Accessories &amp; Parts</p><h3 className="mt-3 text-3xl font-black">Choose eligible accessories and quantities.</h3><p className="mt-4 leading-7 text-slate-600">Only active, catalog-priced Lymow and Yarbo items approved for IDS checkout appear here. Aftermarket informational links and contact-only items are not checkout items.</p><label className="mt-6 block font-bold">Search accessories<input value={search} onChange={(event) => setSearch(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3" /></label><div className="mt-6 grid gap-4 lg:grid-cols-2">{visible.map(({ product, option }) => { const quantity = quantities[option.id] ?? 0; return <article key={option.id} className={`rounded-2xl border p-5 ${quantity ? "border-emerald-700 bg-emerald-50" : "border-slate-300"}`}><p className="text-xs font-black uppercase text-emerald-700">{product.brand}</p><h4 className="mt-2 text-lg font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p><p className="mt-3 font-black text-emerald-700">{option.currentPriceCents === null ? "Unavailable" : formatCents(option.currentPriceCents)}</p><div className="mt-4 flex items-center gap-3"><button type="button" aria-label={`Decrease ${option.name} quantity`} onClick={() => onChange(option.id, Math.max(0, quantity - 1))} className="h-10 w-10 rounded-xl border bg-white font-black">−</button><span className="min-w-8 text-center font-black">{quantity}</span><button type="button" aria-label={`Increase ${option.name} quantity`} onClick={() => onChange(option.id, quantity + 1)} className="h-10 w-10 rounded-xl border bg-white font-black">+</button></div></article>; })}</div></div>;
+}
+
+function AccessoryOnlyReview({ choices, quantities }: { choices: AccessoryChoice[]; quantities: Record<string, number> }) {
+  const total = choices.reduce((sum, { option }) => sum + (option.currentPriceCents ?? 0) * quantities[option.id], 0);
+  return <div><p className="text-sm font-bold uppercase tracking-[.25em] text-emerald-700">Review Selections</p><h3 className="mt-3 text-3xl font-black">Review your accessories and parts.</h3><div className="mt-7 space-y-3">{choices.map(({ product, option }) => <div key={option.id} className="flex justify-between gap-5 rounded-2xl border p-4"><span><strong>{option.name}</strong><span className="ml-2 text-slate-500">{product.brand} × {quantities[option.id]}</span></span><strong>{formatCents((option.currentPriceCents ?? 0) * quantities[option.id])}</strong></div>)}</div><p className="mt-5 text-right text-2xl font-black">Catalog subtotal: {formatCents(total)}</p></div>;
+}
+
+function AccessoryOnlySummary({ choices, quantities, purchaseMethodLabel, customerInformation, submitStatus, submitError, onSubmit }: { choices: AccessoryChoice[]; quantities: Record<string, number>; purchaseMethodLabel: string; customerInformation: CustomerInformationValues; submitStatus: SubmitStatus; submitError: string; onSubmit: () => void }) {
+  const total = choices.reduce((sum, { option }) => sum + (option.currentPriceCents ?? 0) * quantities[option.id], 0);
+  return <div><p className="text-sm font-bold uppercase tracking-[.25em] text-emerald-700">Order Summary</p><h3 className="mt-3 text-3xl font-black">Review and Pay</h3><p className="mt-4 text-slate-600">The checkout server will reload every item and current price from the catalog before creating the order.</p><div className="mt-7 rounded-2xl border p-5">{choices.map(({ option }) => <p key={option.id} className="mb-2 flex justify-between"><span>{option.name} × {quantities[option.id]}</span><strong>{formatCents((option.currentPriceCents ?? 0) * quantities[option.id])}</strong></p>)}<p className="mt-4 flex justify-between border-t pt-4 text-xl font-black"><span>Catalog subtotal</span><span>{formatCents(total)}</span></p></div><div className="mt-5 grid gap-3 text-sm sm:grid-cols-2"><p><strong>Payment:</strong> {purchaseMethodLabel}</p><p><strong>Customer:</strong> {customerInformation.fullName}</p><p><strong>Delivery:</strong> {customerInformation.shippingAddress}</p><p><strong>Location:</strong> {customerInformation.shippingRegion}, {customerInformation.shippingState} {customerInformation.shippingZip}</p></div>{submitError && <p role="alert" className="mt-5 rounded-xl bg-red-50 p-4 text-red-800">{submitError}</p>}<button type="button" disabled={submitStatus === "submitting"} onClick={onSubmit} className="mt-7 w-full rounded-2xl bg-emerald-600 px-6 py-4 font-black text-white disabled:opacity-60">{submitStatus === "submitting" ? "Starting secure checkout..." : "Continue to Secure Payment"}</button></div>;
 }
 
 function EquipmentSelectionReview({

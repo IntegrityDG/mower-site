@@ -6,6 +6,7 @@ import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
 import {
+  builderAccessoryOptions,
   customerFacingGroupOptions,
   customerFacingUngroupedOptions,
 } from "@/lib/catalog/customer-facing-options";
@@ -116,26 +117,32 @@ export default function ProductConfiguration({
 }: ProductConfigurationProps) {
   if (isYarboProduct(product)) {
     return (
-      <YarboConfiguration
+      <><YarboConfiguration
         product={product}
         selection={selection}
         onSelectPackage={onSelectPackage}
         onChangeOptionQuantity={onChangeOptionQuantity}
         onSelectPurchaseMode={onSelectPurchaseMode}
         onToggleBaseProduct={onToggleBaseProduct}
-      />
+      />{selection.purchaseMode && <OptionalAccessories product={product} selection={selection} onChangeOptionQuantity={onChangeOptionQuantity}/>}</>
     );
   }
 
   return (
-    <StandardProductConfiguration
+    <><StandardProductConfiguration
       product={product}
       selection={selection}
       onSelectVariant={onSelectVariant}
       onSelectPackage={onSelectPackage}
       onChangeOptionQuantity={onChangeOptionQuantity}
-    />
+    /><OptionalAccessories product={product} selection={selection} onChangeOptionQuantity={onChangeOptionQuantity}/></>
   );
+}
+
+function OptionalAccessories({product,selection,onChangeOptionQuantity}:{product:CatalogProduct;selection:ProductBuildSelection;onChangeOptionQuantity:(id:string,q:number)=>void}){
+  const [open,setOpen]=useState(false);const[search,setSearch]=useState("");const accessories=builderAccessoryOptions(product).filter(o=>o.name.toLowerCase().includes(search.toLowerCase()));
+  if(!accessories.length)return null;
+  return <section className="mt-8 rounded-[2rem] border border-emerald-200 bg-emerald-50/40 p-5 md:p-7"><button type="button" aria-expanded={open} onClick={()=>setOpen(v=>!v)} className="flex w-full items-center justify-between text-left"><span><span className="text-xs font-bold uppercase tracking-[.18em] text-emerald-700">Optional Accessories &amp; Parts</span><span className="mt-2 block text-2xl font-black">Add Optional Accessories &amp; Parts</span></span><span className="text-2xl">{open?'−':'+'}</span></button>{open&&<div className="mt-6"><label className="block font-bold">Search accessories<input value={search} onChange={e=>setSearch(e.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3"/></label><div className="mt-5 grid gap-4 lg:grid-cols-2">{accessories.map(option=>{const q=quantityForOption(selection,option);return <article key={option.id} className="rounded-2xl border bg-white p-4"><h4 className="font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p><OptionPrice option={option}/><div className="mt-3 flex items-center gap-3"><button type="button" aria-label={`Decrease ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q-1))} className="h-9 w-9 rounded-lg border font-black">−</button><span className="min-w-6 text-center font-black">{q}</span><button type="button" aria-label={`Increase ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q+1))} className="h-9 w-9 rounded-lg border font-black">+</button></div></article>})}</div></div>}</section>
 }
 
 function YarboConfiguration({
@@ -146,14 +153,9 @@ function YarboConfiguration({
   onSelectPurchaseMode,
   onToggleBaseProduct,
 }: Omit<ProductConfigurationProps, "onSelectVariant">) {
-  const [activeGroup, setActiveGroup] = useState<
-    YarboPackageGroupKey | "all"
-  >("all");
+  const [activeGroup, setActiveGroup] = useState<YarboPackageGroupKey>("mowing");
   const groupedPackages = groupYarboPackages(product.packages);
-  const visibleGroups =
-    activeGroup === "all"
-      ? groupedPackages
-      : groupedPackages.filter((group) => group.key === activeGroup);
+  const visibleGroups = groupedPackages.filter((group) => group.key === activeGroup);
   const modules = yarboIndividualModules(product);
   const coreSelected = yarboCoreIsSelected(selection);
   const selectedModules = selectedYarboIndividualModules(product, selection);
@@ -242,7 +244,7 @@ function YarboConfiguration({
         </button>
       </div>
 
-      <section id="complete-yarbo-systems" className="mt-9">
+      {completeMode && <section id="complete-yarbo-systems" className="mt-9">
         <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-5 md:p-7">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
@@ -263,17 +265,6 @@ function YarboConfiguration({
           </div>
 
           <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
-            <button
-              type="button"
-              onClick={() => setActiveGroup("all")}
-              className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold transition ${
-                activeGroup === "all"
-                  ? "bg-slate-950 text-white"
-                  : "border border-slate-300 bg-white text-slate-700 hover:border-emerald-500"
-              }`}
-            >
-              All Systems
-            </button>
             {YARBO_PACKAGE_GROUPS.map((group) => (
               <button
                 key={group.key}
@@ -387,9 +378,9 @@ function YarboConfiguration({
             ))}
           </div>
         </div>
-      </section>
+      </section>}
 
-      <section id="individual-yarbo-equipment" className="mt-8">
+      {individualMode && <section id="individual-yarbo-equipment" className="mt-8">
         <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-5 md:p-7">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
@@ -519,7 +510,7 @@ function YarboConfiguration({
             </p>
           )}
         </div>
-      </section>
+      </section>}
     </div>
   );
 }
@@ -549,7 +540,7 @@ function StandardProductConfiguration({
     ) ?? null;
 
   const customerFacingUngrouped = useMemo(
-    () => customerFacingUngroupedOptions(product),
+    () => customerFacingUngroupedOptions(product).filter((option) => !option.accessoryListingEnabled),
     [product]
   );
 

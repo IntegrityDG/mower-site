@@ -406,14 +406,20 @@ test("equipment detail routing resolves lymow-one-plus from the catalog payload"
     name: "Pandag G1",
     salesMode: "quote_only",
   });
+  const aftermarket = yarboProduct({
+    id: "aftermarket",
+    slug: "ids-aftermarket",
+    name: "IDS Aftermarket",
+  });
   const catalog = {
-    products: [lymow, yarbo, pandag],
+    products: [lymow, yarbo, pandag, aftermarket],
     generatedAt: "2026-08-04T00:00:00.000Z",
   };
 
   assert.equal(findCatalogProductBySlug(catalog, "lymow-one-plus"), lymow);
   assert.equal(findCatalogProductBySlug(catalog, "yarbo"), yarbo);
   assert.equal(findCatalogProductBySlug(catalog, "pandag-g1"), pandag);
+  assert.equal(findCatalogProductBySlug(catalog, "ids-aftermarket"), null);
   assert.equal(findCatalogProductBySlug(catalog, "missing-product"), null);
 
   const routeSource = readFileSync(
@@ -906,8 +912,13 @@ test("Lymow and Yarbo build links preselect only a self-service catalog product"
     name: "Pandag G1",
     salesMode: "quote_only",
   });
+  const aftermarket = yarboProduct({
+    id: "aftermarket",
+    slug: "ids-aftermarket",
+    name: "IDS Aftermarket",
+  });
   const catalog = {
-    products: [lymow, yarbo, pandag],
+    products: [lymow, yarbo, pandag, aftermarket],
     generatedAt: "2026-08-03T00:00:00.000Z",
   };
 
@@ -923,10 +934,14 @@ test("Lymow and Yarbo build links preselect only a self-service catalog product"
     productRequestedByBuildSearch(catalog, "?product=pandag-g1"),
     null
   );
+  assert.equal(
+    productRequestedByBuildSearch(catalog, "?product=ids-aftermarket"),
+    null
+  );
   assert.equal(productRequestedByBuildSearch(catalog, ""), null);
 });
 
-test("Build Your System machine cards show only the machine-selection action", () => {
+test("Make Your Selections offers Lymow, Yarbo, and accessory purchase paths", () => {
   const lymow = lymowProduct();
   const yarbo = yarboProduct();
   const html = renderToStaticMarkup(
@@ -939,9 +954,10 @@ test("Build Your System machine cards show only the machine-selection action", (
 
   assert.match(html, /Lymow One Plus/);
   assert.match(html, /Yarbo Core/);
-  assert.match(html, />Selected<\/span>/);
-  assert.equal((html.match(/>Select Machine<\/button>/g) ?? []).length, 2);
-  assert.equal((html.match(/<button/g) ?? []).length, 2);
+  assert.match(html, />Selected<\/button>/);
+  assert.match(html, /Accessories &amp; Parts/);
+  assert.match(html, /Purchase Lymow, Yarbo, or Aftermarket accessories, replacement parts, batteries, blades, tracks, cables, and more\./);
+  assert.equal((html.match(/<button/g) ?? []).length, 3);
   assert.doesNotMatch(html, /\d+ packages/);
   assert.doesNotMatch(html, /View Full Details/);
   assert.equal(lymow.packages.length, 0);
@@ -991,8 +1007,8 @@ test("purchase flow exposes the approved five progress steps", () => {
   const labels: string[] = purchaseProgressSteps.map((step) => step.label);
 
   assert.deepEqual(labels, [
-    "Build Your System",
-    "Review System",
+    "Make Your Selections",
+    "Review Selections",
     "Pricing & Financing",
     "Delivery & Contact",
     "Checkout",

@@ -18,7 +18,49 @@ const ensure = <T>(result: { data: T[] | null; error: { message: string } | null
   return result.data ?? [];
 };
 
+const ACCESSORY_BLOCKLIST = new Set(["lymow-5a-charger", "lymow-10a-charger", "yarbo-4g-service", "yarbo-plow-module"]);
+
+async function resolveAccessoryOnlyPricing(input: CheckoutRequest): Promise<OrderPriceSnapshot> {
+  if (input.selection.variantId || input.selection.packageId || input.selection.includeBaseProduct || input.selection.options.length === 0) throw new CheckoutRejectionError("MISSING_CONFIGURATION", "Choose at least one eligible accessory.");
+  const supabase = getSupabaseServiceClient();
+  const optionIds = input.selection.options.map((item) => item.optionId);
+  const optionsResult = await supabase.from("catalog_options").select("*").in("id", optionIds);
+  const options = ensure(optionsResult, "Options");
+  if (options.length !== optionIds.length) throw new CheckoutRejectionError("UNKNOWN_CATALOG_RECORD", "An accessory was not found.");
+  const productIds = [...new Set(options.map((option) => option.product_id))];
+  const productsResult = await supabase.from("catalog_products").select("*").in("id", productIds);
+  const products = ensure(productsResult, "Products");
+  if (products.length !== productIds.length) throw new CheckoutRejectionError("UNKNOWN_CATALOG_RECORD", "An accessory product was not found.");
+  if (input.selection.productId !== options[0].product_id) throw new CheckoutRejectionError("CROSS_PRODUCT_SELECTION", "The accessory anchor product is invalid.");
+  for (const selected of input.selection.options) {
+    const option = options.find((row) => row.id === selected.optionId)!;
+    const product = products.find((row) => row.id === option.product_id);
+    const correctTab = product?.slug === "lymow-one-plus" ? "lymow" : product?.slug === "yarbo" ? "yarbo" : product?.slug === "ids-aftermarket" ? "aftermarket" : null;
+    if (!product || product.public_status !== "active" || !correctTab) throw new CheckoutRejectionError("QUOTE_ONLY_PRODUCT", "This accessory is not eligible for checkout.");
+    if (option.public_status !== "active" || option.accessory_listing_enabled !== true || option.accessory_tab !== correctTab || option.show_in_builder !== true || (correctTab !== "aftermarket" && option.accessory_action_type !== "builder") || option.contact_for_pricing || option.regular_price_cents === null || ACCESSORY_BLOCKLIST.has(option.option_slug)) throw new CheckoutRejectionError("INCOMPATIBLE_SELECTION", "This accessory is not available for IDS checkout.");
+    const maximum = Math.min(option.maximum_quantity ?? 10, 10);
+    if (selected.quantity < Math.max(1, option.minimum_quantity) || selected.quantity > maximum) throw new CheckoutRejectionError("INVALID_QUANTITY", "Accessory quantity is outside its allowed range.");
+  }
+  const schedulesResult = await supabase.from("catalog_price_schedules").select("id, option_id, regular_price_cents, sale_price_cents, starts_at, ends_at, public_status").in("option_id", optionIds).eq("public_status", "active");
+  const schedules = ensure(schedulesResult, "Price schedules");
+  const now = Date.now();
+  const sources: CatalogSourceReference[] = products.map((product) => ({ table: "catalog_products", id: product.id }));
+  const chargeable: OrderPriceItem[] = input.selection.options.map((selected) => {
+    const option = options.find((row) => row.id === selected.optionId)!;
+    const schedule = schedules.filter((item) => item.option_id === option.id && (!item.starts_at || now >= new Date(item.starts_at).getTime()) && (!item.ends_at || now <= new Date(item.ends_at).getTime())).sort((a, b) => new Date(b.starts_at ?? 0).getTime() - new Date(a.starts_at ?? 0).getTime())[0];
+    if (schedule) sources.push({ table: "catalog_price_schedules", id: schedule.id });
+    sources.push({ table: "catalog_options", id: option.id });
+    const amount = currentPrice(schedule ? { ...option, regular_price_cents: schedule.regular_price_cents, sale_price_cents: schedule.sale_price_cents, sale_starts_at: schedule.starts_at, sale_ends_at: schedule.ends_at } : option, now);
+    return { itemType: "option", sourceId: option.id, sku: null, name: checkoutDisplayName(option), description: option.description, quantity: selected.quantity, unitAmountCents: amount, extendedAmountCents: amount * selected.quantity, includedInPackagePrice: false, parentSourceId: null };
+  });
+  const subtotal = chargeable.reduce((sum, item) => sum + item.extendedAmountCents, 0);
+  const adjustments = resolvePaymentAdjustments(subtotal, input.paymentMethod);
+  const anchor = products.find((product) => product.id === input.selection.productId)!;
+  return Object.freeze({ currency: "usd", product: { id: anchor.id, slug: "accessories", name: "Accessories & Parts" }, variant: null, purchaseMode: "accessories", chargeableItems: Object.freeze(chargeable), includedPackageComponents: Object.freeze([]), subtotalCents: subtotal, discountCents: adjustments.discountCents, feeCents: 0, shippingCents: 0, taxCents: 0, totalCents: adjustments.totalCents, paymentMethod: input.paymentMethod, pricedAt: new Date(now).toISOString(), catalogSources: Object.freeze(sources), warnings: Object.freeze([]), safeMetadata: { phase: "4B2B" as const, discountPolicy: adjustments.discountPolicy } });
+}
+
 export async function resolveAuthoritativeOrderPricing(input: CheckoutRequest): Promise<OrderPriceSnapshot> {
+  if (input.selection.purchaseMode === "accessories") return resolveAccessoryOnlyPricing(input);
   const supabase = getSupabaseServiceClient();
   const productResult = await supabase.from("catalog_products").select("*").eq("id", input.selection.productId).limit(1);
   if (productResult.error) throw new Error(`Product: ${productResult.error.message}`);
@@ -57,6 +99,7 @@ export async function resolveAuthoritativeOrderPricing(input: CheckoutRequest): 
     const amount = effectivePrice(eligibility.selectedPackage, "package"); sources.push({ table: "catalog_packages", id: eligibility.selectedPackage.id });
     chargeable.push({ itemType: "package", sourceId: eligibility.selectedPackage.id, sku: null, name: eligibility.selectedPackage.package_name.replaceAll("Leaf Blower", "Blower"), description: eligibility.selectedPackage.description, quantity: 1, unitAmountCents: amount, extendedAmountCents: amount, includedInPackagePrice: false, parentSourceId: null });
     for (const item of eligibility.packageItems ?? []) { const option = catalog.options.find((row) => row.id === item.option_id)!; sources.push({ table: "catalog_package_items", id: item.id }, { table: "catalog_options", id: option.id }); included.push({ itemType: "package_component", sourceId: option.id, sku: null, name: checkoutDisplayName(option), description: option.description, quantity: item.quantity, unitAmountCents: 0, extendedAmountCents: 0, includedInPackagePrice: true, parentSourceId: eligibility.selectedPackage.id }); }
+    for (const selected of eligibility.selectedOptions) { const accessoryAmount = effectivePrice(selected.option, "option"); sources.push({ table: "catalog_options", id: selected.option.id }); chargeable.push({ itemType: "option", sourceId: selected.option.id, sku: null, name: selected.option.name, description: selected.option.description, quantity: selected.quantity, unitAmountCents: accessoryAmount, extendedAmountCents: accessoryAmount * selected.quantity, includedInPackagePrice: false, parentSourceId: null }); }
   } else {
     if (input.selection.includeBaseProduct) { const amount = effectivePrice(product, "product"); chargeable.push({ itemType: "product", sourceId: product.id, sku: null, name: product.name, description: product.description ?? null, quantity: 1, unitAmountCents: amount, extendedAmountCents: amount, includedInPackagePrice: false, parentSourceId: null }); }
     for (const selected of eligibility.selectedOptions) { const amount = effectivePrice(selected.option, "option"); sources.push({ table: "catalog_options", id: selected.option.id }); chargeable.push({ itemType: "option", sourceId: selected.option.id, sku: null, name: checkoutDisplayName(selected.option), description: selected.option.description, quantity: selected.quantity, unitAmountCents: amount, extendedAmountCents: amount * selected.quantity, includedInPackagePrice: false, parentSourceId: null }); }

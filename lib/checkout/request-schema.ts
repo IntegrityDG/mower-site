@@ -1,7 +1,7 @@
 import type { CheckoutRequest } from "./types";
 
 export const MAX_CHECKOUT_REQUEST_BYTES = 16_384;
-export const MAX_CHECKOUT_OPTIONS = 20;
+export const MAX_CHECKOUT_OPTIONS = 60;
 export const MAX_CHECKOUT_ITEM_QUANTITY = 10;
 
 export async function readLimitedCheckoutBody(request: Request) {
@@ -36,7 +36,7 @@ export function parseCheckoutRequest(value: unknown): CheckoutRequest {
   if (typeof selection.productId !== "string" || !uuid.test(selection.productId)) throw new Error("Invalid product ID.");
   if (!nullableString(selection.variantId) || (typeof selection.variantId === "string" && !uuid.test(selection.variantId))) throw new Error("Invalid variant ID.");
   if (!nullableString(selection.packageId) || (typeof selection.packageId === "string" && !uuid.test(selection.packageId))) throw new Error("Invalid package ID.");
-  if (!["standard", "complete-system", "individual-equipment"].includes(String(selection.purchaseMode))) throw new Error("Invalid purchase mode.");
+  if (!["standard", "complete-system", "individual-equipment", "accessories"].includes(String(selection.purchaseMode))) throw new Error("Invalid purchase mode.");
   if (typeof selection.includeBaseProduct !== "boolean" || !Array.isArray(selection.options) || selection.options.length > MAX_CHECKOUT_OPTIONS) throw new Error("Invalid selection.");
   const seen = new Set<string>();
   const options = selection.options.map((item) => {

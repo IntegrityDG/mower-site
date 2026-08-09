@@ -561,8 +561,18 @@ async function main() {
     show_public_price: bool(row.show_public_price), contact_for_pricing: bool(row.contact_for_pricing, true),
     sort_order: integer(row.sort_order, 0), updated_at: new Date().toISOString(),
   }));
-  await upsert(publicCatalog, "catalog_options", [...optionRecords, ...accessoryRecords], "product_id,option_slug");
-  summary.options = optionRecords.length + accessoryRecords.length;
+  const incomingOptions = [...optionRecords, ...accessoryRecords];
+  const { data: protectedRows, error: protectedError } = await publicCatalog
+    .from("catalog_options").select("product_id,option_slug").eq("admin_managed", true);
+  if (protectedError) throw new Error(`Unable to read admin-managed catalog options: ${protectedError.message}`);
+  const protectedKeys = new Set((protectedRows ?? []).map((row) => `${row.product_id}:${row.option_slug}`));
+  const importableOptions = incomingOptions.filter((row) => {
+    const protectedOption = protectedKeys.has(`${row.product_id}:${row.option_slug}`);
+    if (protectedOption) console.warn(`Skipped admin-managed catalog option ${row.option_slug}; Admin value remains authoritative.`);
+    return !protectedOption;
+  });
+  await upsert(publicCatalog, "catalog_options", importableOptions, "product_id,option_slug");
+  summary.options = importableOptions.length;
   const options = await refreshMap(publicCatalog, "catalog_options", "option_slug");
 
   for (const row of rows(catalogRows, "Variant Option Links")) {

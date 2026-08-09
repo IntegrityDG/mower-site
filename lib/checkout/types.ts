@@ -1,5 +1,5 @@
 export type CheckoutPaymentMethod = "card" | "ach_debit" | "wire_transfer";
-export type CheckoutPurchaseMode = "standard" | "complete-system" | "individual-equipment";
+export type CheckoutPurchaseMode = "standard" | "complete-system" | "individual-equipment" | "accessories";
 export type OrderStatus = "draft" | "checkout_pending" | "payment_processing" | "confirmed" | "canceled";
 export type PaymentStatus = "unpaid" | "awaiting_customer_action" | "processing" | "awaiting_customer_funds" | "partially_funded" | "paid" | "failed" | "partially_refunded" | "refunded" | "disputed";
 export type FulfillmentStatus = "not_ready" | "pending" | "fulfilled" | "canceled";
