@@ -23,6 +23,15 @@ export function isUuid(value: string) { return UUID.test(value); }
 
 export type PricingPatchResult = { ok: true; value: Record<string, unknown> } | { ok: false; error: string };
 
+export function validatePricingDateWindow(kind: PricingKind, values: Record<string, unknown>): string | null {
+  const startKey = kind === "product-services" ? "override_sale_starts_at" : kind === "schedules" ? "starts_at" : "sale_starts_at";
+  const endKey = kind === "product-services" ? "override_sale_ends_at" : kind === "schedules" ? "ends_at" : "sale_ends_at";
+  const start = values[startKey]; const end = values[endKey];
+  if (kind === "schedules" && (typeof start !== "string" || Number.isNaN(new Date(start).getTime()))) return "starts_at is required and must be a valid date.";
+  if (typeof start === "string" && typeof end === "string" && new Date(start) >= new Date(end)) return kind === "schedules" ? "Schedule start must be before schedule end." : "Sale start must be before sale end.";
+  return null;
+}
+
 export function validatePricingPatch(kind: PricingKind, input: unknown): PricingPatchResult {
   if (!input || typeof input !== "object" || Array.isArray(input)) return { ok: false, error: "A JSON object is required." };
   const body = input as Record<string, unknown>;
@@ -37,6 +46,7 @@ export function validatePricingPatch(kind: PricingKind, input: unknown): Pricing
       else if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) return { ok: false, error: `${key} must be null or a non-negative integer number of cents.` };
       else value[key] = raw;
     } else if (dateFields.has(key)) {
+      if (kind === "schedules" && key === "starts_at" && (raw === null || raw === "")) return { ok: false, error: "starts_at is required and must be a valid date." };
       if (raw === null || raw === "") value[key] = null;
       else if (typeof raw !== "string" || Number.isNaN(new Date(raw).getTime())) return { ok: false, error: `${key} must be a valid date.` };
       else value[key] = new Date(raw).toISOString();
@@ -53,10 +63,8 @@ export function validatePricingPatch(kind: PricingKind, input: unknown): Pricing
       value[key] = raw;
     }
   }
-  const startKey = kind === "product-services" ? "override_sale_starts_at" : kind === "schedules" ? "starts_at" : "sale_starts_at";
-  const endKey = kind === "product-services" ? "override_sale_ends_at" : kind === "schedules" ? "ends_at" : "sale_ends_at";
-  const start = value[startKey]; const end = value[endKey];
-  if (typeof start === "string" && typeof end === "string" && new Date(start) >= new Date(end)) return { ok: false, error: "Sale start must be before sale end." };
+  const dateError = validatePricingDateWindow(kind, value);
+  if (dateError && (kind === "schedules" ? "starts_at" in value || "ends_at" in value : true)) return { ok: false, error: dateError };
   return { ok: true, value };
 }
 

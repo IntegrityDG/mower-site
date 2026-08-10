@@ -1,7 +1,7 @@
-import { isPricingKind, isUuid, validatePricingPatch } from "./validation";
+import { isPricingKind, isUuid, validatePricingDateWindow, validatePricingPatch } from "./validation";
 import type { PricingCatalog, PricingItem } from "./types";
 
-type Dependencies = { isAdmin: () => Promise<boolean>; read: () => Promise<PricingCatalog>; update: (kind: Parameters<typeof validatePricingPatch>[0], id: string, values: Record<string, unknown>) => Promise<PricingItem> };
+type Dependencies = { isAdmin: () => Promise<boolean>; read: () => Promise<PricingCatalog>; readValues: (kind: Parameters<typeof validatePricingPatch>[0], id: string) => Promise<Record<string, unknown> | null>; update: (kind: Parameters<typeof validatePricingPatch>[0], id: string, values: Record<string, unknown>) => Promise<PricingItem> };
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 
 export function createPricingAdminHandlers(deps: Dependencies) {
@@ -17,7 +17,13 @@ export function createPricingAdminHandlers(deps: Dependencies) {
       if (!isUuid(id)) return json({ error: "Invalid record id." }, 400);
       const parsed = validatePricingPatch(kind, await request.json().catch(() => null));
       if (!parsed.ok) return json({ error: parsed.error }, 422);
-      try { return json({ item: await deps.update(kind, id, parsed.value), success: true }); }
+      try {
+        const existing = await deps.readValues(kind, id);
+        if (!existing) return json({ error: "Pricing record not found." }, 404);
+        const dateError = validatePricingDateWindow(kind, { ...existing, ...parsed.value });
+        if (dateError) return json({ error: dateError }, 422);
+        return json({ item: await deps.update(kind, id, parsed.value), success: true });
+      }
       catch (error) { return json({ error: error instanceof Error && error.message === "Pricing record not found." ? error.message : "Pricing update failed." }, error instanceof Error && error.message === "Pricing record not found." ? 404 : 500); }
     },
   };

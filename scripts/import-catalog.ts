@@ -58,6 +58,13 @@ export function mergePreservedPricing(
   });
 }
 
+const PRICE_SCHEDULE_TARGET_COLUMNS = ["product_id","variant_id","option_id","package_id","service_id","product_service_id"] as const;
+function priceScheduleIdentity(row: Record<string,unknown>) { const target = PRICE_SCHEDULE_TARGET_COLUMNS.find((column) => row[column] !== null && row[column] !== undefined); return target ? `${target}:${row[target]}:${row.schedule_name}` : "invalid"; }
+export function planPriceScheduleImport(incoming: Record<string,unknown>[], existing: Record<string,unknown>[], overwritePricing: boolean) {
+  const existingKeys = new Set(existing.map(priceScheduleIdentity));
+  return incoming.map((record) => ({ record, action: existingKeys.has(priceScheduleIdentity(record)) ? overwritePricing ? "update" as const : "preserve" as const : "insert" as const }));
+}
+
 function normalizeWorkbookRow(row: Row): Row {
   return Object.fromEntries(
     Object.entries(row).map(([key, value]) => [
@@ -700,7 +707,7 @@ async function main() {
     return { type, id: lookup(maps[type], itemSlug, `${itemType} item_slug`) };
   };
 
-  for (const row of rows(catalogRows, "Price Schedule")) {
+  const incomingSchedules = rows(catalogRows, "Price Schedule").map((row) => {
     const itemType = required(slug(row.item_type), "Price Schedule.item_type");
     const itemSlug = required(slug(row.item_slug), "Price Schedule.item_slug");
     const target = targetFor(itemType, itemSlug);
@@ -714,13 +721,16 @@ async function main() {
       contact_for_pricing: bool(row.contact_for_pricing, false),
       public_status: text(row.public_status) ?? "active", updated_at: new Date().toISOString(),
     });
-    if (!overwritePricing) {
-      const { data: existingSchedules, error: scheduleError } = await publicCatalog.from("catalog_price_schedules").select("id").eq(targetColumn, target.id).limit(1);
-      if (scheduleError) throw new Error(`catalog_price_schedules pricing lookup: ${scheduleError.message}`);
-      if (existingSchedules?.length) { console.warn(`Preserving live pricing for catalog_price_schedules.${target.type}.${itemSlug}.`); continue; }
-    }
-    await updateOrInsert(publicCatalog, "catalog_price_schedules", record, {
-      [targetColumn]: target.id, schedule_name: record.schedule_name, starts_at: record.starts_at,
+    return { record, targetColumn, targetId: target.id, targetType: target.type, itemSlug };
+  });
+  const { data: existingScheduleRows, error: existingScheduleError } = await publicCatalog.from("catalog_price_schedules").select("product_id,variant_id,option_id,package_id,service_id,product_service_id,schedule_name,starts_at,ends_at,regular_price_cents,sale_price_cents,promotion_label,show_public_price,contact_for_pricing,public_status");
+  if (existingScheduleError) throw new Error(`catalog_price_schedules pricing lookup: ${existingScheduleError.message}`);
+  const schedulePlan = planPriceScheduleImport(incomingSchedules.map((item) => item.record), (existingScheduleRows ?? []) as unknown as Record<string,unknown>[], overwritePricing);
+  for (const [index, planned] of schedulePlan.entries()) {
+    const incoming = incomingSchedules[index]!;
+    if (planned.action === "preserve") { console.warn(`Preserving live pricing for catalog_price_schedules.${incoming.targetType}.${incoming.itemSlug}.${planned.record.schedule_name}.`); continue; }
+    await updateOrInsert(publicCatalog, "catalog_price_schedules", planned.record, {
+      [incoming.targetColumn]: incoming.targetId, schedule_name: planned.record.schedule_name,
     });
   }
 

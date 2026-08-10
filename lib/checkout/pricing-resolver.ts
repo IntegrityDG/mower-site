@@ -4,6 +4,7 @@ import { getSupabaseServiceClient } from "@/lib/supabase";
 import { checkoutDisplayName, validateCheckoutEligibility, type CheckoutCatalog, type PriceableRow } from "./eligibility";
 import { CheckoutRejectionError, type CatalogSourceReference, type CheckoutRequest, type OrderPriceItem, type OrderPriceSnapshot } from "./types";
 import { resolvePaymentAdjustments } from "./payment-pricing";
+import { applyActivePriceSchedule, selectActivePriceSchedule } from "@/lib/catalog/active-price-schedule";
 
 function currentPrice(row: PriceableRow, now: number) {
   const starts = row.sale_starts_at ? new Date(row.sale_starts_at).getTime() : Number.NEGATIVE_INFINITY;
@@ -47,10 +48,10 @@ async function resolveAccessoryOnlyPricing(input: CheckoutRequest): Promise<Orde
   const sources: CatalogSourceReference[] = products.map((product) => ({ table: "catalog_products", id: product.id }));
   const chargeable: OrderPriceItem[] = input.selection.options.map((selected) => {
     const option = options.find((row) => row.id === selected.optionId)!;
-    const schedule = schedules.filter((item) => item.option_id === option.id && (!item.starts_at || now >= new Date(item.starts_at).getTime()) && (!item.ends_at || now <= new Date(item.ends_at).getTime())).sort((a, b) => new Date(b.starts_at ?? 0).getTime() - new Date(a.starts_at ?? 0).getTime())[0];
+    const schedule = selectActivePriceSchedule(schedules, "option", option.id, now);
     if (schedule) sources.push({ table: "catalog_price_schedules", id: schedule.id });
     sources.push({ table: "catalog_options", id: option.id });
-    const amount = currentPrice(schedule ? { ...option, regular_price_cents: schedule.regular_price_cents, sale_price_cents: schedule.sale_price_cents, sale_starts_at: schedule.starts_at, sale_ends_at: schedule.ends_at } : option, now);
+    const amount = currentPrice(applyActivePriceSchedule(option, schedule), now);
     return { itemType: "option", sourceId: option.id, sku: null, name: checkoutDisplayName(option), description: option.description, quantity: selected.quantity, unitAmountCents: amount, extendedAmountCents: amount * selected.quantity, includedInPackagePrice: false, parentSourceId: null };
   });
   const subtotal = chargeable.reduce((sum, item) => sum + item.extendedAmountCents, 0);
@@ -80,11 +81,10 @@ export async function resolveAuthoritativeOrderPricing(input: CheckoutRequest): 
   const now = Date.now();
   const sources: CatalogSourceReference[] = [{ table: "catalog_products", id: product.id }];
   const effectivePrice = (row: PriceableRow, type: "product" | "variant" | "option" | "package") => {
-    const idKey = `${type}_id` as "product_id" | "variant_id" | "option_id" | "package_id";
-    const schedule = schedules.filter((item) => item[idKey] === row.id && (!item.starts_at || now >= new Date(item.starts_at).getTime()) && (!item.ends_at || now <= new Date(item.ends_at).getTime())).sort((a, b) => new Date(b.starts_at ?? 0).getTime() - new Date(a.starts_at ?? 0).getTime())[0];
+    const schedule = selectActivePriceSchedule(schedules, type, row.id, now);
     if (schedule) {
       sources.push({ table: "catalog_price_schedules", id: schedule.id });
-      return currentPrice({ ...row, regular_price_cents: schedule.regular_price_cents, sale_price_cents: schedule.sale_price_cents, sale_starts_at: schedule.starts_at, sale_ends_at: schedule.ends_at }, now);
+      return currentPrice(applyActivePriceSchedule(row, schedule), now);
     }
     return currentPrice(row, now);
   };

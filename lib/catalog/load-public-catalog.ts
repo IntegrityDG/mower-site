@@ -11,47 +11,14 @@ import type {
 import { salesModeForProductSlug } from "@/lib/catalog/sales-mode";
 import { customerFacingOptions } from "@/lib/catalog/customer-facing-options";
 import { getSupabaseCatalogClient } from "@/lib/supabase";
+import type { ActivePriceSchedule, PriceScheduleTarget } from "@/lib/catalog/active-price-schedule";
+import { scheduledPublicPrice, type PublicPriceRow } from "@/lib/catalog/public-price";
 
 const fallbackImages: Record<string, string> = {
   "lymow-one-plus": "/products/lymow-one-plus-thumb.PNG",
   yarbo: "/products/yarbo-thumb.png",
   "pandag-g1": "/products/pandag-thumb.png",
 };
-
-type PriceRow = {
-  regular_price_cents: number | null;
-  sale_price_cents: number | null;
-  sale_starts_at: string | null;
-  sale_ends_at: string | null;
-  promotion_label: string | null;
-  show_public_price: boolean;
-  contact_for_pricing: boolean;
-};
-
-function priceFromRow(row: PriceRow): CatalogPrice {
-  const now = Date.now();
-  const startsAt = row.sale_starts_at
-    ? new Date(row.sale_starts_at).getTime()
-    : Number.NEGATIVE_INFINITY;
-  const endsAt = row.sale_ends_at
-    ? new Date(row.sale_ends_at).getTime()
-    : Number.POSITIVE_INFINITY;
-  const saleIsActive =
-    row.sale_price_cents !== null && now >= startsAt && now <= endsAt;
-
-  return {
-    displayMsrpPriceCents: null,
-    regularPriceCents: row.regular_price_cents,
-    salePriceCents: row.sale_price_cents,
-    currentPriceCents: saleIsActive
-      ? row.sale_price_cents
-      : row.regular_price_cents,
-    showPublicPrice: row.show_public_price,
-    contactForPricing: row.contact_for_pricing,
-    promotionLabel: saleIsActive ? row.promotion_label : null,
-    saleIsActive,
-  };
-}
 
 const quoteOnlyPublicPrice: CatalogPrice = {
   displayMsrpPriceCents: null,
@@ -101,6 +68,7 @@ export async function loadPublicCatalog(
     }
 
     const productIds = products.map((product) => product.id);
+    const now = Date.now();
     const [
       variantsResult,
       optionGroupsResult,
@@ -108,6 +76,7 @@ export async function loadPublicCatalog(
       packagesResult,
       pagesResult,
       mediaResult,
+      schedulesResult,
     ] = await Promise.all([
       supabase
         .from("catalog_product_variants")
@@ -147,6 +116,10 @@ export async function loadPublicCatalog(
         .in("product_id", productIds)
         .eq("show_on_product_page", true)
         .order("sort_order"),
+      supabase
+        .from("catalog_price_schedules")
+        .select("id, schedule_name, product_id, variant_id, option_id, package_id, service_id, product_service_id, starts_at, ends_at, regular_price_cents, sale_price_cents, promotion_label, show_public_price, contact_for_pricing, public_status")
+        .eq("public_status", "active"),
     ]);
 
     const variants = ensureData("Variants", variantsResult);
@@ -155,6 +128,7 @@ export async function loadPublicCatalog(
     const packages = ensureData("Packages", packagesResult);
     const pages = ensureData("Product pages", pagesResult);
     const media = ensureData("Product media", mediaResult);
+    const schedules = ensureData("Price schedules", schedulesResult) as ActivePriceSchedule[];
 
     const variantIds = variants.map((variant) => variant.id);
     const packageIds = packages.map((catalogPackage) => catalogPackage.id);
@@ -292,15 +266,15 @@ export async function loadPublicCatalog(
       accessoryActionUrl: option.accessory_action_url ?? null,
       accessoryPriceText: option.accessory_price_text ?? null,
       manufacturerName: option.manufacturer_name ?? null,
-      ...priceFromRow(option),
+      ...scheduledPublicPrice(option as PublicPriceRow, schedules, "option", option.id, now).price,
     }));
 
     const normalizedProducts: CatalogProduct[] = products.map((product) => {
       const salesMode = salesModeForProductSlug(product.slug);
-      const publicPrice = (row: PriceRow) =>
+      const publicPrice = (row: PublicPriceRow, target: PriceScheduleTarget, targetId: string) =>
         salesMode === "quote_only"
           ? quoteOnlyPublicPrice
-          : priceFromRow(row);
+          : scheduledPublicPrice(row, schedules, target, targetId, now).price;
       const productMedia = media
         .filter((item) => item.product_id === product.id)
         .map((item) => ({
@@ -346,7 +320,7 @@ export async function loadPublicCatalog(
           ...(salesMode === "quote_only"
             ? { specifications: specificationsForVariant(variant.id) }
             : {}),
-          ...publicPrice(variant),
+          ...publicPrice(variant, "variant", variant.id),
         }));
 
       const customerFacingProductOptionRows = customerFacingOptions(
@@ -390,7 +364,7 @@ export async function loadPublicCatalog(
                   (option) => option.id === item.option_id
                 ) ?? null,
             })),
-          ...publicPrice(catalogPackage),
+          ...publicPrice(catalogPackage, "package", catalogPackage.id),
         }));
 
       return {
@@ -434,7 +408,7 @@ export async function loadPublicCatalog(
           (option) => option.optionGroupId === null
         ),
         packages: normalizedPackages,
-        ...publicPrice(product),
+        ...publicPrice(product, "product", product.id),
       };
     });
 
