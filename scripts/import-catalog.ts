@@ -31,6 +31,32 @@ type LymowPricingOverrides = {
 };
 
 type OverrideLogger = Pick<Console, "warn">;
+type PricingLogger = Pick<Console, "warn" | "log">;
+
+export const CATALOG_PRICING_FIELDS = ["regular_price_cents", "sale_price_cents", "sale_starts_at", "sale_ends_at", "promotion_label", "show_public_price", "contact_for_pricing"] as const;
+export const PRODUCT_SERVICE_PRICING_FIELDS = ["override_regular_price_cents", "override_sale_price_cents", "override_sale_starts_at", "override_sale_ends_at", "override_promotion_label", "override_show_public_price", "override_contact_for_pricing"] as const;
+export const SERVICE_PAYMENT_PRICING_FIELDS = ["regular_price_cents", "sale_price_cents", "is_available"] as const;
+
+export function catalogImportOverwritesPricing(env: NodeJS.ProcessEnv = process.env) {
+  return env.CATALOG_IMPORT_OVERWRITE_PRICING === "true";
+}
+
+function recordKey(row: Record<string, unknown>, columns: readonly string[]) { return columns.map((column) => String(row[column] ?? "<null>")).join(":"); }
+
+export function mergePreservedPricing(
+  incoming: Record<string, unknown>[], existing: Record<string, unknown>[], keyColumns: readonly string[], pricingFields: readonly string[], overwritePricing: boolean, table: string, logger: PricingLogger = console,
+) {
+  if (overwritePricing) return incoming.map((row) => ({ ...row }));
+  const existingByKey = new Map(existing.map((row) => [recordKey(row, keyColumns), row]));
+  return incoming.map((row) => {
+    const stored = existingByKey.get(recordKey(row, keyColumns));
+    if (!stored) return { ...row };
+    const merged = { ...row };
+    for (const field of pricingFields) if (field in stored) merged[field] = stored[field];
+    logger.warn(`Preserving live pricing for ${table}.${keyColumns.map((column) => row[column]).filter(Boolean).join(".")}.`);
+    return merged;
+  });
+}
 
 function normalizeWorkbookRow(row: Row): Row {
   return Object.fromEntries(
@@ -323,6 +349,13 @@ async function upsert(
   return data ?? [];
 }
 
+async function preserveLivePricing(client: DbClient, table: string, records: Record<string, unknown>[], keyColumns: readonly string[], pricingFields: readonly string[], overwritePricing: boolean) {
+  if (!records.length || overwritePricing) return records;
+  const { data, error } = await client.from(table).select([...keyColumns, ...pricingFields].join(","));
+  if (error) throw new Error(`${table} pricing lookup: ${error.message}`);
+  return mergePreservedPricing(records, (data ?? []) as unknown as Record<string,unknown>[], keyColumns, pricingFields, false, table);
+}
+
 async function refreshMap(
   client: DbClient,
   table: string,
@@ -439,6 +472,9 @@ async function main() {
   const catalogRows = loadCatalogRows();
   validateWorkbook(catalogRows);
   const { supabase, publicCatalog, privateCatalog } = createCatalogClients();
+  const overwritePricing = catalogImportOverwritesPricing();
+  if (overwritePricing) console.warn("CATALOG_IMPORT_OVERWRITE_PRICING=true: pricing overwrite mode is active.");
+  else console.log("Catalog import will preserve live database pricing for existing records.");
   const summary = {
     products: 0, variants: 0, options: 0, packages: 0, services: 0,
     servicePaymentOptions: 0, productPages: 0, media: 0, internalPricing: 0,
@@ -460,7 +496,7 @@ async function main() {
     promotion_label: text(row.promotion_label), show_public_price: bool(row.show_public_price),
     contact_for_pricing: bool(row.contact_for_pricing, true), updated_at: new Date().toISOString(),
   }));
-  await upsert(publicCatalog, "catalog_products", productRecords, "slug");
+  await upsert(publicCatalog, "catalog_products", await preserveLivePricing(publicCatalog, "catalog_products", productRecords, ["slug"], CATALOG_PRICING_FIELDS, overwritePricing), "slug");
   summary.products = productRecords.length;
   const products = await refreshMap(publicCatalog, "catalog_products", "slug");
 
@@ -475,7 +511,7 @@ async function main() {
     promotion_label: text(row.promotion_label), show_public_price: bool(row.show_public_price),
     contact_for_pricing: bool(row.contact_for_pricing, true), updated_at: new Date().toISOString(),
   }));
-  await upsert(publicCatalog, "catalog_product_variants", variantRecords, "product_id,variant_slug");
+  await upsert(publicCatalog, "catalog_product_variants", await preserveLivePricing(publicCatalog, "catalog_product_variants", variantRecords, ["product_id","variant_slug"], CATALOG_PRICING_FIELDS, overwritePricing), "product_id,variant_slug");
   summary.variants = variantRecords.length;
   const variants = await refreshMap(publicCatalog, "catalog_product_variants", "variant_slug");
 
@@ -571,7 +607,7 @@ async function main() {
     if (protectedOption) console.warn(`Skipped admin-managed catalog option ${row.option_slug}; Admin value remains authoritative.`);
     return !protectedOption;
   });
-  await upsert(publicCatalog, "catalog_options", importableOptions, "product_id,option_slug");
+  await upsert(publicCatalog, "catalog_options", await preserveLivePricing(publicCatalog, "catalog_options", importableOptions, ["product_id","option_slug"], CATALOG_PRICING_FIELDS, overwritePricing), "product_id,option_slug");
   summary.options = importableOptions.length;
   const options = await refreshMap(publicCatalog, "catalog_options", "option_slug");
 
@@ -595,7 +631,7 @@ async function main() {
     show_public_price: bool(row.show_public_price), contact_for_pricing: bool(row.contact_for_pricing, true),
     sort_order: integer(row.sort_order, 0), updated_at: new Date().toISOString(),
   }));
-  await upsert(publicCatalog, "catalog_packages", packageRecords, "product_id,package_slug");
+  await upsert(publicCatalog, "catalog_packages", await preserveLivePricing(publicCatalog, "catalog_packages", packageRecords, ["product_id","package_slug"], CATALOG_PRICING_FIELDS, overwritePricing), "product_id,package_slug");
   summary.packages = packageRecords.length;
   const packages = await refreshMap(publicCatalog, "catalog_packages", "package_slug");
   for (const row of rows(catalogRows, "Package Items")) {
@@ -618,7 +654,7 @@ async function main() {
     show_public_price: bool(row.show_public_price), contact_for_pricing: bool(row.contact_for_pricing, true),
     sort_order: integer(row.sort_order, 0), updated_at: new Date().toISOString(),
   }));
-  await upsert(publicCatalog, "catalog_services", serviceRecords, "service_slug");
+  await upsert(publicCatalog, "catalog_services", await preserveLivePricing(publicCatalog, "catalog_services", serviceRecords, ["service_slug"], CATALOG_PRICING_FIELDS, overwritePricing), "service_slug");
   summary.services = serviceRecords.length;
   const services = await refreshMap(publicCatalog, "catalog_services", "service_slug");
 
@@ -631,7 +667,7 @@ async function main() {
     is_available: bool(row.is_selectable), sort_order: integer(row.sort_order, 0), notes: text(row.notes),
     updated_at: new Date().toISOString(),
   }));
-  await upsert(publicCatalog, "catalog_service_payment_options", paymentRecords, "payment_option_slug");
+  await upsert(publicCatalog, "catalog_service_payment_options", await preserveLivePricing(publicCatalog, "catalog_service_payment_options", paymentRecords, ["payment_option_slug"], SERVICE_PAYMENT_PRICING_FIELDS, overwritePricing), "payment_option_slug");
   summary.servicePaymentOptions = paymentRecords.length;
 
   const productServiceRecords = rows(catalogRows, "Product Services").map((row) => ({
@@ -640,7 +676,7 @@ async function main() {
     override_regular_price_cents: cents(row, "price_override_cents", "price_override_dollars"), sort_order: 0,
     updated_at: new Date().toISOString(),
   }));
-  await upsert(publicCatalog, "catalog_product_services", productServiceRecords, "product_id,service_id");
+  await upsert(publicCatalog, "catalog_product_services", await preserveLivePricing(publicCatalog, "catalog_product_services", productServiceRecords, ["product_id","service_id"], PRODUCT_SERVICE_PRICING_FIELDS, overwritePricing), "product_id,service_id");
   const productServices = new Map<string, string>();
   const { data: psData, error: psError } = await supabase.from("catalog_product_services").select("id,product_id,service_id");
   if (psError) throw new Error(`catalog_product_services lookup: ${psError.message}`);
@@ -678,6 +714,11 @@ async function main() {
       contact_for_pricing: bool(row.contact_for_pricing, false),
       public_status: text(row.public_status) ?? "active", updated_at: new Date().toISOString(),
     });
+    if (!overwritePricing) {
+      const { data: existingSchedules, error: scheduleError } = await publicCatalog.from("catalog_price_schedules").select("id").eq(targetColumn, target.id).limit(1);
+      if (scheduleError) throw new Error(`catalog_price_schedules pricing lookup: ${scheduleError.message}`);
+      if (existingSchedules?.length) { console.warn(`Preserving live pricing for catalog_price_schedules.${target.type}.${itemSlug}.`); continue; }
+    }
     await updateOrInsert(publicCatalog, "catalog_price_schedules", record, {
       [targetColumn]: target.id, schedule_name: record.schedule_name, starts_at: record.starts_at,
     });
