@@ -94,10 +94,6 @@ export default function Page() {
           </div>
         </section>
 
-        <HomeReviews />
-
-        <HomeSalesSpecial />
-
         {/* FEATURED EQUIPMENT */}
         <section className="bg-white px-6 py-20 md:px-10">
           <div className="mx-auto max-w-7xl">
@@ -223,6 +219,8 @@ export default function Page() {
           </div>
         </section>
 
+        <HomeSalesSpecial />
+
         {/* PRICE MATCH */}
         <section
           aria-labelledby="price-match-heading"
@@ -251,6 +249,8 @@ export default function Page() {
             <ContactInformationModal triggerClassName="mt-8 inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-8 py-4 text-lg font-black text-slate-950 shadow-xl transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-200" />
           </div>
         </section>
+
+        <HomeReviews />
 
         {/* HEARTH FINANCING */}
         <section

@@ -52,4 +52,23 @@ test("public projection exposes only rendering fields", () => { const result = t
 test("admin handlers reject unauthenticated requests", async () => { const handlers = createSalesSpecialsAdminHandlers({ isAdmin: async () => false, read: async () => valid, save: async (value) => value }); assert.equal((await handlers.GET()).status, 401); assert.equal((await handlers.PUT(new Request("http://local", { method: "PUT", body: JSON.stringify(valid) }))).status, 401); });
 test("authenticated admin can read and update settings", async () => { let stored = valid; const handlers = createSalesSpecialsAdminHandlers({ isAdmin: async () => true, read: async () => stored, save: async (value) => (stored = value) }); assert.equal((await handlers.GET()).status, 200); const changed = { ...valid, headline: "New event" }; const response = await handlers.PUT(new Request("http://local", { method: "PUT", body: JSON.stringify(changed) })); assert.equal(response.status, 200); assert.equal(stored.headline, "New event"); });
 
-test("homepage placement remains reviews then Sales & Specials then featured equipment", () => { const source = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8"); const reviews = source.indexOf("<HomeReviews />"); const promotion = source.indexOf("<HomeSalesSpecial />"); const featured = source.indexOf("{/* FEATURED EQUIPMENT */}"); assert.ok(reviews >= 0 && reviews < promotion && promotion < featured); });
+test("homepage placement follows the optimized sales-flow order", () => {
+  const source = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const featured = source.indexOf("{/* FEATURED EQUIPMENT */}");
+  const promotion = source.indexOf("<HomeSalesSpecial />");
+  const priceMatch = source.indexOf("{/* PRICE MATCH */}");
+  const reviews = source.indexOf("<HomeReviews />");
+  const financing = source.indexOf("{/* HEARTH FINANCING */}");
+  const purchaseFlow = source.indexOf('id="location-and-customer-path"');
+  const contact = source.indexOf("<HomepageContactSection />");
+
+  assert.ok(
+    featured >= 0 &&
+      featured < promotion &&
+      promotion < priceMatch &&
+      priceMatch < reviews &&
+      reviews < financing &&
+      financing < purchaseFlow &&
+      purchaseFlow < contact,
+  );
+});
