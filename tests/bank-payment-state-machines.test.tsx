@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { achTransition, wireTransition } from "../lib/checkout/bank-payment-transitions";
 import { canTransitionAttempt } from "../lib/checkout/status-transitions";
-import { reconcileAchIntent } from "../lib/stripe/ach-webhook-policy";
-import { reconcileWireIntent } from "../lib/stripe/wire-webhook-policy";
+import { reconcileAchIntent, reconcileAchSession } from "../lib/stripe/ach-webhook-policy";
+import { reconcileWireIntent, reconcileWireSession } from "../lib/stripe/wire-webhook-policy";
 
 const record={orderId:"order",attemptId:"attempt",totalCents:262478,currency:"usd" as const};
 const metadata={order_id:"order",attempt_id:"attempt",payment_method:"ach_debit"};
@@ -25,6 +25,17 @@ test("ACH reconciles processing, success, failure, and mismatches",()=>{
   assert.equal(reconcileAchIntent({...base,status:"succeeded"},record),"paid");
   assert.equal(reconcileAchIntent({...base,status:"requires_payment_method"},record),"failed");
   assert.throws(()=>reconcileAchIntent({...base,status:"succeeded",amount:1},record));
+  assert.equal(reconcileAchIntent({...base,livemode:true,status:"succeeded"},record,true),"paid");
+  assert.throws(()=>reconcileAchIntent({...base,livemode:true,status:"succeeded"},record,false));
+  assert.throws(()=>reconcileAchIntent({...base,status:"succeeded"},record,true));
+});
+
+test("ACH Sessions require the configured Stripe mode",()=>{
+  const base={livemode:false,status:"complete",mode:"payment",paymentMethodTypes:["us_bank_account"],clientReferenceId:"order",metadata,currency:"usd",amountTotal:262478,paymentStatus:"paid"};
+  assert.doesNotThrow(()=>reconcileAchSession(base,record,false));
+  assert.doesNotThrow(()=>reconcileAchSession({...base,livemode:true},record,true));
+  assert.throws(()=>reconcileAchSession({...base,livemode:true},record,false));
+  assert.throws(()=>reconcileAchSession(base,record,true));
 });
 
 test("wire requires exact success and preserves partial funding",()=>{
@@ -46,6 +57,17 @@ test("wire reconciles awaiting, partial, exact, overpayment, and failure",()=>{
   assert.deepEqual(reconcileWireIntent({...base,status:"succeeded",amountReceived:262479},record),{kind:"overpayment",funded:262479,remaining:0});
   assert.deepEqual(reconcileWireIntent({...base,status:"canceled",amountReceived:0},record).kind,"failed");
   assert.throws(()=>reconcileWireIntent({...base,amountReceived:1,amount:1},record));
+  assert.deepEqual(reconcileWireIntent({...base,livemode:true,status:"succeeded",amountReceived:262478},record,true),{kind:"paid",funded:262478,remaining:0});
+  assert.throws(()=>reconcileWireIntent({...base,livemode:true,amountReceived:0},record,false));
+  assert.throws(()=>reconcileWireIntent({...base,amountReceived:0},record,true));
+});
+
+test("Wire Sessions require the configured Stripe mode",()=>{
+  const base={livemode:false,status:"open",mode:"payment",paymentMethodTypes:["customer_balance"],clientReferenceId:"order",metadata:{...metadata,payment_method:"wire_transfer"},currency:"usd",amountTotal:262478,paymentStatus:"unpaid"};
+  assert.doesNotThrow(()=>reconcileWireSession(base,record,false));
+  assert.doesNotThrow(()=>reconcileWireSession({...base,livemode:true},record,true));
+  assert.throws(()=>reconcileWireSession({...base,livemode:true},record,false));
+  assert.throws(()=>reconcileWireSession(base,record,true));
 });
 
 test("terminal success cannot regress under reordered events",()=>{

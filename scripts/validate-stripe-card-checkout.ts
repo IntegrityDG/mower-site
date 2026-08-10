@@ -7,7 +7,7 @@ import { checkoutAttemptIdempotencyKey, checkoutRequestFingerprint } from "../li
 import { signCancelState, verifyCancelState } from "../lib/checkout/signed-state";
 import { getCheckoutSigningSecret, getStripeConfiguration, getStripeSecretKey, getStripeWebhookSecret, StripeConfigurationError } from "../lib/stripe/config-values";
 import { PAYMENT_SECURITY_NOTICE } from "../lib/checkout/payment-security-policy";
-import { assertTestEvent, reconcileCompletedSession, reconcileExpiredSession, reconcileFinancialObject, WebhookReconciliationError } from "../lib/stripe/webhook-policy";
+import { assertStripeEventMode, reconcileCompletedSession, reconcileExpiredSession, reconcileFinancialObject, WebhookReconciliationError } from "../lib/stripe/webhook-policy";
 import { canTransitionAttempt, transitionCheckoutState } from "../lib/checkout/status-transitions";
 import type { CheckoutRequest, OrderPriceSnapshot } from "../lib/checkout/types";
 
@@ -87,7 +87,7 @@ assert.throws(() => reconcileExpiredSession({ ...completed, status: "expired", p
 assert.throws(() => reconcileCompletedSession({ ...completed, amountTotal: 999 }, record), WebhookReconciliationError);
 assert.throws(() => reconcileCompletedSession({ ...completed, currency: "eur" }, record), WebhookReconciliationError);
 assert.throws(() => reconcileCompletedSession({ ...completed, livemode: true }, record), WebhookReconciliationError);
-assert.throws(() => assertTestEvent(true), WebhookReconciliationError);
+assert.throws(() => assertStripeEventMode(true, false), WebhookReconciliationError);
 assert.doesNotThrow(() => reconcileFinancialObject({ livemode: false, amount: 1000, currency: "usd" }, record));
 assert.throws(() => reconcileFinancialObject({ livemode: false, amount: 999, currency: "usd" }, record));
 assert.doesNotThrow(() => reconcileFinancialObject({ livemode: false, amount: 400, currency: "usd" }, record, true));
