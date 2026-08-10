@@ -120,10 +120,15 @@ test("the accessible contact dialog uses the centralized public links", () => {
     />
   );
 
-  assert.equal(SITE_CONTACT.phone.display, "(573) 971-7197");
-  assert.equal(SITE_CONTACT.phone.href, "tel:+15739717197");
-  assert.equal(SITE_CONTACT.email.display, "Info.IDS@proton.me");
-  assert.equal(SITE_CONTACT.email.href, "mailto:Info.IDS@proton.me");
+  assert.equal("phone" in SITE_CONTACT, false);
+  assert.equal(
+    SITE_CONTACT.email.display,
+    "IntegrityDistributionSystems@gmail.com"
+  );
+  assert.equal(
+    SITE_CONTACT.email.href,
+    "mailto:IntegrityDistributionSystems@gmail.com"
+  );
   assert.match(
     SITE_CONTACT.facebook.href,
     /^https:\/\/www\.facebook\.com\/61577666481254$/
@@ -134,8 +139,13 @@ test("the accessible contact dialog uses the centralized public links", () => {
   assert.match(html, /aria-labelledby="contact-heading"/);
   assert.match(html, /aria-describedby="contact-description"/);
   assert.match(html, /aria-label="Close contact information"/);
-  assert.match(html, /href="tel:\+15739717197"/);
-  assert.match(html, /href="mailto:Info\.IDS@proton\.me"/);
+  assert.doesNotMatch(html, /href="tel:/i);
+  assert.doesNotMatch(html, /\(573\) 971-7197|\+15739717197/);
+  assert.match(
+    html,
+    /href="mailto:IntegrityDistributionSystems@gmail\.com"/
+  );
+  assert.doesNotMatch(html, /Info\.IDS@proton\.me/i);
   const facebookLinkPattern = new RegExp(
     `href="${escapeRegExp(SITE_CONTACT.facebook.href)}" target="_blank" rel="noopener noreferrer"`,
     "g"
@@ -158,5 +168,4 @@ test("the accessible contact dialog uses the centralized public links", () => {
   assert.match(qrLink, /src="\/contact\/facebook-qr\.png"/);
   assert.match(qrLink, new RegExp(`alt="${escapeRegExp(qrAlt)}"`));
   assert.match(qrLink, facebookLinkPattern);
-  assert.doesNotMatch(html, /gmail\.com/i);
 });

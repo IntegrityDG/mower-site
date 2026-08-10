@@ -1,11 +1,7 @@
 export const SITE_CONTACT = {
-  phone: {
-    display: "(573) 971-7197",
-    href: "tel:+15739717197",
-  },
   email: {
-    display: "Info.IDS@proton.me",
-    href: "mailto:Info.IDS@proton.me",
+    display: "IntegrityDistributionSystems@gmail.com",
+    href: "mailto:IntegrityDistributionSystems@gmail.com",
   },
   facebook: {
     display: "Integrity Distribution Systems on Facebook",

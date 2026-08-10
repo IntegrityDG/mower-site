@@ -19,23 +19,6 @@ export function contactDialogReducer(
   return action.type === "open" ? true : false;
 }
 
-function PhoneIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-6 w-6"
-    >
-      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.69 2.8a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.33 1.85.56 2.81.69A2 2 0 0 1 22 16.92Z" />
-    </svg>
-  );
-}
-
 function EmailIcon() {
   return (
     <svg
@@ -142,28 +125,11 @@ export function ContactInformationDialog({
 
         <div className="px-5 py-6 sm:px-7 sm:py-7">
           <p id={descriptionId} className="leading-7 text-slate-600">
-            Call, email, or connect with our team on Facebook. We&apos;ll help
+            Email or connect with our team on Facebook. We&apos;ll help
             you find the right next step for your property.
           </p>
 
           <div className="mt-6 space-y-3">
-            <a
-              href={SITE_CONTACT.phone.href}
-              className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-emerald-300 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:p-5"
-            >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 transition group-hover:bg-emerald-200">
-                <PhoneIcon />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-                  Cell phone
-                </span>
-                <span className="mt-1 block break-words font-black text-slate-950 sm:text-lg">
-                  {SITE_CONTACT.phone.display}
-                </span>
-              </span>
-            </a>
-
             <a
               href={SITE_CONTACT.email.href}
               className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 transition hover:border-emerald-300 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:p-5"
