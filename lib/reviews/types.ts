@@ -1,7 +1,7 @@
 export const REVIEW_PRODUCTS = [
   "Lymow One Plus", "Yarbo", "Yarbo Pro", "Pandag G1",
   "Equipment Demonstration", "Installation or Deployment",
-  "Repair or Technical Support", "Other",
+  "Repair or Technical Support", "Personal Review", "Other",
 ] as const;
 
 export const US_STATES = [
