@@ -67,7 +67,7 @@ test("normal importer preservation keeps all Admin-managed three-tier values", (
 });
 
 test("migration adds constrained comparison columns and converts only undated sales", () => {
-  const sql = readFileSync("supabase/migrations/20260811000015_add_three_tier_pricing.sql", "utf8");
+  const sql = readFileSync("supabase/migrations/20260811002042_add_three_tier_pricing.sql", "utf8");
   for (const table of ["catalog_products","catalog_product_variants","catalog_options","catalog_packages","catalog_services","catalog_service_payment_options"]) assert.match(sql, new RegExp(`alter table public\\.${table}[\\s\\S]*?add column display_msrp_price_cents`));
   assert.match(sql, /add column override_display_msrp_price_cents/);
   assert.equal((sql.match(/and sale_starts_at is null/g) ?? []).length, 5);

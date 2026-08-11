@@ -1,12 +1,12 @@
 "use client";
 
 
-import ContactInformationModal from "@/components/contact/ContactInformationModal";
 import HomepageContactSection from "@/components/contact/HomepageContactSection";
 import NationwidePurchaseFlow from "@/components/customer-paths/purchase/NationwidePurchaseFlow";
 import EquipmentCatalog from "@/components/equipment/EquipmentCatalog";
 import HomeReviews from "@/components/reviews/HomeReviews";
 import HomeSalesSpecial from "@/components/promotions/HomeSalesSpecial";
+import HomePriceMatch from "@/components/promotions/HomePriceMatch";
 
 const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
@@ -222,33 +222,7 @@ export default function Page() {
         <HomeSalesSpecial />
 
         {/* PRICE MATCH */}
-        <section
-          aria-labelledby="price-match-heading"
-          className="relative overflow-hidden border-y border-emerald-900 bg-gradient-to-br from-emerald-950 via-slate-950 to-slate-900 px-6 py-20 text-white md:px-10 md:py-24"
-        >
-          <div
-            aria-hidden="true"
-            className="absolute -left-24 top-1/2 h-72 w-72 -translate-y-1/2 rounded-full bg-emerald-400/20 blur-3xl"
-          />
-          <div
-            aria-hidden="true"
-            className="absolute -right-28 top-0 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl"
-          />
-          <div className="relative mx-auto max-w-5xl text-center">
-            <h2
-              id="price-match-heading"
-              className="text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl"
-            >
-              We’ll Do Our Absolute Best To Meet or Beat Any Verified Competitor
-              Price
-            </h2>
-            <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-200 sm:text-xl">
-              Found a better price? Send us the competitor’s current advertised
-              price and give us the opportunity to save you even more.
-            </p>
-            <ContactInformationModal triggerClassName="mt-8 inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-8 py-4 text-lg font-black text-slate-950 shadow-xl transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-200" />
-          </div>
-        </section>
+        <HomePriceMatch />
 
         <HomeReviews />
 

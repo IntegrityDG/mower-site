@@ -2,6 +2,9 @@ export const AFTERMARKET_DISCLAIMER = "Aftermarket Product Disclaimer: Integrity
 
 export type AccessoryTab = "lymow" | "yarbo" | "pandag" | "aftermarket";
 export type AccessoryAction = "builder" | "contact" | "external" | "none";
+export const ACCESSORY_AVAILABILITY_STATUSES = ["active", "unavailable", "coming_soon", "hidden"] as const;
+export type AccessoryAvailabilityStatus = typeof ACCESSORY_AVAILABILITY_STATUSES[number];
+export const ACCESSORY_AVAILABILITY_LABELS: Record<AccessoryAvailabilityStatus,string> = { active:"Available", unavailable:"Temporarily Unavailable", coming_soon:"Coming Soon", hidden:"Hidden" };
 
 export type AccessorySettings = {
   lymowEnabled: boolean; lymowLabel: string;
@@ -21,7 +24,7 @@ export type AccessoryItem = {
   currentPriceCents: number | null; promotionLabel: string | null; showPublicPrice: boolean;
   contactForPricing: boolean; showInBuilder: boolean; actionType: AccessoryAction;
   actionLabel: string | null; actionUrl: string | null; priceText: string | null; sortOrder: number;
-  visible?: boolean; publicStatus?: string;
+  visible?: boolean; publicStatus: AccessoryAvailabilityStatus;
 };
 
 export type AccessoryCatalogResponse = { settings: AccessorySettings; items: AccessoryItem[] };

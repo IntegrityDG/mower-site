@@ -196,8 +196,10 @@ export function ContactInformationDialog({
 }
 
 export default function ContactInformationModal({
+  triggerLabel = "Contact Us",
   triggerClassName = "inline-flex items-center justify-center rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 transition hover:bg-emerald-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300",
 }: {
+  triggerLabel?: string;
   triggerClassName?: string;
 }) {
   const [isContactOpen, dispatch] = useReducer(contactDialogReducer, false);
@@ -279,7 +281,7 @@ export default function ContactInformationModal({
         aria-controls={dialogId}
         className={triggerClassName}
       >
-        Contact Us
+        {triggerLabel}
       </button>
 
       {isContactOpen && (

@@ -48,11 +48,11 @@ test("the homepage contact section appears after the request flow and before the
   );
 });
 
-test("the homepage price-match section replaces the equipment request process", () => {
+test("the homepage price-match section uses the database-backed Meet or Beat component", () => {
   const homepageSource = readFileSync(
     join(process.cwd(), "app", "page.tsx"),
     "utf8"
-  );
+  ) + readFileSync(join(process.cwd(), "components", "promotions", "HomePriceMatch.tsx"), "utf8") + readFileSync(join(process.cwd(), "lib", "price-match", "config.ts"), "utf8");
   const featuredEquipmentEnd = homepageSource.indexOf(
     "{/* PRICE MATCH */}"
   );

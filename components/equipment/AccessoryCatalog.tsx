@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import type { AccessoryCatalogResponse, AccessoryItem, AccessoryTab } from "@/lib/accessories/types";
+import { ACCESSORY_AVAILABILITY_LABELS, type AccessoryCatalogResponse, type AccessoryItem, type AccessoryTab } from "@/lib/accessories/types";
 import { formatCents } from "@/lib/catalog/pricing";
 
 const PAGE_SIZE = 6;
@@ -21,11 +21,12 @@ function Disclaimer({ text }: { text: string }) {
 
 function Card({ item }: { item: AccessoryItem }) {
   const external = item.actionType === "external";
-  const showAction = external ? item.showInBuilder !== true && Boolean(item.actionUrl) : item.actionType === "contact";
+  const available = item.publicStatus === "active";
+  const showAction = available && (external ? item.showInBuilder !== true && Boolean(item.actionUrl) : item.actionType === "contact");
   return <article className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
     <div className="flex aspect-[4/3] items-center justify-center bg-slate-50 p-5"><img src={item.imageUrl || "/logo.png"} alt={item.imageAlt || `${item.name} product image`} loading="lazy" className="h-full w-full object-contain" /></div>
     <div className="flex flex-1 flex-col p-5">
-      <div className="flex flex-wrap gap-2"><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase text-emerald-800">{item.tab}</span>{item.badge && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{item.badge}</span>}{item.idsExclusive && <span className="rounded-full bg-amber-300 px-3 py-1 text-xs font-black text-slate-950">IDS Exclusive</span>}</div>
+      <div className="flex flex-wrap gap-2"><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase text-emerald-800">{item.tab}</span>{!available && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-900">{ACCESSORY_AVAILABILITY_LABELS[item.publicStatus]}</span>}{item.badge && <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{item.badge}</span>}{item.idsExclusive && <span className="rounded-full bg-amber-300 px-3 py-1 text-xs font-black text-slate-950">IDS Exclusive</span>}</div>
       <h2 className="mt-3 text-xl font-black">{item.name}</h2><p className="mt-2 flex-1 leading-6 text-slate-600">{item.description}</p><p className="mt-4 text-lg font-black text-emerald-700">{price(item)}</p>
       {showAction && <a href={item.actionUrl || "/contact"} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined} className="mt-4 rounded-xl bg-emerald-600 px-4 py-3 text-center font-black text-white hover:bg-emerald-700">{item.actionLabel || (external ? "Go to Manufacturer's Site" : "Contact IDS")}</a>}
     </div>
