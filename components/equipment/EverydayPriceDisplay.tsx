@@ -19,7 +19,7 @@ export default function EverydayPriceDisplay({
   regularClassName = "text-sm font-bold text-slate-500 line-through",
 }: EverydayPriceDisplayProps) {
   const idsPriceCents = item.currentPriceCents;
-  const comparisonPriceCents = item.regularPriceCents;
+  const comparisonPriceCents = item.displayMsrpPriceCents ?? null;
 
   if (item.contactForPricing || !item.showPublicPrice || idsPriceCents === null) {
     return (
@@ -38,7 +38,8 @@ export default function EverydayPriceDisplay({
         <p className={labelClassName}>{comparisonLabel}</p>
         <p className={regularClassName}>{formatCents(comparisonPriceCents)}</p>
         <p className={`${labelClassName} mt-2`}>IDS Everyday Price</p>
-        <p className={priceClassName}>{formatCents(idsPriceCents)}</p>
+        {item.regularPriceCents !== null && <p className={item.saleIsActive ? regularClassName : priceClassName}>{formatCents(item.regularPriceCents)}</p>}
+        {item.saleIsActive && <><p className={`${labelClassName} mt-2`}>{item.promotionLabel && item.promotionLabel !== "IDS Everyday Low Price" ? item.promotionLabel : "SALE PRICE"}</p><p className={priceClassName}>{formatCents(idsPriceCents)}</p></>}
       </div>
     );
   }

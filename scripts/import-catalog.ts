@@ -33,9 +33,14 @@ type LymowPricingOverrides = {
 type OverrideLogger = Pick<Console, "warn">;
 type PricingLogger = Pick<Console, "warn" | "log">;
 
-export const CATALOG_PRICING_FIELDS = ["regular_price_cents", "sale_price_cents", "sale_starts_at", "sale_ends_at", "promotion_label", "show_public_price", "contact_for_pricing"] as const;
-export const PRODUCT_SERVICE_PRICING_FIELDS = ["override_regular_price_cents", "override_sale_price_cents", "override_sale_starts_at", "override_sale_ends_at", "override_promotion_label", "override_show_public_price", "override_contact_for_pricing"] as const;
-export const SERVICE_PAYMENT_PRICING_FIELDS = ["regular_price_cents", "sale_price_cents", "is_available"] as const;
+export const CATALOG_PRICING_FIELDS = ["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "sale_starts_at", "sale_ends_at", "promotion_label", "show_public_price", "contact_for_pricing"] as const;
+export const PRODUCT_SERVICE_PRICING_FIELDS = ["override_display_msrp_price_cents", "override_regular_price_cents", "override_sale_price_cents", "override_sale_starts_at", "override_sale_ends_at", "override_promotion_label", "override_show_public_price", "override_contact_for_pricing"] as const;
+export const SERVICE_PAYMENT_PRICING_FIELDS = ["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "is_available"] as const;
+
+export function translateLegacyUndatedPricing(row: Record<string, unknown>): Record<string, unknown> {
+  if (row.sale_price_cents === null || row.sale_price_cents === undefined || row.sale_starts_at || row.sale_ends_at) return { ...row };
+  return { ...row, display_msrp_price_cents: row.regular_price_cents ?? null, regular_price_cents: row.sale_price_cents, sale_price_cents: null };
+}
 
 export function catalogImportOverwritesPricing(env: NodeJS.ProcessEnv = process.env) {
   return env.CATALOG_IMPORT_OVERWRITE_PRICING === "true";
@@ -357,10 +362,11 @@ async function upsert(
 }
 
 async function preserveLivePricing(client: DbClient, table: string, records: Record<string, unknown>[], keyColumns: readonly string[], pricingFields: readonly string[], overwritePricing: boolean) {
-  if (!records.length || overwritePricing) return records;
+  const importRecords = table === "catalog_service_payment_options" || table === "catalog_product_services" ? records : records.map(translateLegacyUndatedPricing);
+  if (!importRecords.length || overwritePricing) return importRecords;
   const { data, error } = await client.from(table).select([...keyColumns, ...pricingFields].join(","));
   if (error) throw new Error(`${table} pricing lookup: ${error.message}`);
-  return mergePreservedPricing(records, (data ?? []) as unknown as Record<string,unknown>[], keyColumns, pricingFields, false, table);
+  return mergePreservedPricing(importRecords, (data ?? []) as unknown as Record<string,unknown>[], keyColumns, pricingFields, false, table);
 }
 
 async function refreshMap(
@@ -669,7 +675,7 @@ async function main() {
     service_id: lookup(services, row.service_slug, "service_slug"),
     payment_option_slug: required(slug(row.payment_option_slug), "payment_option_slug"),
     payment_option_name: required(text(row.display_name), "display_name"), billing_type: text(row.billing_type),
-    regular_price_cents: cents(row, "price_cents", "price_dollars"), sale_price_cents: null,
+    display_msrp_price_cents: null, regular_price_cents: cents(row, "price_cents", "price_dollars"), sale_price_cents: null,
     season_length_months: integer(row.term_months), savings_label: number(row.listed_savings_dollars) === null ? null : `$${number(row.listed_savings_dollars)} savings`,
     is_available: bool(row.is_selectable), sort_order: integer(row.sort_order, 0), notes: text(row.notes),
     updated_at: new Date().toISOString(),
@@ -680,7 +686,7 @@ async function main() {
   const productServiceRecords = rows(catalogRows, "Product Services").map((row) => ({
     product_id: lookup(products, row.product_slug, "product_slug"), service_id: lookup(services, row.service_slug, "service_slug"),
     is_available: bool(row.is_available, true), is_recommended: bool(row.is_recommended), is_required: bool(row.is_required),
-    override_regular_price_cents: cents(row, "price_override_cents", "price_override_dollars"), sort_order: 0,
+    override_display_msrp_price_cents: null, override_regular_price_cents: cents(row, "price_override_cents", "price_override_dollars"), sort_order: 0,
     updated_at: new Date().toISOString(),
   }));
   await upsert(publicCatalog, "catalog_product_services", await preserveLivePricing(publicCatalog, "catalog_product_services", productServiceRecords, ["product_id","service_id"], PRODUCT_SERVICE_PRICING_FIELDS, overwritePricing), "product_id,service_id");

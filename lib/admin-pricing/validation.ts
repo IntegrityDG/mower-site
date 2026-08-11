@@ -1,18 +1,18 @@
 import { PRICING_KINDS, type PricingKind } from "./types";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const common = ["regular_price_cents", "sale_price_cents", "sale_starts_at", "sale_ends_at", "promotion_label", "show_public_price", "contact_for_pricing"] as const;
+const common = ["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "sale_starts_at", "sale_ends_at", "promotion_label", "show_public_price", "contact_for_pricing"] as const;
 const fields: Record<PricingKind, readonly string[]> = {
   products: common,
   variants: common,
   packages: common,
   options: common,
   services: common,
-  "service-payment-options": ["regular_price_cents", "sale_price_cents", "is_available"],
-  "product-services": ["override_regular_price_cents", "override_sale_price_cents", "override_sale_starts_at", "override_sale_ends_at", "override_promotion_label", "override_show_public_price", "override_contact_for_pricing"],
+  "service-payment-options": ["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "is_available"],
+  "product-services": ["override_display_msrp_price_cents", "override_regular_price_cents", "override_sale_price_cents", "override_sale_starts_at", "override_sale_ends_at", "override_promotion_label", "override_show_public_price", "override_contact_for_pricing"],
   schedules: ["schedule_name", "starts_at", "ends_at", "regular_price_cents", "sale_price_cents", "promotion_label", "show_public_price", "contact_for_pricing", "public_status"],
 };
-const priceFields = new Set(["regular_price_cents", "sale_price_cents", "override_regular_price_cents", "override_sale_price_cents"]);
+const priceFields = new Set(["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "override_display_msrp_price_cents", "override_regular_price_cents", "override_sale_price_cents"]);
 const dateFields = new Set(["sale_starts_at", "sale_ends_at", "override_sale_starts_at", "override_sale_ends_at", "starts_at", "ends_at"]);
 const booleanFields = new Set(["show_public_price", "contact_for_pricing", "override_show_public_price", "override_contact_for_pricing", "is_available"]);
 const stringFields = new Set(["promotion_label", "override_promotion_label", "schedule_name"]);

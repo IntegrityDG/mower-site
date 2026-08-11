@@ -5,11 +5,10 @@ import { checkoutDisplayName, validateCheckoutEligibility, type CheckoutCatalog,
 import { CheckoutRejectionError, type CatalogSourceReference, type CheckoutRequest, type OrderPriceItem, type OrderPriceSnapshot } from "./types";
 import { resolvePaymentAdjustments } from "./payment-pricing";
 import { applyActivePriceSchedule, selectActivePriceSchedule } from "@/lib/catalog/active-price-schedule";
+import { operationalPriceCents } from "./operational-price";
 
 function currentPrice(row: PriceableRow, now: number) {
-  const starts = row.sale_starts_at ? new Date(row.sale_starts_at).getTime() : Number.NEGATIVE_INFINITY;
-  const ends = row.sale_ends_at ? new Date(row.sale_ends_at).getTime() : Number.POSITIVE_INFINITY;
-  const price = row.sale_price_cents !== null && now >= starts && now <= ends ? row.sale_price_cents : row.regular_price_cents;
+  const price = operationalPriceCents(row, now);
   if (price === null || !Number.isSafeInteger(price) || price < 0) throw new CheckoutRejectionError("UNPRICED_ITEM", "A selected catalog item does not have a valid current price.");
   return price;
 }
