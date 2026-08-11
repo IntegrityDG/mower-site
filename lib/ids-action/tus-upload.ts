@@ -6,8 +6,7 @@ export const IDS_ACTION_TUS_STALL_TIMEOUT_MS = 60_000;
 
 type Options = {
   file: File;
-  projectUrl: string;
-  anonKey: string;
+  tusEndpoint: string;
   bucket: string;
   path: string;
   signedToken: string;
@@ -15,12 +14,16 @@ type Options = {
   onRetry: () => void;
 };
 
-export function storageTusEndpoint(projectUrl: string) {
-  const url = new URL(projectUrl);
-  if (url.hostname.endsWith(".supabase.co") && !url.hostname.includes(".storage.supabase.co")) {
-    url.hostname = url.hostname.replace(".supabase.co", ".storage.supabase.co");
+function validateTusEndpoint(endpoint: string) {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw new Error("Invalid Supabase TUS endpoint.");
   }
-  url.pathname = "/storage/v1/upload/resumable";
+  if (url.protocol !== "https:" || !url.hostname.endsWith(".storage.supabase.co") || url.pathname !== "/storage/v1/upload/resumable") {
+    throw new Error("Invalid Supabase TUS endpoint.");
+  }
   return url.toString();
 }
 
@@ -41,14 +44,13 @@ export function uploadIdsActionTus(options: Options) {
   const promise = new Promise<void>((resolve, reject) => {
     rejectPromise = reject;
     upload = new tus.Upload(options.file, {
-      endpoint: storageTusEndpoint(options.projectUrl),
+      endpoint: validateTusEndpoint(options.tusEndpoint),
       uploadSize: options.file.size,
+      uploadDataDuringCreation: true,
       chunkSize: IDS_ACTION_TUS_CHUNK_BYTES,
       retryDelays: IDS_ACTION_TUS_RETRY_DELAYS,
       removeFingerprintOnSuccess: true,
       headers: {
-        authorization: `Bearer ${options.anonKey}`,
-        apikey: options.anonKey,
         "x-signature": options.signedToken,
         "x-upsert": "false",
       },

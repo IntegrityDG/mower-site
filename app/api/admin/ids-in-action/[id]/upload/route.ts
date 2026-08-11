@@ -1,9 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { isReviewAdmin } from "@/lib/reviews/admin-auth";
-import { getSupabaseServiceClient } from "@/lib/supabase";
+import { getSupabaseServiceClient, getSupabaseUrl } from "@/lib/supabase";
 import { IDS_ACTION_IMAGE_TYPES, IDS_ACTION_MAX_IMAGE_BYTES } from "@/lib/ids-action/validation";
 
 type UploadMetadata = { name?: string; type?: string; size?: number };
+
+export function storageTusEndpoint(supabaseUrl: string) {
+  const url = new URL(supabaseUrl);
+  if (!/^https?:$/.test(url.protocol) || !url.hostname.endsWith(".supabase.co")) {
+    throw new Error("Invalid Supabase URL configuration.");
+  }
+  if (!url.hostname.endsWith(".storage.supabase.co")) {
+    url.hostname = url.hostname.replace(/\.supabase\.co$/, ".storage.supabase.co");
+  }
+  url.pathname = "/storage/v1/upload/resumable";
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+}
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!(await isReviewAdmin())) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,7 +32,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const path = `entries/${id}/${randomUUID()}.${extension}`;
   const { data, error } = await client.storage.from("ids-action-media").createSignedUploadUrl(path);
   if (error) return Response.json({ error: "Upload could not be prepared." }, { status: 500 });
-  return Response.json({ path, token: data.token, publicUrl: client.storage.from("ids-action-media").getPublicUrl(path).data.publicUrl });
+  let tusEndpoint: string;
+  try {
+    tusEndpoint = storageTusEndpoint(getSupabaseUrl());
+  } catch {
+    return Response.json({ error: "Upload service is not configured correctly." }, { status: 500 });
+  }
+  return Response.json({ path, token: data.token, publicUrl: client.storage.from("ids-action-media").getPublicUrl(path).data.publicUrl, tusEndpoint });
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {

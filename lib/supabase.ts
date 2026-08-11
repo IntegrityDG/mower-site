@@ -5,7 +5,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 let publicCatalogClient: SupabaseClient | null = null;
 let serviceRoleClient: SupabaseClient | null = null;
 
-function supabaseUrl() {
+export function getSupabaseUrl() {
   const value = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   if (!value) {
@@ -49,7 +49,7 @@ const serverClientOptions = {
 
 export function getSupabaseCatalogClient() {
   publicCatalogClient ??= createClient(
-    supabaseUrl(),
+    getSupabaseUrl(),
     supabaseAnonKey(),
     serverClientOptions
   );
@@ -59,7 +59,7 @@ export function getSupabaseCatalogClient() {
 
 export function getSupabaseServiceClient() {
   serviceRoleClient ??= createClient(
-    supabaseUrl(),
+    getSupabaseUrl(),
     supabaseServiceRoleKey(),
     serverClientOptions
   );
