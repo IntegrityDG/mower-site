@@ -8,6 +8,7 @@ import { buildCardCheckoutSession } from "@/lib/stripe/checkout-session";
 import { getStripeConfiguration, StripeConfigurationError } from "@/lib/stripe/config";
 import { getStripeServerClient } from "@/lib/stripe/server";
 import { CheckoutRejectionError, type CheckoutRequest } from "@/lib/checkout/types";
+import { paymentMethodIsAvailableForNewCheckout } from "@/lib/checkout/payment-method-availability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ async function readLimitedBody(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!(await paymentMethodIsAvailableForNewCheckout("card"))) return jsonError("Card checkout is temporarily unavailable.", 503);
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return jsonError("Content-Type must be application/json.", 400);
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (!Number.isFinite(declaredLength) || declaredLength < 0 || declaredLength > MAX_CHECKOUT_REQUEST_BYTES) return jsonError("Checkout request is too large.", 400);

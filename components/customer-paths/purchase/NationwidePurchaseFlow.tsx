@@ -28,6 +28,7 @@ import type {
   CustomerInformationValues,
   PurchaseMethodKey,
 } from "@/lib/products/types";
+import { customerPurchaseMethodIsAvailable, type PublicPaymentMethodAvailability } from "@/lib/payment-method-settings/types";
 import {
   YARBO_CORE_ABSENT_NOTICE,
   YARBO_INCLUDED_PLATFORM_EQUIPMENT,
@@ -226,6 +227,7 @@ export default function NationwidePurchaseFlow({
   const [selectedPurchaseMethod, setSelectedPurchaseMethod] = useState<
     PurchaseMethodKey | ""
   >("");
+  const [paymentMethodAvailability,setPaymentMethodAvailability]=useState<PublicPaymentMethodAvailability>({card:false,achDebit:false,hearthFinancing:false});
   const [customerInformation, setCustomerInformation] =
     useState<CustomerInformationValues>({
       fullName: "",
@@ -273,6 +275,9 @@ export default function NationwidePurchaseFlow({
       cancelled = true;
     };
   }, [catalogReloadKey]);
+
+  useEffect(()=>{let cancelled=false;fetch("/api/checkout/payment-methods",{cache:"no-store"}).then(async response=>response.ok?response.json():Promise.reject()).then(value=>{if(!cancelled)setPaymentMethodAvailability(value);}).catch(()=>{if(!cancelled)setPaymentMethodAvailability({card:false,achDebit:false,hearthFinancing:false});});return()=>{cancelled=true;};},[]);
+
 
   useEffect(() => {
     if (!catalog || urlPreselectionApplied.current) return;
@@ -323,6 +328,7 @@ export default function NationwidePurchaseFlow({
       resolveBuildSelection(selectedProduct, buildSelection)
         .hasUnpricedEquipment
   );
+  useEffect(()=>{if(selectedPurchaseMethod&&!customerPurchaseMethodIsAvailable(selectedPurchaseMethod,paymentMethodAvailability,!configurationRequiresQuote))setSelectedPurchaseMethod("");},[configurationRequiresQuote,paymentMethodAvailability,selectedPurchaseMethod]);
   const submissionKind =
     accessoryMode && selectedPurchaseMethod
       ? selectedPurchaseMethod === "ach"
@@ -608,7 +614,7 @@ export default function NationwidePurchaseFlow({
     const extraOptionNames = selectedProductIsYarbo
       ? yarboIndividualItems
       : selectedOptionNames(build.selectedOptions);
-    const purchaseMethodLabel = purchaseMethodLabels[selectedPurchaseMethod];
+    const purchaseMethodLabel = selectedPurchaseMethod ? purchaseMethodLabels[selectedPurchaseMethod] : "Contact IDS";
 
     if (submissionKind !== "quote") {
       const checkoutRequest: CheckoutRequest = {
@@ -868,6 +874,7 @@ export default function NationwidePurchaseFlow({
           configuredTotalCents={configuredTotalCents}
           hearthUrl={hearthFinancingUrl}
           onSelectMethod={handleSelectPurchaseMethod}
+          availability={paymentMethodAvailability}
         />
       );
     }

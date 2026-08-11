@@ -6,6 +6,7 @@ const links = [
   ["Referrals", "/admin/referrals"],
   ["Accessories", "/admin/accessories"],
   ["Pricing", "/admin/pricing"],
+  ["Payment Methods", "/admin/payment-methods"],
 ] as const;
 
 export default function AdminNav() {

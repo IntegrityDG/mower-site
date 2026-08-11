@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { checkoutAttemptIdempotencyKey, checkoutRequestFingerprint } from "@/lib/checkout/idempotency";
 import { createAchCheckoutDraft, linkAchCheckoutSession, CheckoutRepositoryError } from "@/lib/checkout/order-repository";
-import { paymentMethodIsServerEnabled } from "@/lib/checkout/payment-method-availability";
+import { paymentMethodIsAvailableForNewCheckout } from "@/lib/checkout/payment-method-availability";
 import { resolveAuthoritativeOrderPricing } from "@/lib/checkout/pricing-resolver";
 import { MAX_CHECKOUT_REQUEST_BYTES, parseCheckoutRequest, readLimitedCheckoutBody } from "@/lib/checkout/request-schema";
 import { CheckoutRejectionError } from "@/lib/checkout/types";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 const jsonError = (error: string, status: number) => NextResponse.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
 
 export async function POST(request: Request) {
-  if (!paymentMethodIsServerEnabled("ach_debit")) return jsonError("Not found.", 404);
+  if (!(await paymentMethodIsAvailableForNewCheckout("ach_debit"))) return jsonError("Not found.", 404);
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return jsonError("Content-Type must be application/json.", 400);
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
   if (!Number.isFinite(declaredLength) || declaredLength < 0 || declaredLength > MAX_CHECKOUT_REQUEST_BYTES) return jsonError("Checkout request is too large.", 400);

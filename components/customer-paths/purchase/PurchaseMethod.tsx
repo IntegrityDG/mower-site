@@ -1,5 +1,7 @@
 import type { PurchaseMethodKey } from "@/lib/products/types";
+import Link from "next/link";
 import { calculateAchDiscount } from "@/lib/checkout/payment-methods";
+import type { PublicPaymentMethodAvailability } from "@/lib/payment-method-settings/types";
 
 type PurchaseMethodProps = {
   selectedMethod: PurchaseMethodKey | "";
@@ -7,6 +9,7 @@ type PurchaseMethodProps = {
   configuredTotalCents: number;
   hearthUrl: string;
   onSelectMethod: (method: PurchaseMethodKey) => void;
+  availability: PublicPaymentMethodAvailability;
 };
 
 export default function PurchaseMethod({
@@ -15,11 +18,13 @@ export default function PurchaseMethod({
   configuredTotalCents,
   hearthUrl,
   onSelectMethod,
+  availability,
 }: PurchaseMethodProps) {
   const payInFullSelected = selectedMethod === "pay-in-full";
   const achSelected = selectedMethod === "ach";
   const hearthSelected = selectedMethod === "hearth-financing";
   const achDisplay = calculateAchDiscount(configuredTotalCents);
+  const noMethodsAvailable = !availability.card && !(checkoutAvailable && availability.achDebit) && !availability.hearthFinancing;
 
   return (
     <div>
@@ -37,8 +42,8 @@ export default function PurchaseMethod({
           : "This configuration requires final review. Choose a purchase preference to include with the request; no payment is collected here."}
       </p>
 
-      <div className="mt-7 grid gap-5 md:grid-cols-2">
-        <button
+      {noMethodsAvailable ? <div className="mt-7 rounded-[2rem] border border-amber-200 bg-amber-50 p-6"><h4 className="text-xl font-black text-amber-950">Online payment and financing options are temporarily unavailable.</h4><p className="mt-3 leading-7 text-amber-950">Contact the IDS team and we will help you with the next step.</p><Link href="/#contact-us" className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 font-black text-white">Contact IDS</Link></div> : <div className="mt-7 grid gap-5 md:grid-cols-2">
+        {availability.card && <button
           type="button"
           onClick={() => onSelectMethod("pay-in-full")}
           aria-pressed={payInFullSelected}
@@ -74,9 +79,9 @@ export default function PurchaseMethod({
           <p className="mt-6 text-sm font-bold text-emerald-700">
             {payInFullSelected ? "Selected" : "Select this method"}
           </p>
-        </button>
+        </button>}
 
-        {checkoutAvailable && <button
+        {checkoutAvailable && availability.achDebit && <button
           type="button"
           onClick={() => onSelectMethod("ach")}
           aria-pressed={achSelected}
@@ -121,7 +126,7 @@ export default function PurchaseMethod({
           </p>
         </button>}
 
-        <a
+        {availability.hearthFinancing && <a
           href={hearthUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -148,8 +153,8 @@ export default function PurchaseMethod({
           <p className="mt-6 text-sm font-bold text-emerald-700">
             {hearthSelected ? "Selected and opened in new tab" : "Open Hearth"}
           </p>
-        </a>
-      </div>
+        </a>}
+      </div>}
     </div>
   );
 }
