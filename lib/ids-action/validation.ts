@@ -13,5 +13,6 @@ export function validateIdsActionEntry(input:unknown):{ok:true;value:IdsActionIn
  return Object.keys(errors).length?{ok:false,errors}:{ok:true,value};
 }
 export const IDS_ACTION_IMAGE_TYPES={"image/jpeg":"jpg","image/png":"png","image/webp":"webp"} as const;
-export const IDS_ACTION_MAX_IMAGE_BYTES=15*1024*1024;
+export const IDS_ACTION_MAX_IMAGE_BYTES=50*1024*1024;
+export const IDS_ACTION_MAX_IMAGE_DIMENSION=3200;
 export function validateMediaInput(input:unknown){const b=(input&&typeof input==="object"?input:{}) as Record<string,unknown>;const altText=text(b.altText,200),sortOrder=Number(b.sortOrder);if(b.mediaType!=="image"||typeof b.mediaUrl!=="string"||!/^https:\/\//.test(b.mediaUrl)||typeof b.storagePath!=="string"||!/^entries\/[0-9a-f-]+\//.test(b.storagePath)||altText.length>200||!Number.isInteger(sortOrder)||sortOrder<0||sortOrder>100000)return null;return{mediaType:"image" as const,mediaUrl:b.mediaUrl,storagePath:b.storagePath,thumbnailUrl:null,altText,sortOrder};}
