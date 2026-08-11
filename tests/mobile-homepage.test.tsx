@@ -9,6 +9,8 @@ const financing = readFileSync(new URL("../components/home/HomeFinancing.tsx", i
 
 test("mobile header exposes an accessible hamburger and mobile-only sticky layout", () => {
   assert.match(mobile, /sticky top-0 z-50/);
+  assert.match(mobile, />Integrity Distribution Systems<\/p>/);
+  assert.match(mobile, />Autonomous Lawn Care Solutions<\/p>/);
   assert.match(mobile, /aria-label="Open navigation"/);
   assert.match(mobile, /aria-expanded=\{menuOpen\}/);
   assert.match(mobile, /aria-controls="mobile-navigation"/);

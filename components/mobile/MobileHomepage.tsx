@@ -14,9 +14,16 @@ import MobileHomeNavigation, { type MobileView } from "./MobileHomeNavigation";
 function MobileHeader({ menuOpen, onOpen }: { menuOpen: boolean; onOpen: () => void }) {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-300 bg-white/95 backdrop-blur md:hidden">
-      <div className="flex min-h-16 items-center justify-between gap-3 px-4 py-2">
-        <Image src="/logo.png" alt="Integrity Distribution Systems" width={1536} height={1024} className="h-auto w-[116px] object-contain" priority />
-        <button type="button" aria-label="Open navigation" aria-expanded={menuOpen} aria-controls="mobile-navigation" onClick={onOpen} className="flex h-11 w-11 flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white shadow-sm">
+      <div className="flex min-h-16 items-center gap-2.5 px-3 py-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <Image src="/logo.png" alt="Integrity Distribution Systems" width={1536} height={1024} className="h-auto w-[72px] shrink-0 object-contain" priority />
+          <div aria-hidden="true" className="h-10 w-px shrink-0 bg-slate-300" />
+          <div className="min-w-0 text-left">
+            <p className="text-[12px] font-black leading-[1.15] tracking-tight text-slate-950 min-[390px]:text-sm">Integrity Distribution Systems</p>
+            <p className="mt-1 text-[8px] font-bold uppercase leading-tight tracking-[0.08em] text-emerald-700 min-[390px]:text-[9px]">Autonomous Lawn Care Solutions</p>
+          </div>
+        </div>
+        <button type="button" aria-label="Open navigation" aria-expanded={menuOpen} aria-controls="mobile-navigation" onClick={onOpen} className="flex h-11 w-11 shrink-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white shadow-sm">
           <span className="h-0.5 w-6 bg-slate-900" /><span className="h-0.5 w-6 bg-slate-900" /><span className="h-0.5 w-6 bg-slate-900" />
         </button>
       </div>
