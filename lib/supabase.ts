@@ -40,6 +40,18 @@ function supabaseServiceRoleKey() {
   return value;
 }
 
+export type SupabaseServerCredentialType =
+  | "legacy-jwt-service-role"
+  | "modern-sb-secret"
+  | "unknown";
+
+export function classifySupabaseServerCredential(): SupabaseServerCredentialType {
+  const value = supabaseServiceRoleKey();
+  if (value.startsWith("sb_secret_")) return "modern-sb-secret";
+  if (value.split(".").length === 3) return "legacy-jwt-service-role";
+  return "unknown";
+}
+
 const serverClientOptions = {
   auth: {
     autoRefreshToken: false,

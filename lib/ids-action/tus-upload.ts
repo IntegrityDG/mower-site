@@ -21,10 +21,18 @@ function validateTusEndpoint(endpoint: string) {
   } catch {
     throw new Error("Invalid Supabase TUS endpoint.");
   }
-  if (url.protocol !== "https:" || !url.hostname.endsWith(".storage.supabase.co") || url.pathname !== "/storage/v1/upload/resumable") {
+  if (url.protocol !== "https:" || !url.hostname.endsWith(".storage.supabase.co") || url.pathname !== "/storage/v1/upload/resumable/sign") {
     throw new Error("Invalid Supabase TUS endpoint.");
   }
   return url.toString();
+}
+
+export function safeTusUploadError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Photo upload failed.";
+  if (/Invalid Compact JWS/i.test(message)) {
+    return new Error("Photo upload authorization was rejected by Supabase. Invalid signed upload token (Compact JWS). HTTP 400 / AccessDenied.");
+  }
+  return error instanceof Error ? error : new Error("Photo upload failed.");
 }
 
 export function uploadIdsActionTus(options: Options) {
@@ -77,7 +85,7 @@ export function uploadIdsActionTus(options: Options) {
         if (settled) return;
         settled = true;
         if (timer) clearTimeout(timer);
-        reject(error instanceof Error ? error : new Error("Photo upload failed."));
+        reject(safeTusUploadError(error));
       },
       onSuccess() {
         if (settled) return;

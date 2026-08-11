@@ -17,7 +17,12 @@ import {
   IDS_ACTION_TUS_CHUNK_BYTES,
   IDS_ACTION_TUS_RETRY_DELAYS,
   IDS_ACTION_TUS_STALL_TIMEOUT_MS,
+  safeTusUploadError,
 } from "../lib/ids-action/tus-upload";
+import {
+  inspectSignedUploadToken,
+  isValidSignedUploadToken,
+} from "../lib/ids-action/signed-upload-token";
 import {
   IDS_ACTION_MEDIA_TYPES,
   type IdsActionEntry,
@@ -313,10 +318,47 @@ test("IDS Action uses signed resumable TUS uploads with progress, retries, cance
   ])
     assert.ok(adminPage.includes(token));
 });
+test("signed upload token validation accepts only matching compact JWS values", () => {
+  const token = "header.payload.signature";
+  const valid = inspectSignedUploadToken(
+    token,
+    `https://example.supabase.co/storage/v1/object/upload/sign/bucket/file?token=${token}`,
+  );
+  assert.deepEqual(valid, {
+    tokenPresent: true,
+    tokenType: "string",
+    tokenLength: token.length,
+    tokenSegmentCount: 3,
+    tokenSegmentsNonEmpty: true,
+    tokenHasWhitespace: false,
+    tokenMatchesSignedUrl: true,
+  });
+  assert.equal(isValidSignedUploadToken(valid), true);
+  for (const candidate of [undefined, "", "one.two", "one..three", ` ${token}`, `${token} `]) {
+    const diagnostics = inspectSignedUploadToken(
+      candidate,
+      `https://example.supabase.co/upload?token=${encodeURIComponent(String(candidate ?? ""))}`,
+    );
+    assert.equal(isValidSignedUploadToken(diagnostics), false);
+  }
+  assert.equal(inspectSignedUploadToken(token, "https://example.com/?token=different").tokenMatchesSignedUrl, false);
+});
+test("signed TUS uses the dedicated direct-storage route and maps Compact JWS failures safely", () => {
+  assert.match(uploadRoute, /storage\/v1\/upload\/resumable\/sign/);
+  assert.match(tusUpload, /storage\/v1\/upload\/resumable\/sign/);
+  assert.match(tusUpload, /"x-signature": options\.signedToken/);
+  const translated = safeTusUploadError(new Error("HTTP 400: AccessDenied: Invalid Compact JWS"));
+  assert.match(translated.message, /authorization was rejected by Supabase/);
+  assert.match(translated.message, /HTTP 400 \/ AccessDenied/);
+  assert.doesNotMatch(translated.message, /header\.payload\.signature/);
+});
 test("browser TUS transport uses only the server-supplied endpoint and signed token", () => {
   assert.doesNotMatch(adminPage, /NEXT_PUBLIC_SUPABASE_(?:URL|ANON_KEY)/);
   assert.doesNotMatch(tusUpload, /anonKey|projectUrl|authorization:|apikey:/);
   assert.match(uploadRoute, /tusEndpoint/);
+  assert.match(uploadRoute, /inspectSignedUploadToken/);
+  assert.match(uploadRoute, /isValidSignedUploadToken/);
+  assert.match(uploadRoute, /credentialType/);
   assert.match(uploadRoute, /getSupabaseUrl\(\)/);
   assert.doesNotMatch(uploadRoute, /SERVICE_ROLE.*Response|serviceRole.*Response/i);
   assert.match(tusUpload, /endpoint: validateTusEndpoint\(options\.tusEndpoint\)/);
