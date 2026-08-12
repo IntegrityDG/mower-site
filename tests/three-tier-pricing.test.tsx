@@ -35,9 +35,10 @@ test("checkout operational precedence covers active, expired, and future tempora
 test("public display renders comparison, IDS everyday, and active temporary sale levels", () => {
   const price = scheduledPublicPrice(operational({ sale_price_cents: 269800, sale_starts_at: "2026-08-01T00:00:00Z", sale_ends_at: "2026-08-20T00:00:00Z", promotion_label: "Launch Sale" }), [], "product", "p", now).price;
   const html = renderToStaticMarkup(React.createElement(EverydayPriceDisplay, { item: price, comparisonLabel: "Lymow Everyday Price" }));
-  assert.match(html, /Lymow Everyday Price/); assert.match(html, /\$2,999/);
-  assert.match(html, /IDS Everyday Price/); assert.match(html, /\$2,799/);
-  assert.match(html, /Launch Sale/); assert.match(html, /\$2,698/);
+  assert.match(html, /Manufacturer MSRP/); assert.match(html, /\$2,999/);
+  assert.match(html, /IDS Everyday Low Price/); assert.match(html, /\$2,799/);
+  assert.match(html, /Sale Price/); assert.match(html, /\$2,698/);
+  assert.match(html, /Sale ends August 20, 2026/);
 });
 
 test("expired public sale returns to IDS everyday display", () => {
@@ -83,8 +84,8 @@ test("pricing resolver contains no display MSRP checkout fallback", () => {
 
 test("admin pricing labels explain the three tiers and accessories keep IDS terminology", () => {
   const pricingAdmin = readFileSync("app/admin/pricing/page.tsx", "utf8");
-  assert.match(pricingAdmin, /Manufacturer \/ Comparison Price/);
-  assert.match(pricingAdmin, /IDS Everyday Price/);
+  assert.match(pricingAdmin, /Manufacturer \/ MSRP/);
+  assert.match(pricingAdmin, /IDS Everyday Low Price/);
   assert.match(pricingAdmin, /Temporary Sale Price/);
   assert.match(pricingAdmin, /Scheduled IDS Price/);
   assert.match(pricingAdmin, /Scheduled Sale Price/);

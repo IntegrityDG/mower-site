@@ -12,7 +12,6 @@ type EverydayPriceDisplayProps = {
 
 export default function EverydayPriceDisplay({
   item,
-  comparisonLabel,
   className = "",
   priceClassName = "text-xl font-black text-emerald-700",
   labelClassName = "text-xs font-bold uppercase tracking-[0.14em] text-slate-500",
@@ -29,24 +28,12 @@ export default function EverydayPriceDisplay({
     );
   }
 
-  if (
-    comparisonPriceCents !== null &&
-    comparisonPriceCents > idsPriceCents
-  ) {
-    return (
-      <div className={className}>
-        <p className={labelClassName}>{comparisonLabel}</p>
-        <p className={regularClassName}>{formatCents(comparisonPriceCents)}</p>
-        <p className={`${labelClassName} mt-2`}>IDS Everyday Price</p>
-        {item.regularPriceCents !== null && <p className={item.saleIsActive ? regularClassName : priceClassName}>{formatCents(item.regularPriceCents)}</p>}
-        {item.saleIsActive && <><p className={`${labelClassName} mt-2`}>{item.promotionLabel && item.promotionLabel !== "IDS Everyday Low Price" ? item.promotionLabel : "SALE PRICE"}</p><p className={priceClassName}>{formatCents(idsPriceCents)}</p></>}
-      </div>
-    );
-  }
-
   return (
-    <p className={`${className} ${priceClassName}`.trim()}>
-      {formatCents(idsPriceCents)}
-    </p>
+    <div className={className}>
+      {comparisonPriceCents !== null && <><p className={labelClassName}>Manufacturer MSRP</p><p className={regularClassName}>{formatCents(comparisonPriceCents)}</p></>}
+      <p className={`${labelClassName}${comparisonPriceCents !== null ? " mt-2" : ""}`}>IDS Everyday Low Price</p>
+      {item.regularPriceCents !== null && <p className={item.saleIsActive ? regularClassName : priceClassName}>{formatCents(item.regularPriceCents)}</p>}
+      {item.saleIsActive && <><p className={`${labelClassName} mt-2`}>Sale Price</p><p className={priceClassName}>{formatCents(idsPriceCents)}</p>{item.saleEndsAt && <p className="mt-1 text-sm font-semibold text-slate-600">Sale ends {new Intl.DateTimeFormat("en-US", { month:"long", day:"numeric", year:"numeric", timeZone:"UTC" }).format(new Date(item.saleEndsAt))}</p>}</>}
+    </div>
   );
 }

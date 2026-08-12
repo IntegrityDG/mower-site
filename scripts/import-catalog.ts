@@ -43,7 +43,18 @@ export function translateLegacyUndatedPricing(row: Record<string, unknown>): Rec
 }
 
 export function catalogImportOverwritesPricing(env: NodeJS.ProcessEnv = process.env) {
-  return env.CATALOG_IMPORT_OVERWRITE_PRICING === "true";
+  void env;
+  return false;
+}
+
+export function safeNewCatalogPricing(row: Record<string, unknown>, pricingFields: readonly string[]) {
+  const safe = { ...row };
+  for (const field of pricingFields) {
+    if (field.includes("regular_price_cents") || field.includes("sale_price_cents") || field.includes("sale_starts_at") || field.includes("sale_ends_at") || field.includes("promotion_label")) safe[field] = null;
+    if (field.includes("show_public_price")) safe[field] = false;
+    if (field.includes("contact_for_pricing")) safe[field] = true;
+  }
+  return safe;
 }
 
 function recordKey(row: Record<string, unknown>, columns: readonly string[]) { return columns.map((column) => String(row[column] ?? "<null>")).join(":"); }
@@ -51,11 +62,11 @@ function recordKey(row: Record<string, unknown>, columns: readonly string[]) { r
 export function mergePreservedPricing(
   incoming: Record<string, unknown>[], existing: Record<string, unknown>[], keyColumns: readonly string[], pricingFields: readonly string[], overwritePricing: boolean, table: string, logger: PricingLogger = console,
 ) {
-  if (overwritePricing) return incoming.map((row) => ({ ...row }));
+  void overwritePricing;
   const existingByKey = new Map(existing.map((row) => [recordKey(row, keyColumns), row]));
   return incoming.map((row) => {
     const stored = existingByKey.get(recordKey(row, keyColumns));
-    if (!stored) return { ...row };
+    if (!stored) return safeNewCatalogPricing(row, pricingFields);
     const merged = { ...row };
     for (const field of pricingFields) if (field in stored) merged[field] = stored[field];
     logger.warn(`Preserving live pricing for ${table}.${keyColumns.map((column) => row[column]).filter(Boolean).join(".")}.`);
@@ -66,8 +77,9 @@ export function mergePreservedPricing(
 const PRICE_SCHEDULE_TARGET_COLUMNS = ["product_id","variant_id","option_id","package_id","service_id","product_service_id"] as const;
 function priceScheduleIdentity(row: Record<string,unknown>) { const target = PRICE_SCHEDULE_TARGET_COLUMNS.find((column) => row[column] !== null && row[column] !== undefined); return target ? `${target}:${row[target]}:${row.schedule_name}` : "invalid"; }
 export function planPriceScheduleImport(incoming: Record<string,unknown>[], existing: Record<string,unknown>[], overwritePricing: boolean) {
+  void overwritePricing;
   const existingKeys = new Set(existing.map(priceScheduleIdentity));
-  return incoming.map((record) => ({ record, action: existingKeys.has(priceScheduleIdentity(record)) ? overwritePricing ? "update" as const : "preserve" as const : "insert" as const }));
+  return incoming.map((record) => ({ record, action: existingKeys.has(priceScheduleIdentity(record)) ? "preserve" as const : "preserve" as const }));
 }
 
 function normalizeWorkbookRow(row: Row): Row {
@@ -299,7 +311,8 @@ function loadCatalogRows(
   logger: OverrideLogger = console,
 ): CatalogRows {
   const catalogRows = loadWorkbookRows(workbookPath);
-  applyTrackedCatalogOverrides(catalogRows, lymowPricingOverrides ?? loadLymowPricingOverrides(), logger);
+  void lymowPricingOverrides;
+  void logger;
   return catalogRows;
 }
 
@@ -363,10 +376,10 @@ async function upsert(
 
 async function preserveLivePricing(client: DbClient, table: string, records: Record<string, unknown>[], keyColumns: readonly string[], pricingFields: readonly string[], overwritePricing: boolean) {
   const importRecords = table === "catalog_service_payment_options" || table === "catalog_product_services" ? records : records.map(translateLegacyUndatedPricing);
-  if (!importRecords.length || overwritePricing) return importRecords;
+  if (!importRecords.length) return importRecords;
   const { data, error } = await client.from(table).select([...keyColumns, ...pricingFields].join(","));
   if (error) throw new Error(`${table} pricing lookup: ${error.message}`);
-  return mergePreservedPricing(importRecords, (data ?? []) as unknown as Record<string,unknown>[], keyColumns, pricingFields, false, table);
+  return mergePreservedPricing(importRecords, (data ?? []) as unknown as Record<string,unknown>[], keyColumns, pricingFields, overwritePricing, table);
 }
 
 async function refreshMap(
@@ -402,6 +415,22 @@ async function updateOrInsert(
   const result = data
     ? await client.from(table).update(record).eq("id", data.id)
     : await client.from(table).insert(record);
+  if (result.error) throw new Error(`${table}: ${result.error.message}`);
+}
+
+async function updateOrInsertPreservingPrivatePricing(client: DbClient, table: string, record: Record<string, unknown>, match: Record<string, unknown>) {
+  let query = client.from(table).select("id");
+  for (const [column, value] of Object.entries(match)) query = value === null ? query.is(column, null) : query.eq(column, value);
+  const { data, error } = await query.limit(1).maybeSingle();
+  if (error) throw new Error(`${table} lookup: ${error.message}`);
+  if (data) {
+    const nonPricing = { ...record };
+    for (const field of ["dealer_cost_cents","internal_price_cents","target_margin_basis_points","starts_at","ends_at"]) delete nonPricing[field];
+    const result = await client.from(table).update(nonPricing).eq("id", data.id);
+    if (result.error) throw new Error(`${table}: ${result.error.message}`);
+    return;
+  }
+  const result = await client.from(table).insert(record);
   if (result.error) throw new Error(`${table}: ${result.error.message}`);
 }
 
@@ -486,8 +515,7 @@ async function main() {
   validateWorkbook(catalogRows);
   const { supabase, publicCatalog, privateCatalog } = createCatalogClients();
   const overwritePricing = catalogImportOverwritesPricing();
-  if (overwritePricing) console.warn("CATALOG_IMPORT_OVERWRITE_PRICING=true: pricing overwrite mode is active.");
-  else console.log("Catalog import will preserve live database pricing for existing records.");
+  console.log("Catalog import will preserve live database pricing and will not create selling prices or schedules.");
   const summary = {
     products: 0, variants: 0, options: 0, packages: 0, services: 0,
     servicePaymentOptions: 0, productPages: 0, media: 0, internalPricing: 0,
@@ -762,7 +790,7 @@ async function main() {
       target_margin_basis_points: null, supplier_notes: text(row.freight_terms), private_notes: tierDetails || null,
       starts_at: null, ends_at: null, updated_at: new Date().toISOString(),
     });
-    await updateOrInsert(privateCatalog, "catalog_internal_pricing", record, {
+    await updateOrInsertPreservingPrivatePricing(privateCatalog, "catalog_internal_pricing", record, {
       [targetColumn]: target.id, supplier_name: record.supplier_name, private_notes: record.private_notes,
     });
     summary.internalPricing++;

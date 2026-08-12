@@ -8,6 +8,7 @@ export type CatalogPrice = {
   contactForPricing: boolean;
   promotionLabel: string | null;
   saleIsActive: boolean;
+  saleEndsAt?: string | null;
 };
 
 export type CatalogSalesMode = "self_service" | "quote_only";

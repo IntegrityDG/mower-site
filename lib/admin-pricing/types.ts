@@ -15,6 +15,7 @@ export type PricingItem = {
   values: Record<string, string | number | boolean | null>;
   effectivePriceCents: number | null;
   activeScheduleName: string | null;
+  dealerCostCents: number | null;
 };
 
 export type PricingCatalog = { items: PricingItem[] };
