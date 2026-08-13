@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  DemoSchedulingAdminRequestState,
   demoCalendarOccupancyCount,
+  mergeRefreshedDemoRequests,
   reconcileSelectedDemoRequest,
   requestMatchesDemoFilter,
   selectDemoRequestForCalendarDate,
@@ -171,6 +173,116 @@ test("admin filtering and calendar helpers never mutate request records", () => 
   reconcileSelectedDemoRequest(requests[1], "pending", adminNow);
 
   assert.deepEqual(requests, before);
+});
+
+test("approval component state resists a stale follow-up GET with failed notifications", async () => {
+  const pending = adminRequest("pending", "approval-race");
+  const approved: DemoRequest = {
+    ...pending,
+    status: "approved",
+    approvedAt: "2026-08-20T18:05:00.000Z",
+  };
+  const failedNotifications = [
+    { event_type: "customer_approved", status: "failed", last_error: "Resend domain not verified (validation_error, HTTP 403)" },
+    { event_type: "ids_calendar_invite", status: "failed", last_error: "Resend domain not verified (validation_error, HTTP 403)" },
+  ];
+  const calls: Array<{ url: string; method: string }> = [];
+  const fetchMock = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    calls.push({ url, method });
+    if (method === "PATCH") {
+      assert.deepEqual(JSON.parse(String(init?.body)), { action: "approve", message: null });
+      return Response.json({
+        request: approved,
+        warning: "Appointment approved, but one or more emails could not be delivered. Retry from this page.",
+      });
+    }
+    return Response.json({
+      requests: [pending, pending],
+      rules: [],
+      exceptions: [],
+      notifications: { [pending.id]: failedNotifications },
+    });
+  };
+
+  const requestState = new DemoSchedulingAdminRequestState([pending]);
+  let requests = requestState.applyRefresh([pending]);
+  let filter: "pending" | "approved" | "active" | "all" | "denied" = "pending";
+  let selected: DemoRequest | null = pending;
+  let notifications: Record<string, typeof failedNotifications> = {};
+
+  const patchResponse = await fetchMock(`/api/admin/demo-scheduling/requests/${pending.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "approve", message: null }),
+  });
+  const patchPayload = await patchResponse.json() as { request: DemoRequest; warning: string };
+  requests = requestState.applyTransition(patchPayload.request);
+  selected = reconcileSelectedDemoRequest(patchPayload.request, filter, adminNow);
+
+  const reloadResponse = await fetchMock("/api/admin/demo-scheduling");
+  const reloadPayload = await reloadResponse.json() as { requests: DemoRequest[]; notifications: Record<string, typeof failedNotifications> };
+  requests = requestState.applyRefresh(reloadPayload.requests);
+  notifications = reloadPayload.notifications;
+  if (selected) {
+    const refreshedSelection = requests.find((request) => request.id === selected?.id) ?? null;
+    selected = reconcileSelectedDemoRequest(refreshedSelection, filter, adminNow);
+  }
+
+  const openFilter = (next: "pending" | "approved" | "active" | "all" | "denied") => {
+    filter = next;
+    selected = reconcileSelectedDemoRequest(selected, next, adminNow);
+    return requests.filter((request) => requestMatchesDemoFilter(request, next, adminNow));
+  };
+
+  assert.deepEqual(calls, [
+    { url: `/api/admin/demo-scheduling/requests/${pending.id}`, method: "PATCH" },
+    { url: "/api/admin/demo-scheduling", method: "GET" },
+  ]);
+  assert.deepEqual(openFilter("pending"), []);
+  assert.equal(selected, null);
+  assert.deepEqual(openFilter("approved").map((request) => request.status), ["approved"]);
+  assert.deepEqual(openFilter("active").map((request) => request.status), ["approved"]);
+  assert.deepEqual(openFilter("all").map((request) => request.status), ["approved"]);
+  assert.deepEqual(openFilter("denied"), []);
+  assert.equal(requests.filter((request) => request.id === pending.id).length, 1);
+  assert.equal(demoCalendarOccupancyCount(requests), 1);
+  assert.equal(notifications[pending.id].every((event) => event.status === "failed"), true);
+  assert.match(patchPayload.warning, /approved.*emails could not be delivered/i);
+});
+
+test("stale refreshes cannot regress denied or cancelled component state", () => {
+  const pending = adminRequest("pending", "denial-race");
+  const denied: DemoRequest = { ...pending, status: "denied", deniedAt: "2026-08-20T18:05:00.000Z" };
+  const approved = adminRequest("approved", "cancellation-race");
+  const cancelled: DemoRequest = { ...approved, status: "cancelled", cancelledAt: "2026-08-20T18:10:00.000Z" };
+  const state = new DemoSchedulingAdminRequestState([pending, approved]);
+
+  state.applyTransition(denied);
+  state.applyTransition(cancelled);
+  const requests = state.applyRefresh([pending, pending, approved, approved]);
+
+  assert.deepEqual(requests.map((request) => [request.id, request.status]), [
+    [pending.id, "denied"],
+    [approved.id, "cancelled"],
+  ]);
+  assert.deepEqual(requests.filter((request) => requestMatchesDemoFilter(request, "pending", adminNow)), []);
+  assert.deepEqual(requests.filter((request) => requestMatchesDemoFilter(request, "approved", adminNow)), []);
+  assert.deepEqual(requests.filter((request) => requestMatchesDemoFilter(request, "active", adminNow)), []);
+  assert.deepEqual(requests.filter((request) => requestMatchesDemoFilter(request, "denied", adminNow)).map((request) => request.id), [pending.id]);
+  assert.equal(demoCalendarOccupancyCount(requests), 0);
+});
+
+test("refresh merge accepts forward server transitions and rejects status regressions", () => {
+  const pending = adminRequest("pending", "forward");
+  const approved: DemoRequest = { ...pending, status: "approved", approvedAt: "2026-08-20T18:05:00.000Z" };
+  const cancelled: DemoRequest = { ...approved, status: "cancelled", cancelledAt: "2026-08-20T18:10:00.000Z" };
+
+  assert.equal(mergeRefreshedDemoRequests([pending], [approved])[0].status, "approved");
+  assert.equal(mergeRefreshedDemoRequests([approved], [cancelled])[0].status, "cancelled");
+  assert.equal(mergeRefreshedDemoRequests([approved], [pending])[0].status, "approved");
+  assert.equal(mergeRefreshedDemoRequests([cancelled], [approved])[0].status, "cancelled");
 });
 
 test("public and legacy source values are controlled exactly", () => {

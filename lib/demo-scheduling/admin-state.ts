@@ -21,6 +21,52 @@ export function reconcileSelectedDemoRequest(
   return selected && requestMatchesDemoFilter(selected, filter, now) ? selected : null;
 }
 
+function canRefreshDemoRequestStatus(current: DemoRequest["status"], refreshed: DemoRequest["status"]): boolean {
+  if (current === refreshed) return true;
+  if (current === "pending") return refreshed === "approved" || refreshed === "denied";
+  return current === "approved" && refreshed === "cancelled";
+}
+
+export function mergeRefreshedDemoRequests(current: DemoRequest[], refreshed: DemoRequest[]): DemoRequest[] {
+  const currentById = new Map(current.map((request) => [request.id, request]));
+  const seen = new Set<string>();
+  const merged: DemoRequest[] = [];
+
+  for (const request of refreshed) {
+    if (seen.has(request.id)) continue;
+    const existing = currentById.get(request.id);
+    merged.push(existing && !canRefreshDemoRequestStatus(existing.status, request.status) ? existing : request);
+    seen.add(request.id);
+  }
+
+  for (const request of current) {
+    if (!seen.has(request.id)) {
+      merged.push(request);
+      seen.add(request.id);
+    }
+  }
+
+  return merged;
+}
+
+export class DemoSchedulingAdminRequestState {
+  private requests: DemoRequest[];
+
+  constructor(initial: DemoRequest[] = []) {
+    this.requests = mergeRefreshedDemoRequests([], initial);
+  }
+
+  applyTransition(request: DemoRequest): DemoRequest[] {
+    this.requests = mergeRefreshedDemoRequests([request], this.requests);
+    return this.requests;
+  }
+
+  applyRefresh(requests: DemoRequest[]): DemoRequest[] {
+    this.requests = mergeRefreshedDemoRequests(this.requests, requests);
+    return this.requests;
+  }
+}
+
 export function isDemoRequestSlotOccupying(request: DemoRequest): boolean {
   return request.status === "pending" || request.status === "approved";
 }
