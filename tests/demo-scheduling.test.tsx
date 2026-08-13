@@ -1,32 +1,332 @@
 import assert from "node:assert/strict";
-import test from "node:test";
 import { readFileSync } from "node:fs";
+import test from "node:test";
 import { generateAvailableSlots } from "../lib/demo-scheduling/availability";
+import { demoRequestFingerprint } from "../lib/demo-scheduling/client";
 import { createDemoIcs } from "../lib/demo-scheduling/ics";
 import { centralLocalToUtc, slotFromLocal } from "../lib/demo-scheduling/time";
+import { DEMO_EQUIPMENT_INTERESTS, DEMO_SOURCES, type DemoRequest } from "../lib/demo-scheduling/types";
 import { validateDemoRequest } from "../lib/demo-scheduling/validation";
-import type { DemoRequest } from "../lib/demo-scheduling/types";
-const migration=readFileSync("supabase/migrations/20260812210000_create_demo_scheduling.sql","utf8"),equipment=readFileSync("components/equipment/EquipmentCatalog.tsx","utf8"),priceMatch=readFileSync("components/promotions/HomePriceMatch.tsx","utf8"),action=readFileSync("components/ids-action/IdsActionCarousel.tsx","utf8"),modal=readFileSync("components/demo-scheduling/ScheduleDemoModal.tsx","utf8");
-test("approved public placements include Lymow, Yarbo, Meet or Beat, and IDS in Action",()=>{assert.match(equipment,/product\.slug==="lymow-one-plus".*source="featured_lymow".*equipmentInterest="Lymow One Plus"/);assert.match(equipment,/product\.slug==="yarbo".*source="featured_yarbo".*equipmentInterest="Yarbo Core"/);assert.match(priceMatch,/ContactInformationModal[\s\S]*ScheduleDemoModal source="meet_or_beat"/);assert.match(action,/VIEW ALL IDS IN ACTION[\s\S]*ScheduleDemoModal source="ids_in_action"/);});
-test("Pandag, quote flow, and Accessories receive no demo trigger",()=>{assert.doesNotMatch(equipment,/quote&&<ScheduleDemoModal/);assert.doesNotMatch(equipment,/Accessories[\s\S]*ScheduleDemoModal/);assert.doesNotMatch(readFileSync("app/pandag/project-quote/page.tsx","utf8"),/ScheduleDemo/);assert.doesNotMatch(readFileSync("components/equipment/AccessoryCatalog.tsx","utf8"),/ScheduleDemo/);});
-test("shared accessible dialog captures all required customer fields and pending copy",()=>{for(const name of ["name","email","phone","propertyAddress"])assert.match(modal,new RegExp(`name="${name}"`));assert.match(modal,/role="dialog"/);assert.match(modal,/aria-modal="true"/);assert.match(modal,/Escape/);assert.match(modal,/Demo request received\./);assert.match(modal,/not confirmed until IDS approves/);assert.match(modal,/Central Time/);});
-test("Central conversion remains DST safe",()=>{assert.equal(centralLocalToUtc("2026-01-15","09:00")?.toISOString(),"2026-01-15T15:00:00.000Z");assert.equal(centralLocalToUtc("2026-07-15","09:00")?.toISOString(),"2026-07-15T14:00:00.000Z");assert.equal(centralLocalToUtc("2026-03-08","02:30"),null);});
-test("availability returns only future recurring slots and removes blackouts and occupied ranges",()=>{const first=slotFromLocal("2026-08-17","09:00")!,second=slotFromLocal("2026-08-17","10:00")!,third=slotFromLocal("2026-08-17","11:00")!;const base={start:"2026-08-17",end:"2026-08-17",now:new Date("2026-08-16T12:00:00Z"),rules:[{weekday:1,enabled:true,start_time:"09:00",end_time:"12:00"}],duration:60,horizon:90};const slots=generateAvailableSlots({...base,exceptions:[{starts_at:first.startAt,ends_at:first.endAt}],requests:[{requested_start_at:second.startAt,requested_end_at:second.endAt}]});assert.deepEqual(slots.map(x=>x.startAt),[third.startAt]);});
-test("pending and approved occupy slots while denied records are excluded by the server query",()=>{const server=readFileSync("lib/demo-scheduling/server.ts","utf8");assert.match(server,/\.in\("status",\["pending","approved"\]\)/);assert.doesNotMatch(server,/\.in\("status",\["pending","approved","denied"/);});
-test("database exclusion constraint prevents simultaneous overlapping reservations",()=>{assert.match(migration,/exclude using gist[\s\S]*tstzrange\(requested_start_at,requested_end_at,'\[\)'\) with &&[\s\S]*status in \('pending','approved'\)/);assert.match(migration,/exception when exclusion_violation then raise exception 'slot_conflict'/);});
-test("submission is pending, throttled, idempotent, server-validated, and source constrained",()=>{assert.match(migration,/status text not null default 'pending'/);assert.match(migration,/idempotency_key uuid not null unique/);assert.match(migration,/on conflict\(idempotency_key\)/);assert.match(migration,/request_throttled/);assert.match(migration,/source in \('featured_lymow','featured_yarbo','meet_or_beat','ids_in_action'\)/);const valid={name:"A Customer",email:"a@example.com",phone:"555-555-1212",propertyAddress:"1 Main St",requestedStartAt:"2026-08-20T15:00:00Z",source:"featured_lymow",equipmentInterest:"Lymow One Plus",idempotencyKey:"10000000-0000-4000-8000-000000000001",company:""};assert.equal(validateDemoRequest(valid).ok,true);assert.equal(validateDemoRequest({...valid,source:"pandag"}).ok,false);assert.equal(validateDemoRequest({...valid,equipmentInterest:"Yarbo Core"}).ok,false);assert.equal(validateDemoRequest({...valid,company:"spam"}).ok,false);const route=readFileSync("app/api/demo-scheduling/requests/route.ts","utf8");assert.match(route,/new TextEncoder\(\)\.encode\(raw\)\.byteLength>12000/);assert.match(route,/await notifyNewDemoRequest/);});
-test("PII and admin data have RLS, no public grants, and public availability returns slots only",()=>{for(const table of ["demo_requests","demo_availability_rules","demo_availability_exceptions","demo_settings","demo_notification_events"])assert.match(migration,new RegExp(`alter table public\\.${table} enable row level security`));assert.match(migration,/revoke all on table[\s\S]*from public,anon,authenticated,service_role/);assert.doesNotMatch(migration,/grant[^;]+to anon|grant[^;]+to authenticated/i);const route=readFileSync("app/api/demo-scheduling/availability/route.ts","utf8");assert.match(route,/slots:await getAvailableSlots/);assert.doesNotMatch(route,/customer_name|customer_email|property_address/);});
-test("every admin scheduling route uses established authentication",()=>{for(const file of ["app/api/admin/demo-scheduling/route.ts","app/api/admin/demo-scheduling/requests/[id]/route.ts","app/api/admin/demo-scheduling/blackouts/route.ts","app/api/admin/demo-scheduling/blackouts/[id]/route.ts"])assert.match(readFileSync(file,"utf8"),/isReviewAdmin/);});
-test("approve, deny, message persistence, cancel, and idempotent transitions are database controlled",()=>{assert.match(migration,/p_action='approve'/);assert.match(migration,/if v_status='approved' then return 'unchanged'/);assert.match(migration,/p_action='deny'/);assert.match(migration,/admin_message=left\(btrim\(p_message\),2000\)/);assert.match(migration,/p_action='cancel'/);});
-const request:DemoRequest={id:"10000000-0000-4000-8000-000000000001",customerName:"Doe, Jane; Jr",customerEmail:"jane@example.com",customerPhone:"555-555-1212",propertyAddress:"1 Main St; Unit 2, Town",requestedStartAt:"2026-08-20T19:00:00.000Z",requestedEndAt:"2026-08-20T20:00:00.000Z",status:"approved",source:"featured_lymow",equipmentInterest:"Lymow One Plus",adminMessage:null,createdAt:"2026-08-12T00:00:00Z",approvedAt:"2026-08-12T01:00:00Z",deniedAt:null,cancelledAt:null};
-const calendarOptions={organizerEmail:"demos@integrityautomowers.com",attendeeEmail:"jane@example.com",attendeeName:"Doe, Jane; Jr"};
-test("ICS is standards compliant with stable UID, UTC range, private details, location, and escaping",()=>{const ics=createDemoIcs(request,calendarOptions);assert.match(ics,/BEGIN:VCALENDAR\r\nVERSION:2\.0\r\n/);assert.match(ics,/METHOD:REQUEST/);assert.match(ics,/UID:demo-10000000-0000-4000-8000-000000000001@integrityautomowers\.com/);assert.match(ics,/DTSTART:20260820T190000Z/);assert.match(ics,/DTEND:20260820T200000Z/);assert.match(ics,/LOCATION:1 Main St\\; Unit 2\\, Town/);assert.match(ics,/Customer: Doe\\, Jane\\; Jr\\nEmail: jane@example\.com/);assert.ok(ics.endsWith("\r\n"));});
-test("ICS request includes organizer and recipient-specific attendee",()=>{const ids=createDemoIcs(request,{...calendarOptions,attendeeEmail:"calendar@proton.example",attendeeName:"IDS Demo Calendar"}).replace(/\r\n /g,""),customer=createDemoIcs(request,calendarOptions).replace(/\r\n /g,"");assert.match(ids,/ORGANIZER;CN="Integrity Distribution Systems":mailto:demos@integrityautomowers\.com/);assert.match(ids,/ATTENDEE;CN="IDS Demo Calendar";RSVP=FALSE:mailto:calendar@proton\.example/);assert.match(customer,/ATTENDEE;CN="Doe, Jane; Jr";RSVP=FALSE:mailto:jane@example\.com/);assert.equal(ids.match(/UID:[^\r]+/)?.[0],customer.match(/UID:[^\r]+/)?.[0]);});
-test("ICS rejects email header injection and folds customer newlines as content",()=>{assert.throws(()=>createDemoIcs(request,{...calendarOptions,attendeeEmail:"jane@example.com\r\nX-INJECTED:yes"}),/valid calendar email/);const ics=createDemoIcs({...request,customerName:"Jane\r\nATTENDEE:mailto:evil@example.com"},calendarOptions);assert.doesNotMatch(ics,/\r\nATTENDEE:mailto:evil/);assert.match(ics,/Jane\\nATTENDEE:mailto:evil/);});
-test("demo notifications use server-only email, configurable calendar recipient, and idempotent outbox",()=>{const notifications=readFileSync("lib/demo-scheduling/notifications.ts","utf8"),email=readFileSync("lib/email.ts","utf8");assert.match(notifications,/New Demo Request/);assert.match(notifications,/Your IDS Demo Is Confirmed/);assert.match(notifications,/Update on Your IDS Demo Request/);assert.match(notifications,/DEMO_CALENDAR_EMAIL\?\?process\.env\.NOTIFY_EMAIL/);assert.match(email,/DEMO_FROM_EMAIL/);assert.match(migration,/unique\(request_id,event_type\)/);assert.match(migration,/if e\.status='sent' then return jsonb_build_object\('claimed',false/);});
-test("Resend calendar attachments use the installed SDK contentType field",()=>{const notifications=readFileSync("lib/demo-scheduling/notifications.ts","utf8"),types=readFileSync("node_modules/resend/dist/index.d.mts","utf8");assert.match(types,/interface Attachment[\s\S]*contentType\?: string/);assert.match(notifications,/contentType:"text\/calendar; method=REQUEST; charset=UTF-8"/);assert.match(notifications,/attachment\(r,r\.customerEmail,r\.customerName\)/);assert.match(notifications,/attachment\(r,calendarEmail,"IDS Demo Calendar"\)/);});
-test("database enforces exact Central slot boundaries and rejects sub-minute starts",()=>{assert.match(migration,/v_local<>date_trunc\('minute',v_local\)/);assert.match(migration,/mod\(extract\(epoch from \(v_local::time-v_rule\.start_time\)\)::bigint,v_settings\.duration_minutes\*60\)<>0/);assert.match(migration,/v_local:=p_start_at at time zone v_settings\.timezone/);});
-test("idempotency keys require the same logical payload and conflicts are safely mapped",()=>{assert.match(migration,/raise exception 'idempotency_conflict'/);for(const field of ["customer_phone","property_address","requested_start_at","requested_end_at","source","equipment_interest"])assert.match(migration,new RegExp(`v_existing\\.${field} is distinct from`));assert.match(migration,/lower\(v_existing\.customer_email\) is distinct from lower\(p_email\)/);assert.match(modal,/idempotencyKey=useRef<string\|null>/);assert.match(modal,/attemptedStart\.current!==selectedStart/);assert.match(modal,/idempotencyKey:idempotencyKey\.current/);assert.equal((modal.match(/crypto\.randomUUID\(\)/g)??[]).length,2);const route=readFileSync("app/api/demo-scheduling/requests/route.ts","utf8");assert.match(route,/idempotency_conflict/);assert.doesNotMatch(route,/stored|customer_email/);});
-test("admin displays applicable notification states and retries failures through an authenticated route",()=>{const admin=readFileSync("app/admin/demo-scheduling/page.tsx","utf8"),retry=readFileSync("app/api/admin/demo-scheduling/requests/[id]/retry/route.ts","utf8"),notifications=readFileSync("lib/demo-scheduling/notifications.ts","utf8");for(const label of ["IDS new-request notification","Customer confirmation","IDS Proton calendar invitation","Customer denial"])assert.match(admin,new RegExp(label));assert.match(admin,/Retry Failed Notifications/);assert.match(retry,/isReviewAdmin/);assert.match(retry,/status==="failed"/);assert.doesNotMatch(retry,/request\.json/);assert.match(notifications,/r\.status==="pending"[\s\S]*notifyNewDemoRequest/);assert.match(notifications,/r\.status==="approved"[\s\S]*notifyDemoApproval/);assert.match(notifications,/r\.status==="denied"[\s\S]*notifyDemoDenial/);assert.match(migration,/if e\.status='sent' then return jsonb_build_object\('claimed',false/);});
-test("availability loading is reset around every fetch",()=>{assert.match(modal,/setLoading\(true\);setMessage\(""\);fetch/);assert.match(modal,/\.finally\(\(\)=>\{if\(active\)setLoading\(false\)/);});
-test("migration is additive and isolated from pricing, checkout, featured businesses, and Aftermarket",()=>{assert.doesNotMatch(migration,/\bdrop\b/i);assert.doesNotMatch(migration,/catalog_|checkout_|stripe|featured_business|ids_action|review|referral|accessor|aftermarket/i);});
+import { sanitizeEmailFailure } from "../lib/email-diagnostics";
+
+const source = (path: string) => readFileSync(path, "utf8");
+const oldMigration = source("supabase/migrations/20260812210000_create_demo_scheduling.sql");
+const newMigration = source("supabase/migrations/20260813000000_expand_demo_scheduling_sources_and_equipment.sql");
+const equipment = source("components/equipment/EquipmentCatalog.tsx");
+const homepage = source("app/page.tsx");
+const mobileHome = source("components/mobile/MobileHomepage.tsx");
+const mobileNavigation = source("components/mobile/MobileHomeNavigation.tsx");
+const contact = source("components/contact/HomepageContactSection.tsx");
+const priceMatch = source("components/promotions/HomePriceMatch.tsx");
+const action = source("components/ids-action/IdsActionCarousel.tsx");
+const gallery = source("components/ids-action/IdsActionGallery.tsx");
+const modal = source("components/demo-scheduling/ScheduleDemoModal.tsx");
+const server = source("lib/demo-scheduling/server.ts");
+const notifications = source("lib/demo-scheduling/notifications.ts");
+const emailSource = source("lib/email.ts");
+const admin = source("app/admin/demo-scheduling/page.tsx");
+
+const valid = {
+  name: "A Customer",
+  email: "a@example.com",
+  phone: "555-555-1212",
+  propertyAddress: "1 Main St",
+  requestedStartAt: "2026-08-20T15:00:00Z",
+  source: "featured_machines",
+  equipmentInterest: "Lymow One Plus",
+  idempotencyKey: "10000000-0000-4000-8000-000000000001",
+  company: "",
+};
+
+test("public and legacy source values are controlled exactly", () => {
+  assert.deepEqual(DEMO_SOURCES, ["featured_lymow", "featured_yarbo", "featured_machines", "contact_ids", "meet_or_beat", "ids_in_action"]);
+});
+
+test("machine interest values are controlled exactly", () => {
+  assert.deepEqual(DEMO_EQUIPMENT_INTERESTS, ["Lymow One Plus", "Yarbo Core", "Help Me Decide"]);
+});
+
+test("new public sources and existing shared sources validate", () => {
+  for (const requestSource of ["featured_machines", "contact_ids", "meet_or_beat", "ids_in_action"]) {
+    assert.equal(validateDemoRequest({ ...valid, source: requestSource }).ok, true, requestSource);
+  }
+});
+
+test("legacy sources remain valid and no longer dictate machine interest", () => {
+  assert.equal(validateDemoRequest({ ...valid, source: "featured_lymow", equipmentInterest: "Yarbo Core" }).ok, true);
+  assert.equal(validateDemoRequest({ ...valid, source: "featured_yarbo", equipmentInterest: "Help Me Decide" }).ok, true);
+});
+
+test("new requests require a valid machine interest", () => {
+  assert.equal(validateDemoRequest({ ...valid, equipmentInterest: undefined }).ok, false);
+  assert.equal(validateDemoRequest({ ...valid, equipmentInterest: null }).ok, false);
+  assert.equal(validateDemoRequest({ ...valid, equipmentInterest: "Pandag G1" }).ok, false);
+  assert.equal(validateDemoRequest({ ...valid, equipmentInterest: "" }).ok, false);
+});
+
+test("honeypot and unknown sources remain rejected", () => {
+  assert.equal(validateDemoRequest({ ...valid, source: "pandag" }).ok, false);
+  assert.equal(validateDemoRequest({ ...valid, company: "spam" }).ok, false);
+});
+
+test("scheduler mounts its overlay in a body-level React portal", () => {
+  assert.match(modal, /import \{ createPortal \} from "react-dom"/);
+  assert.match(modal, /createPortal\(overlay, document\.body\)/);
+  assert.match(modal, /open && typeof document !== "undefined"/);
+  assert.match(modal, /data-demo-scheduling-portal="body"/);
+});
+
+test("portal dialog remains viewport-safe and scrolls internally", () => {
+  assert.match(modal, /fixed inset-0/);
+  assert.match(modal, /max-h-\[calc\(100dvh-1rem\)\]/);
+  assert.match(modal, /overflow-y-auto overflow-x-hidden overscroll-contain/);
+  assert.match(modal, /sticky top-0/);
+});
+
+test("dialog keeps Escape, backdrop, focus trap, focus return, and body scroll restoration", () => {
+  assert.match(modal, /event\.key === "Escape"/);
+  assert.match(modal, /event\.target === event\.currentTarget/);
+  assert.match(modal, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(modal, /document\.body\.style\.overflow = previousOverflow/);
+  assert.match(modal, /origin\?\.focus\(\)/);
+  assert.match(modal, /event\.key !== "Tab"/);
+});
+
+test("machine question is an accessible required radio group", () => {
+  assert.match(modal, /<fieldset>/);
+  assert.match(modal, /Which machine would you like to see\?/);
+  assert.match(modal, /type="radio" name="equipmentInterest" value=\{option\} required/);
+  assert.match(modal, /DEMO_EQUIPMENT_INTERESTS\.map/);
+});
+
+test("shared dialog still captures required customer fields and pending copy", () => {
+  for (const name of ["name", "email", "phone", "propertyAddress"]) assert.match(modal, new RegExp(`name="${name}"`));
+  assert.match(modal, /role="dialog"/);
+  assert.match(modal, /aria-modal="true"/);
+  assert.match(modal, /not confirmed until IDS approves/);
+  assert.match(modal, /Central Time/);
+});
+
+test("Featured Machines desktop has one section-level scheduler", () => {
+  assert.equal((homepage.match(/<ScheduleDemoModal source="featured_machines"/g) ?? []).length, 1);
+  assert.ok(homepage.indexOf("Featured Machines") < homepage.indexOf('<ScheduleDemoModal source="featured_machines"'));
+});
+
+test("machine cards contain no scheduler triggers", () => {
+  assert.doesNotMatch(equipment, /ScheduleDemoModal|featured_lymow|featured_yarbo/);
+});
+
+test("Pandag, quote flow, Accessories, and Aftermarket receive no demo trigger", () => {
+  assert.doesNotMatch(source("app/pandag/project-quote/page.tsx"), /ScheduleDemo/);
+  assert.doesNotMatch(source("components/equipment/AccessoryCatalog.tsx"), /ScheduleDemo/);
+  assert.doesNotMatch(equipment, /ScheduleDemo/);
+});
+
+test("mobile machines view has one scheduler above its cards", () => {
+  assert.equal((mobileHome.match(/<ScheduleDemoModal source="featured_machines"/g) ?? []).length, 1);
+  const cta = mobileHome.indexOf('<ScheduleDemoModal source="featured_machines"');
+  const cards = mobileHome.indexOf("<EquipmentCatalog />", cta);
+  assert.ok(cta > mobileHome.indexOf("Featured Machines") && cards > cta);
+});
+
+test("Contact IDS reuses Contact Us and a contact_ids scheduler on desktop and mobile", () => {
+  assert.match(contact, /ContactInformationModal/);
+  assert.match(contact, /ScheduleDemoModal source="contact_ids"/);
+  assert.match(contact, /flex flex-col gap-3 sm:flex-row/);
+  assert.match(mobileHome, /view === "contact" && <HomepageContactSection \/>/);
+});
+
+test("Meet or Beat retains Contact Us and scheduling", () => {
+  assert.match(priceMatch, /ContactInformationModal[\s\S]*ScheduleDemoModal source="meet_or_beat"/);
+});
+
+test("IDS Action carousel fetches featured entries on every viewport", () => {
+  assert.match(action, /\/api\/ids-in-action\?featured=true&limit=8/);
+  assert.doesNotMatch(action, /matchMedia\("\(min-width: 768px\)"\)/);
+  assert.match(action, /const entry = entries\[index\]/);
+});
+
+test("IDS Action featured experience includes View All and Schedule a Demo", () => {
+  assert.match(action, /VIEW ALL IDS IN ACTION/);
+  assert.match(action, /href="\/ids-in-action"/);
+  assert.match(action, /ScheduleDemoModal source="ids_in_action"/);
+  assert.match(action, /prefers-reduced-motion: reduce/);
+});
+
+test("mobile IDS IN ACTION is an internal featured view, not a direct gallery link", () => {
+  assert.match(mobileNavigation, /"ids-action"/);
+  assert.match(mobileNavigation, /label: "IDS IN ACTION", view: "ids-action"/);
+  assert.doesNotMatch(mobileNavigation, /href="\/ids-in-action"[^>]*>IDS IN ACTION/);
+  assert.match(mobileHome, /view === "ids-action" && <IdsActionCarousel \/>/);
+});
+
+test("standalone IDS Action gallery remains the unfeatured full gallery", () => {
+  assert.match(gallery, /\/api\/ids-in-action\?limit=24&category=/);
+  assert.doesNotMatch(gallery, /featured=true/);
+  assert.match(source("app/ids-in-action/page.tsx"), /<IdsActionGallery\/>/);
+});
+
+const fingerprintBase = {
+  name: " A Customer ",
+  email: "A@EXAMPLE.COM ",
+  phone: " 555-555-1212 ",
+  propertyAddress: " 1 Main St ",
+  requestedStartAt: "2026-08-20T15:00:00Z",
+  source: "featured_machines" as const,
+  equipmentInterest: "Lymow One Plus" as const,
+};
+
+test("canonical payload fingerprint is stable for an exact logical retry", () => {
+  assert.equal(demoRequestFingerprint(fingerprintBase), demoRequestFingerprint({ ...fingerprintBase, name: "A Customer", email: "a@example.com", phone: "555-555-1212", propertyAddress: "1 Main St" }));
+});
+
+test("canonical payload fingerprint changes for every material field", () => {
+  const original = demoRequestFingerprint(fingerprintBase);
+  const changes = [
+    { name: "Different Customer" }, { email: "other@example.com" }, { phone: "555-555-9999" },
+    { propertyAddress: "2 Main St" }, { requestedStartAt: "2026-08-20T16:00:00Z" },
+    { source: "contact_ids" as const }, { equipmentInterest: "Yarbo Core" as const },
+    { equipmentInterest: "Help Me Decide" as const },
+  ];
+  for (const change of changes) assert.notEqual(demoRequestFingerprint({ ...fingerprintBase, ...change }), original);
+});
+
+test("modal reuses keys only for the same canonical fingerprint", () => {
+  assert.match(modal, /attemptedFingerprint\.current !== fingerprint/);
+  assert.match(modal, /attemptedFingerprint\.current = fingerprint/);
+  assert.equal((modal.match(/crypto\.randomUUID\(\)/g) ?? []).length, 1);
+});
+
+test("database idempotency mismatch protection remains authoritative", () => {
+  assert.match(oldMigration, /raise exception 'idempotency_conflict'/);
+  for (const field of ["customer_phone", "property_address", "requested_start_at", "requested_end_at", "source", "equipment_interest"]) assert.match(oldMigration, new RegExp(`v_existing\\.${field} is distinct from`));
+  assert.match(oldMigration, /lower\(v_existing\.customer_email\) is distinct from lower\(p_email\)/);
+  assert.match(source("app/api/demo-scheduling/requests/route.ts"), /idempotency_conflict/);
+});
+
+test("new migration expands source and equipment constraints only", () => {
+  for (const value of DEMO_SOURCES) assert.match(newMigration, new RegExp(`'${value}'`));
+  for (const value of DEMO_EQUIPMENT_INTERESTS) assert.match(newMigration, new RegExp(`'${value}'`));
+  assert.match(newMigration, /drop constraint demo_requests_source_check/);
+  assert.match(newMigration, /drop constraint demo_requests_equipment_interest_check/);
+  assert.doesNotMatch(newMigration, /drop table|delete from|truncate|update public\.demo_requests/i);
+});
+
+test("historical NULL equipment interest remains database-compatible", () => {
+  assert.match(newMigration, /equipment_interest is null/);
+});
+
+test("the applied migration remains unchanged and the expansion is separate", () => {
+  assert.match(oldMigration, /source in \('featured_lymow','featured_yarbo','meet_or_beat','ids_in_action'\)/);
+  assert.match(oldMigration, /equipment_interest is null or equipment_interest in \('Lymow One Plus','Yarbo Core'\)/);
+  assert.doesNotMatch(oldMigration, /featured_machines|contact_ids|Help Me Decide/);
+  assert.match(newMigration, /^begin;[\s\S]*commit;\s*$/);
+});
+
+test("PII tables keep RLS and public availability remains slots-only", () => {
+  for (const table of ["demo_requests", "demo_availability_rules", "demo_availability_exceptions", "demo_settings", "demo_notification_events"]) assert.match(oldMigration, new RegExp(`alter table public\\.${table} enable row level security`));
+  const availabilityRoute = source("app/api/demo-scheduling/availability/route.ts");
+  assert.match(availabilityRoute, /slots:await getAvailableSlots/);
+  assert.doesNotMatch(availabilityRoute, /customer_name|customer_email|property_address/);
+});
+
+test("pending and approved requests still occupy slots", () => {
+  assert.match(server, /\.in\("status",\["pending","approved"\]\)/);
+  assert.doesNotMatch(server, /"denied"/);
+});
+
+test("database overlap and exact slot-boundary protections remain", () => {
+  assert.match(oldMigration, /exclude using gist[\s\S]*status in \('pending','approved'\)/);
+  assert.match(oldMigration, /exception when exclusion_violation then raise exception 'slot_conflict'/);
+  assert.match(oldMigration, /v_local<>date_trunc\('minute',v_local\)/);
+  assert.match(oldMigration, /mod\(extract\(epoch from \(v_local::time-v_rule\.start_time\)\)::bigint,v_settings\.duration_minutes\*60\)<>0/);
+});
+
+test("approval, denial, cancellation, and sent-notification idempotency remain database-controlled", () => {
+  for (const token of ["p_action='approve'", "p_action='deny'", "p_action='cancel'", "if e.status='sent'"]) assert.match(oldMigration, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(oldMigration, /unique\(request_id,event_type\)/);
+});
+
+test("Central conversion remains DST safe", () => {
+  assert.equal(centralLocalToUtc("2026-01-15", "09:00")?.toISOString(), "2026-01-15T15:00:00.000Z");
+  assert.equal(centralLocalToUtc("2026-07-15", "09:00")?.toISOString(), "2026-07-15T14:00:00.000Z");
+  assert.equal(centralLocalToUtc("2026-03-08", "02:30"), null);
+});
+
+test("availability removes blackouts and occupied ranges", () => {
+  const first = slotFromLocal("2026-08-17", "09:00")!;
+  const second = slotFromLocal("2026-08-17", "10:00")!;
+  const third = slotFromLocal("2026-08-17", "11:00")!;
+  const slots = generateAvailableSlots({ start: "2026-08-17", end: "2026-08-17", now: new Date("2026-08-16T12:00:00Z"), rules: [{ weekday: 1, enabled: true, start_time: "09:00", end_time: "12:00" }], duration: 60, horizon: 90, exceptions: [{ starts_at: first.startAt, ends_at: first.endAt }], requests: [{ requested_start_at: second.startAt, requested_end_at: second.endAt }] });
+  assert.deepEqual(slots.map((slot) => slot.startAt), [third.startAt]);
+});
+
+const request: DemoRequest = { id: "10000000-0000-4000-8000-000000000001", customerName: "Doe, Jane; Jr", customerEmail: "jane@example.com", customerPhone: "555-555-1212", propertyAddress: "1 Main St; Unit 2, Town", requestedStartAt: "2026-08-20T19:00:00.000Z", requestedEndAt: "2026-08-20T20:00:00.000Z", status: "approved", source: "featured_machines", equipmentInterest: "Help Me Decide", adminMessage: null, createdAt: "2026-08-12T00:00:00Z", approvedAt: "2026-08-12T01:00:00Z", deniedAt: null, cancelledAt: null };
+const calendarOptions = { organizerEmail: "demos@integrityautomowers.com", attendeeEmail: "jane@example.com", attendeeName: "Doe, Jane; Jr" };
+
+test("ICS keeps stable request semantics and includes machine interest", () => {
+  const ics = createDemoIcs(request, calendarOptions).replace(/\r\n /g, "");
+  assert.match(ics, /METHOD:REQUEST/);
+  assert.match(ics, /UID:demo-10000000-0000-4000-8000-000000000001@integrityautomowers\.com/);
+  assert.match(ics, /DTSTART:20260820T190000Z/);
+  assert.match(ics, /DTEND:20260820T200000Z/);
+  assert.match(ics, /Equipment Interest: Help Me Decide/);
+  assert.match(ics, /LOCATION:1 Main St\\; Unit 2\\, Town/);
+});
+
+test("ICS rejects header injection and keeps organizer and attendee", () => {
+  assert.throws(() => createDemoIcs(request, { ...calendarOptions, attendeeEmail: "jane@example.com\r\nX-INJECTED:yes" }), /valid calendar email/);
+  const ics = createDemoIcs(request, calendarOptions).replace(/\r\n /g, "");
+  assert.match(ics, /ORGANIZER;CN="Integrity Distribution Systems":mailto:demos@integrityautomowers\.com/);
+  assert.match(ics, /ATTENDEE;CN="Doe, Jane; Jr";RSVP=FALSE:mailto:jane@example\.com/);
+});
+
+test("machine interest appears in IDS, customer, calendar, and admin information", () => {
+  assert.match(notifications, /Equipment: \$\{r\.equipmentInterest/);
+  assert.equal((notifications.match(/Machine requested: \$\{r\.equipmentInterest/g) ?? []).length, 2);
+  assert.match(source("lib/demo-scheduling/ics.ts"), /Equipment Interest: \$\{request\.equipmentInterest/);
+  assert.match(admin, /selected\.equipmentInterest\?\?"Not specified"/);
+});
+
+test("Resend diagnostics classify useful failure reasons without returning raw messages", () => {
+  assert.match(sanitizeEmailFailure({ name: "invalid_from_address", statusCode: 403, message: "The integrityautomowers.com domain is not verified" }), /Resend domain not verified.*invalid_from_address.*HTTP 403/);
+  assert.match(sanitizeEmailFailure({ name: "validation_error", statusCode: 422, message: "bad payload" }), /Resend validation error/);
+  assert.match(sanitizeEmailFailure({ name: "application_error", statusCode: 400, message: "recipient jane@example.com was rejected" }), /Resend recipient rejected/);
+  const sanitized = sanitizeEmailFailure(new Error("Authorization: Bearer secret-key for jane@example.com"));
+  assert.equal(sanitized, "Resend API error");
+  assert.doesNotMatch(sanitized, /secret|jane|Authorization/);
+  assert.ok(sanitized.length <= 100);
+});
+
+test("server email requires DEMO_FROM_EMAIL and never falls back after failure", () => {
+  const serverEmail = emailSource.slice(emailSource.indexOf("export async function sendServerEmail"));
+  assert.match(serverEmail, /DEMO_FROM_EMAIL\?\.trim\(\)/);
+  assert.match(serverEmail, /sanitizeEmailFailure\(result\.error\)/);
+  assert.doesNotMatch(serverEmail, /onboarding@resend\.dev/);
+});
+
+test("notification delivery failures persist short sanitized errors without rolling back transitions", () => {
+  assert.match(notifications, /p_status:"failed"/);
+  assert.match(notifications, /error\.message\.slice\(0,100\)/);
+  assert.match(oldMigration, /char_length\(last_error\)<=100/);
+  assert.match(admin, /event\?\.status==="failed"&&event\.last_error&&<span/);
+  assert.match(admin, /Retry Failed Notifications/);
+});
+
+test("Resend attachment fields match the installed SDK", () => {
+  const resendTypes = source("node_modules/resend/dist/index.d.mts");
+  assert.match(resendTypes, /interface Attachment[\s\S]*contentType\?: string/);
+  assert.match(notifications, /contentType:"text\/calendar; method=REQUEST; charset=UTF-8"/);
+});
+
+test("request route keeps size, notification, and generic error protections", () => {
+  const route = source("app/api/demo-scheduling/requests/route.ts");
+  assert.match(route, /new TextEncoder\(\)\.encode\(raw\)\.byteLength>12000/);
+  assert.match(route, /await notifyNewDemoRequest/);
+  assert.doesNotMatch(route, /customer_email|stored payload|service_role/i);
+});
+
+test("availability loading is reset around every fetch", () => {
+  assert.match(modal, /setLoading\(true\)/);
+  assert.match(modal, /\.finally\(\(\) => \{ if \(active\) setLoading\(false\); \}\)/);
+});

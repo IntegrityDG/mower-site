@@ -43,14 +43,19 @@ test("compact home keeps its existing flow and adds the business spotlight after
   assert.doesNotMatch(homeBranch, /HomeReviews|EquipmentCatalog|NationwidePurchaseFlow/);
 });
 
-test("selected views mount the existing builder, machines, financing, reviews, and contact components", () => {
-  for (const expected of ['view === "build".*NationwidePurchaseFlow', 'view === "machines".*EquipmentCatalog', 'view === "financing".*HomeFinancing', 'view === "reviews".*HomeReviews', 'view === "contact".*HomepageContactSection']) assert.match(mobile, new RegExp(expected));
+test("selected views mount the existing builder, machines, financing, reviews, featured IDS Action, and contact components", () => {
+  for (const expected of ['view === "build".*NationwidePurchaseFlow', 'view === "machines".*EquipmentCatalog', 'view === "financing".*HomeFinancing', 'view === "reviews".*HomeReviews', 'view === "ids-action".*IdsActionCarousel', 'view === "contact".*HomepageContactSection']) assert.match(mobile, new RegExp(expected));
   const machinesBranch = mobile.match(/view === "machines"[\s\S]*?<EquipmentCatalog \/><\/div>/)?.[0] ?? "";
   assert.doesNotMatch(machinesBranch, /HomeBusinessSpotlight/);
   assert.match(mobile, /← Back to Home/);
   assert.match(mobile, /selectView\("home"\)/);
   assert.match(mobile, /selectView\("build"\)/);
   assert.match(navigation, /onSelect\(view\)/);
+});
+
+test("mobile machines view owns one section-level scheduler above the catalog", () => {
+  assert.equal((mobile.match(/ScheduleDemoModal source="featured_machines"/g) ?? []).length, 1);
+  assert.ok(mobile.indexOf('ScheduleDemoModal source="featured_machines"') < mobile.indexOf("<EquipmentCatalog />", mobile.indexOf('ScheduleDemoModal source="featured_machines"')));
 });
 
 test("shared financing preserves Hearth content, link, artwork, and disclaimer", () => {

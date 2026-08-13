@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 
-export type MobileView = "home" | "build" | "machines" | "financing" | "reviews" | "contact";
+export type MobileView = "home" | "build" | "machines" | "financing" | "reviews" | "ids-action" | "contact";
 
 const viewItems: Array<{ label: string; view: MobileView; primary?: boolean }> = [
   { label: "HOME", view: "home" },
@@ -11,6 +11,7 @@ const viewItems: Array<{ label: string; view: MobileView; primary?: boolean }> =
   { label: "OUR MACHINES", view: "machines" },
   { label: "FINANCING OPTIONS", view: "financing" },
   { label: "CUSTOMER REVIEWS", view: "reviews" },
+  { label: "IDS IN ACTION", view: "ids-action" },
   { label: "CONTACT IDS", view: "contact" },
 ];
 
@@ -53,7 +54,6 @@ export default function MobileHomeNavigation({ open, activeView, onClose, onSele
           {viewItems.slice(0, 3).map((item) => <button key={item.view} type="button" aria-current={activeView === item.view ? "page" : undefined} onClick={() => choose(item.view)} className={`min-h-12 rounded-xl px-4 py-3 text-left text-sm font-black tracking-wide ${item.primary ? "bg-emerald-600 text-white shadow-md" : activeView === item.view ? "bg-emerald-50 text-emerald-800" : "text-slate-800 hover:bg-slate-100"}`}>{item.label}</button>)}
           <Link href="/equipment/accessories" className="min-h-12 rounded-xl px-4 py-3 text-sm font-black tracking-wide text-slate-800 hover:bg-slate-100">ACCESSORIES &amp; PARTS</Link>
           {viewItems.slice(3, 5).map((item) => <button key={item.view} type="button" aria-current={activeView === item.view ? "page" : undefined} onClick={() => choose(item.view)} className={`min-h-12 rounded-xl px-4 py-3 text-left text-sm font-black tracking-wide ${activeView === item.view ? "bg-emerald-50 text-emerald-800" : "text-slate-800 hover:bg-slate-100"}`}>{item.label}</button>)}
-          <Link href="/ids-in-action" className="min-h-12 rounded-xl px-4 py-3 text-sm font-black tracking-wide text-slate-800 hover:bg-slate-100">IDS IN ACTION</Link>
           {viewItems.slice(5).map((item) => <button key={item.view} type="button" aria-current={activeView === item.view ? "page" : undefined} onClick={() => choose(item.view)} className={`min-h-12 rounded-xl px-4 py-3 text-left text-sm font-black tracking-wide ${activeView === item.view ? "bg-emerald-50 text-emerald-800" : "text-slate-800 hover:bg-slate-100"}`}>{item.label}</button>)}
           <Link href="/referral-program" className="min-h-12 rounded-xl px-4 py-3 text-sm font-black tracking-wide text-slate-800 hover:bg-slate-100">REFERRAL PROGRAM</Link>
         </nav>

@@ -39,6 +39,7 @@ test("the homepage contact section appears after the request flow and before the
     /Need help choosing the right system\? Have a complex property that may require multiple machines\? Contact us today and let our team help you build the right solution\./
   );
   assert.match(html, /<button[^>]*>Contact Us<\/button>/);
+  assert.match(html, /<button[^>]*>Schedule a Demo<\/button>/);
   assert.ok(requestFlowStart >= 0);
   assert.ok(contactSectionStart > requestFlowStart);
   assert.ok(footerStart > contactSectionStart);

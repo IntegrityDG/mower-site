@@ -11,6 +11,7 @@ import HomeFinancing from "@/components/home/HomeFinancing";
 import MobileHomepage from "@/components/mobile/MobileHomepage";
 import IdsActionCarousel from "@/components/ids-action/IdsActionCarousel";
 import HomeBusinessSpotlight from "@/components/featured-businesses/HomeBusinessSpotlight";
+import ScheduleDemoModal from "@/components/demo-scheduling/ScheduleDemoModal";
 
 const mobileQuery = "(max-width: 767px)";
 const subscribeToMobile = (callback: () => void) => {
@@ -110,19 +111,22 @@ export default function Page() {
         {/* FEATURED EQUIPMENT */}
         <section className="bg-white px-6 py-20 md:px-10">
           <div className="mx-auto max-w-7xl">
-            <div>
-              <p className="text-2xl font-bold uppercase leading-tight tracking-[0.02em] text-emerald-400 md:text-[2rem] md:tracking-[0.08em]">
-                Featured Machines
-              </p>
-              <h2 className="mt-3 max-w-3xl text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
-                Meet our top picks for helping you reclaim your time.
-              </h2>
-              <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
-                Each system offers a different approach to autonomous lawn care,
-                from residential mowing to modular property maintenance and
-                heavy-duty commercial work. Take a look through the lineup and
-                explore the details.
-              </p>
+            <div className="grid items-start gap-6 md:grid-cols-[minmax(0,1fr)_auto] md:gap-8">
+              <div>
+                <p className="text-2xl font-bold uppercase leading-tight tracking-[0.02em] text-emerald-400 md:text-[2rem] md:tracking-[0.08em]">
+                  Featured Machines
+                </p>
+                <h2 className="mt-3 max-w-3xl text-3xl font-black tracking-tight text-slate-950 md:text-5xl">
+                  Meet our top picks for helping you reclaim your time.
+                </h2>
+                <p className="mt-5 max-w-3xl text-lg leading-8 text-slate-600">
+                  Each system offers a different approach to autonomous lawn care,
+                  from residential mowing to modular property maintenance and
+                  heavy-duty commercial work. Take a look through the lineup and
+                  explore the details.
+                </p>
+              </div>
+              <ScheduleDemoModal source="featured_machines" triggerClassName="inline-flex min-h-12 items-center justify-center rounded-2xl border border-emerald-700 px-6 py-3 font-black text-emerald-800 transition hover:bg-emerald-50 md:mt-2" />
             </div>
 
             <div className="mt-10">

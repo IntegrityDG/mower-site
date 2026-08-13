@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { sanitizeEmailFailure } from "@/lib/email-diagnostics";
 
 let resend: Resend | null = null;
 
@@ -28,23 +29,34 @@ export async function sendIdsNotification({ subject, text }: { subject: string; 
     throw new Error("NOTIFY_EMAIL is missing.");
   }
 
-  const result = await getResendClient().emails.send({
-    from: "onboarding@resend.dev",
-    to: notifyEmail,
-    subject,
-    text,
-  });
+  let result;
+  try {
+    result = await getResendClient().emails.send({
+      from: "onboarding@resend.dev",
+      to: notifyEmail,
+      subject,
+      text,
+    });
+  } catch (error) {
+    throw new Error(sanitizeEmailFailure(error));
+  }
 
   if ("error" in result && result.error) {
-    throw new Error("Resend failed to send IDS notification.");
+    throw new Error(sanitizeEmailFailure(result.error));
   }
 
   return result;
 }
 
 export async function sendServerEmail({to,subject,text,attachments}: {to:string;subject:string;text:string;attachments?:{filename:string;content:string;contentType?:string}[]}) {
-  const from=process.env.DEMO_FROM_EMAIL??"onboarding@resend.dev";
-  const result=await getResendClient().emails.send({from,to,subject,text,attachments});
-  if("error" in result&&result.error)throw new Error("Resend failed to send email.");
+  const from=process.env.DEMO_FROM_EMAIL?.trim();
+  if(!from)throw new Error("DEMO_FROM_EMAIL is missing.");
+  let result;
+  try {
+    result=await getResendClient().emails.send({from,to,subject,text,attachments});
+  } catch(error) {
+    throw new Error(sanitizeEmailFailure(error));
+  }
+  if("error" in result&&result.error)throw new Error(sanitizeEmailFailure(result.error));
   return result;
 }

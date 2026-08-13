@@ -399,19 +399,20 @@ test("public gallery provides filters, multiple-photo lightbox, keyboard and emp
   ])
     assert.ok(gallery.includes(token));
 });
-test("homepage carousel is desktop-only, one-image-at-a-time, 3 seconds, reduced-motion safe, and empty-omitting", () => {
-  assert.match(carousel, /setInterval\([^,]+,3000\)/);
+test("homepage carousel supports both viewports, one image at a time, reduced motion, and an empty state omission", () => {
+  assert.match(carousel, /setInterval\([^,]+, 3000\)/);
   assert.match(carousel, /prefers-reduced-motion: reduce/);
-  assert.match(carousel, /entries\.length<2/);
-  assert.match(carousel, /if\(!entries\.length\)return null/);
+  assert.match(carousel, /entries\.length < 2/);
+  assert.match(carousel, /if \(!entries\.length\) return null/);
   assert.match(carousel, /featured=true&limit=8/);
   assert.match(carousel, /VIEW ALL IDS IN ACTION/);
   assert.match(carousel, /href="\/ids-in-action"/);
   assert.match(
     carousel,
-    /const entry=entries\[index\],photo=entry\.media\[0\]/,
+    /const entry = entries\[index\];[\s\S]*const photo = entry\.media\[0\]/,
   );
-  assert.match(carousel, /min-width: 768px/);
+  assert.doesNotMatch(carousel, /matchMedia\("\(min-width: 768px\)"\)/);
+  assert.match(carousel, /ScheduleDemoModal source="ids_in_action"/);
 });
 test("desktop placement is reviews then IDS in Action then financing", () => {
   const reviews = homepage.indexOf("<HomeReviews />"),
@@ -419,11 +420,13 @@ test("desktop placement is reviews then IDS in Action then financing", () => {
     financing = homepage.indexOf("<HomeFinancing />");
   assert.ok(reviews < action && action < financing);
 });
-test("mobile menu links IDS IN ACTION after reviews and before contact without mounting gallery", () => {
-  const reviews = mobile.indexOf("slice(3, 5)"),
-    action = mobile.indexOf("IDS IN ACTION"),
-    contact = mobile.indexOf("slice(5)");
+test("mobile menu selects the featured IDS IN ACTION view before contact without mounting the gallery", () => {
+  const reviews = mobile.indexOf('label: "CUSTOMER REVIEWS"'),
+    action = mobile.indexOf('label: "IDS IN ACTION"'),
+    contact = mobile.indexOf('label: "CONTACT IDS"');
   assert.ok(reviews < action && action < contact);
-  assert.match(mobile, /href="\/ids-in-action"/);
-  assert.doesNotMatch(mobileHome, /IdsActionCarousel|IdsActionGallery/);
+  assert.match(mobile, /label: "IDS IN ACTION", view: "ids-action"/);
+  assert.doesNotMatch(mobile, /href="\/ids-in-action"[^>]*>IDS IN ACTION/);
+  assert.match(mobileHome, /view === "ids-action" && <IdsActionCarousel \/>/);
+  assert.doesNotMatch(mobileHome, /IdsActionGallery/);
 });
