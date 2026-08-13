@@ -1,0 +1,5 @@
+import { isReviewAdmin } from "@/lib/reviews/admin-auth";
+import { deleteBusiness, saveBusiness } from "@/lib/featured-businesses/server";
+import { validateFeaturedBusiness } from "@/lib/featured-businesses/validation";
+export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){if(!(await isReviewAdmin()))return Response.json({error:"Unauthorized"},{status:401});const parsed=validateFeaturedBusiness(await request.json().catch(()=>null));if(!parsed.ok)return Response.json({errors:parsed.errors},{status:400});try{return Response.json({business:await saveBusiness(parsed.value,(await params).id)});}catch{return Response.json({error:"Business could not be updated."},{status:500});}}
+export async function DELETE(_:Request,{params}:{params:Promise<{id:string}>}){if(!(await isReviewAdmin()))return Response.json({error:"Unauthorized"},{status:401});try{await deleteBusiness((await params).id);return new Response(null,{status:204});}catch{return Response.json({error:"Business could not be deleted."},{status:500});}}

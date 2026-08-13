@@ -3,6 +3,7 @@ import Link from "next/link";
 const links = [
   ["Reviews", "/admin/reviews"],
   ["IDS in Action", "/admin/ids-in-action"],
+  ["Featured Businesses", "/admin/featured-businesses"],
   ["Sales & Specials", "/admin/sales-specials"],
   ["Meet or Beat", "/admin/price-match"],
   ["Referrals", "/admin/referrals"],

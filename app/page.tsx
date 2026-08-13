@@ -10,6 +10,7 @@ import HomePriceMatch from "@/components/promotions/HomePriceMatch";
 import HomeFinancing from "@/components/home/HomeFinancing";
 import MobileHomepage from "@/components/mobile/MobileHomepage";
 import IdsActionCarousel from "@/components/ids-action/IdsActionCarousel";
+import HomeBusinessSpotlight from "@/components/featured-businesses/HomeBusinessSpotlight";
 
 const mobileQuery = "(max-width: 767px)";
 const subscribeToMobile = (callback: () => void) => {
@@ -230,6 +231,8 @@ export default function Page() {
             */}
           </div>
         </section>
+
+        <HomeBusinessSpotlight />
 
         <HomeSalesSpecial />
 
