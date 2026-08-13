@@ -4,6 +4,7 @@ const links = [
   ["Reviews", "/admin/reviews"],
   ["IDS in Action", "/admin/ids-in-action"],
   ["Featured Businesses", "/admin/featured-businesses"],
+  ["Demo Scheduling", "/admin/demo-scheduling"],
   ["Sales & Specials", "/admin/sales-specials"],
   ["Meet or Beat", "/admin/price-match"],
   ["Referrals", "/admin/referrals"],

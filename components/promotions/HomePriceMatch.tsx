@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import ContactInformationModal from "@/components/contact/ContactInformationModal";
 import { DEFAULT_PRICE_MATCH, type PriceMatchConfig } from "@/lib/price-match/config";
+import ScheduleDemoModal from "@/components/demo-scheduling/ScheduleDemoModal";
 
 export default function HomePriceMatch() {
   const [settings, setSettings] = useState<PriceMatchConfig>(DEFAULT_PRICE_MATCH);
@@ -14,7 +15,7 @@ export default function HomePriceMatch() {
     <div className="relative mx-auto max-w-5xl text-center">
       <h2 id="price-match-heading" className="text-4xl font-black leading-tight tracking-tight sm:text-5xl lg:text-6xl">{settings.heading}</h2>
       <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-200 sm:text-xl">{settings.description}</p>
-      <ContactInformationModal triggerClassName="mt-8 inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-8 py-4 text-lg font-black text-slate-950 shadow-xl transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-200" triggerLabel={settings.buttonLabel} />
+      <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"><ContactInformationModal triggerClassName="inline-flex items-center justify-center rounded-2xl bg-emerald-400 px-8 py-4 text-lg font-black text-slate-950 shadow-xl transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-200" triggerLabel={settings.buttonLabel} /><ScheduleDemoModal source="meet_or_beat" triggerClassName="inline-flex min-h-14 items-center justify-center rounded-2xl border border-emerald-300 px-8 py-4 text-lg font-black text-white hover:bg-white/10"/></div>
     </div>
   </section>;
 }
