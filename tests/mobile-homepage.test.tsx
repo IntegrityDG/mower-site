@@ -33,17 +33,20 @@ test("drawer contains every requested destination and correct route links", () =
   assert.match(navigation, /href="\/referral-program"/);
 });
 
-test("compact home has hero, primary build CTA, specials, and price match only", () => {
+test("compact home keeps its existing flow and adds the business spotlight after price match", () => {
   const homeBranch = mobile.slice(mobile.indexOf('view === "home"'), mobile.indexOf('view !== "home"'));
   assert.match(homeBranch, /MobileHero/);
   assert.match(homeBranch, /BUILD YOUR SYSTEM/);
   assert.match(homeBranch, /HomeSalesSpecial/);
   assert.match(homeBranch, /HomePriceMatch/);
+  assert.match(homeBranch, /HomeSalesSpecial \/><HomePriceMatch \/><HomeBusinessSpotlight \/>/);
   assert.doesNotMatch(homeBranch, /HomeReviews|EquipmentCatalog|NationwidePurchaseFlow/);
 });
 
 test("selected views mount the existing builder, machines, financing, reviews, and contact components", () => {
   for (const expected of ['view === "build".*NationwidePurchaseFlow', 'view === "machines".*EquipmentCatalog', 'view === "financing".*HomeFinancing', 'view === "reviews".*HomeReviews', 'view === "contact".*HomepageContactSection']) assert.match(mobile, new RegExp(expected));
+  const machinesBranch = mobile.match(/view === "machines"[\s\S]*?<EquipmentCatalog \/><\/div>/)?.[0] ?? "";
+  assert.doesNotMatch(machinesBranch, /HomeBusinessSpotlight/);
   assert.match(mobile, /← Back to Home/);
   assert.match(mobile, /selectView\("home"\)/);
   assert.match(mobile, /selectView\("build"\)/);
