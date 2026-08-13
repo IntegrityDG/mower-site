@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import {
+  demoCalendarOccupancyCount,
+  reconcileSelectedDemoRequest,
+  requestMatchesDemoFilter,
+  selectDemoRequestForCalendarDate,
+} from "../lib/demo-scheduling/admin-state";
 import { generateAvailableSlots } from "../lib/demo-scheduling/availability";
 import { demoRequestFingerprint } from "../lib/demo-scheduling/client";
 import { createDemoIcs } from "../lib/demo-scheduling/ics";
@@ -37,6 +43,135 @@ const valid = {
   idempotencyKey: "10000000-0000-4000-8000-000000000001",
   company: "",
 };
+
+const adminNow = Date.parse("2026-08-20T18:00:00.000Z");
+const adminRequest = (
+  status: DemoRequest["status"],
+  id: string,
+  requestedEndAt = "2026-08-20T20:00:00.000Z",
+): DemoRequest => ({
+  id,
+  customerName: `${status} customer`,
+  customerEmail: `${status}@example.com`,
+  customerPhone: "555-555-1212",
+  propertyAddress: "1 Main St",
+  requestedStartAt: "2026-08-20T19:00:00.000Z",
+  requestedEndAt,
+  status,
+  source: "featured_machines",
+  equipmentInterest: "Lymow One Plus",
+  adminMessage: null,
+  createdAt: "2026-08-19T12:00:00.000Z",
+  approvedAt: status === "approved" ? "2026-08-19T13:00:00.000Z" : null,
+  deniedAt: status === "denied" ? "2026-08-19T13:00:00.000Z" : null,
+  cancelledAt: status === "cancelled" ? "2026-08-19T13:00:00.000Z" : null,
+});
+
+test("Pending filter excludes denied requests and clears a denied selection", () => {
+  const denied = adminRequest("denied", "denied");
+  assert.equal(requestMatchesDemoFilter(denied, "pending", adminNow), false);
+  assert.equal(reconcileSelectedDemoRequest(denied, "pending", adminNow), null);
+});
+
+test("Denied, Approved, and All filters return their intended requests", () => {
+  const requests = [
+    adminRequest("pending", "pending"),
+    adminRequest("approved", "approved"),
+    adminRequest("denied", "denied"),
+    adminRequest("cancelled", "cancelled"),
+  ];
+  const idsFor = (filter: "denied" | "approved" | "all") => requests.filter((item) => requestMatchesDemoFilter(item, filter, adminNow)).map((item) => item.id);
+
+  assert.deepEqual(idsFor("denied"), ["denied"]);
+  assert.deepEqual(idsFor("approved"), ["approved"]);
+  assert.deepEqual(idsFor("all"), ["pending", "approved", "denied", "cancelled"]);
+});
+
+test("Active contains pending and future approved requests only", () => {
+  const requests = [
+    adminRequest("pending", "pending"),
+    adminRequest("approved", "future-approved"),
+    adminRequest("approved", "past-approved", "2026-08-20T17:00:00.000Z"),
+    adminRequest("denied", "future-denied"),
+    adminRequest("cancelled", "future-cancelled"),
+  ];
+
+  assert.deepEqual(
+    requests.filter((item) => requestMatchesDemoFilter(item, "active", adminNow)).map((item) => item.id),
+    ["pending", "future-approved"],
+  );
+});
+
+test("Past contains requests whose appointments have ended", () => {
+  const requests = [
+    adminRequest("approved", "past-approved", "2026-08-20T17:00:00.000Z"),
+    adminRequest("denied", "past-denied", "2026-08-20T17:00:00.000Z"),
+    adminRequest("approved", "future-approved"),
+  ];
+
+  assert.deepEqual(
+    requests.filter((item) => requestMatchesDemoFilter(item, "past", adminNow)).map((item) => item.id),
+    ["past-approved", "past-denied"],
+  );
+});
+
+test("changing between Denied and Pending clears incompatible selections", () => {
+  assert.equal(reconcileSelectedDemoRequest(adminRequest("denied", "denied"), "pending", adminNow), null);
+  assert.equal(reconcileSelectedDemoRequest(adminRequest("pending", "pending"), "denied", adminNow), null);
+});
+
+test("status transitions immediately reconcile the detail and filtered list", () => {
+  const pending = adminRequest("pending", "transitioning");
+  const denied: DemoRequest = { ...pending, status: "denied", deniedAt: "2026-08-20T18:05:00.000Z" };
+  const approved: DemoRequest = { ...pending, status: "approved", approvedAt: "2026-08-20T18:05:00.000Z" };
+  const cancelled: DemoRequest = { ...approved, status: "cancelled", cancelledAt: "2026-08-20T18:10:00.000Z" };
+
+  assert.equal(reconcileSelectedDemoRequest(denied, "pending", adminNow), null);
+  assert.equal(requestMatchesDemoFilter(denied, "pending", adminNow), false);
+  assert.equal(requestMatchesDemoFilter(denied, "denied", adminNow), true);
+  assert.equal(reconcileSelectedDemoRequest(approved, "pending", adminNow), null);
+  assert.equal(requestMatchesDemoFilter(approved, "approved", adminNow), true);
+  assert.equal(reconcileSelectedDemoRequest(cancelled, "active", adminNow), null);
+  assert.equal(requestMatchesDemoFilter(cancelled, "all", adminNow), true);
+});
+
+test("calendar occupancy counts pending and approved but excludes denied and cancelled", () => {
+  const pending = adminRequest("pending", "pending");
+  const approved = adminRequest("approved", "approved");
+  const denied = adminRequest("denied", "denied");
+  const cancelled = adminRequest("cancelled", "cancelled");
+
+  assert.equal(demoCalendarOccupancyCount([pending]), 1);
+  assert.equal(demoCalendarOccupancyCount([approved]), 1);
+  assert.equal(demoCalendarOccupancyCount([denied]), 0);
+  assert.equal(demoCalendarOccupancyCount([cancelled]), 0);
+  assert.equal(demoCalendarOccupancyCount([pending, approved, denied, cancelled]), 2);
+});
+
+test("calendar date selection cannot return a request incompatible with the active filter", () => {
+  const pending = adminRequest("pending", "pending");
+  const approved = adminRequest("approved", "approved");
+  const denied = adminRequest("denied", "denied");
+  const rows = [denied, approved, pending];
+
+  assert.equal(selectDemoRequestForCalendarDate([denied], "pending", adminNow), null);
+  assert.equal(selectDemoRequestForCalendarDate(rows, "pending", adminNow)?.id, "pending");
+  assert.equal(selectDemoRequestForCalendarDate(rows, "approved", adminNow)?.id, "approved");
+  assert.equal(selectDemoRequestForCalendarDate(rows, "denied", adminNow)?.id, "denied");
+  assert.equal(selectDemoRequestForCalendarDate(rows, "active", adminNow)?.id, "approved");
+});
+
+test("admin filtering and calendar helpers never mutate request records", () => {
+  const requests = [adminRequest("pending", "pending"), adminRequest("denied", "denied")];
+  const before = structuredClone(requests);
+
+  requests.filter((item) => requestMatchesDemoFilter(item, "pending", adminNow));
+  demoCalendarOccupancyCount(requests);
+  selectDemoRequestForCalendarDate(requests, "pending", adminNow);
+  reconcileSelectedDemoRequest(requests[1], "pending", adminNow);
+
+  assert.deepEqual(requests, before);
+});
 
 test("public and legacy source values are controlled exactly", () => {
   assert.deepEqual(DEMO_SOURCES, ["featured_lymow", "featured_yarbo", "featured_machines", "contact_ids", "meet_or_beat", "ids_in_action"]);
