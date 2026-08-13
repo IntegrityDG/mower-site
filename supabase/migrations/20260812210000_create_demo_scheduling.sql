@@ -81,21 +81,27 @@ grant select,insert,update on table public.demo_requests,public.demo_notificatio
 
 create function public.demo_create_request(p_name text,p_email text,p_phone text,p_address text,p_start_at timestamptz,p_end_at timestamptz,p_source text,p_equipment_interest text,p_idempotency_key uuid)
 returns uuid language plpgsql security invoker set search_path=pg_catalog,public as $$
-declare v_id uuid;v_local timestamp;v_rule public.demo_availability_rules;v_settings public.demo_settings;
+declare v_id uuid;v_local timestamp;v_rule public.demo_availability_rules;v_settings public.demo_settings;v_existing public.demo_requests;
 begin
  select * into v_settings from public.demo_settings where id=true;
- select id into v_id from public.demo_requests where idempotency_key=p_idempotency_key;
- if found then return v_id;end if;
+ select * into v_existing from public.demo_requests where idempotency_key=p_idempotency_key;
+ if found then
+   if v_existing.customer_name is distinct from p_name or lower(v_existing.customer_email) is distinct from lower(p_email) or v_existing.customer_phone is distinct from p_phone or v_existing.property_address is distinct from p_address or v_existing.requested_start_at is distinct from p_start_at or v_existing.requested_end_at is distinct from p_end_at or v_existing.source is distinct from p_source or v_existing.equipment_interest is distinct from p_equipment_interest then raise exception 'idempotency_conflict';end if;
+   return v_existing.id;
+ end if;
  if p_end_at<>p_start_at+make_interval(mins=>v_settings.duration_minutes) or p_start_at<=now() or p_start_at>now()+make_interval(days=>v_settings.scheduling_horizon_days) then raise exception 'slot_unavailable';end if;
  v_local:=p_start_at at time zone v_settings.timezone;
  select * into v_rule from public.demo_availability_rules where weekday=extract(dow from v_local)::smallint and enabled;
- if not found or v_local::time<v_rule.start_time or (p_end_at at time zone v_settings.timezone)::date<>v_local::date or (p_end_at at time zone v_settings.timezone)::time>v_rule.end_time then raise exception 'slot_unavailable';end if;
+ if not found or v_local<>date_trunc('minute',v_local) or v_local::time<v_rule.start_time or mod(extract(epoch from (v_local::time-v_rule.start_time))::bigint,v_settings.duration_minutes*60)<>0 or (p_end_at at time zone v_settings.timezone)::date<>v_local::date or (p_end_at at time zone v_settings.timezone)::time>v_rule.end_time then raise exception 'slot_unavailable';end if;
  if exists(select 1 from public.demo_availability_exceptions where tstzrange(starts_at,ends_at,'[)')&&tstzrange(p_start_at,p_end_at,'[)')) then raise exception 'slot_unavailable';end if;
  if exists(select 1 from public.demo_requests where created_at>now()-interval '5 minutes' and idempotency_key<>p_idempotency_key and (lower(customer_email)=lower(p_email) or regexp_replace(customer_phone,'[^0-9]','','g')=regexp_replace(p_phone,'[^0-9]','','g'))) then raise exception 'request_throttled';end if;
  insert into public.demo_requests(customer_name,customer_email,customer_phone,property_address,requested_start_at,requested_end_at,source,equipment_interest,idempotency_key)
  values(p_name,p_email,p_phone,p_address,p_start_at,p_end_at,p_source,p_equipment_interest,p_idempotency_key)
- on conflict(idempotency_key) do update set idempotency_key=excluded.idempotency_key returning id into v_id;
- return v_id;
+ on conflict(idempotency_key) do nothing returning id into v_id;
+ if found then return v_id;end if;
+ select * into v_existing from public.demo_requests where idempotency_key=p_idempotency_key;
+ if v_existing.customer_name is distinct from p_name or lower(v_existing.customer_email) is distinct from lower(p_email) or v_existing.customer_phone is distinct from p_phone or v_existing.property_address is distinct from p_address or v_existing.requested_start_at is distinct from p_start_at or v_existing.requested_end_at is distinct from p_end_at or v_existing.source is distinct from p_source or v_existing.equipment_interest is distinct from p_equipment_interest then raise exception 'idempotency_conflict';end if;
+ return v_existing.id;
 exception when exclusion_violation then raise exception 'slot_conflict';end;$$;
 
 create function public.demo_transition_request(p_request_id uuid,p_action text,p_message text default null)

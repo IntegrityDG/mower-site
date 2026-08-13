@@ -42,7 +42,7 @@ export async function sendIdsNotification({ subject, text }: { subject: string; 
   return result;
 }
 
-export async function sendServerEmail({to,subject,text,attachments}: {to:string;subject:string;text:string;attachments?:{filename:string;content:string}[]}) {
+export async function sendServerEmail({to,subject,text,attachments}: {to:string;subject:string;text:string;attachments?:{filename:string;content:string;contentType?:string}[]}) {
   const from=process.env.DEMO_FROM_EMAIL??"onboarding@resend.dev";
   const result=await getResendClient().emails.send({from,to,subject,text,attachments});
   if("error" in result&&result.error)throw new Error("Resend failed to send email.");
