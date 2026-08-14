@@ -1,4 +1,5 @@
 import { DEMO_TIMEZONE, type DemoSlot } from "./types";
+const MILLISECONDS_PER_MINUTE=60000;
 const partsFormatter=new Intl.DateTimeFormat("en-CA",{timeZone:DEMO_TIMEZONE,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"});
 const labelFormatter=new Intl.DateTimeFormat("en-US",{timeZone:DEMO_TIMEZONE,hour:"numeric",minute:"2-digit"});
 const dateFormatter=new Intl.DateTimeFormat("en-US",{timeZone:DEMO_TIMEZONE,weekday:"long",year:"numeric",month:"long",day:"numeric"});
@@ -9,5 +10,6 @@ export function centralWeekday(date:string){const instant=centralLocalToUtc(date
 export function addDays(date:string,amount:number){const [y,m,d]=date.split("-").map(Number);return new Date(Date.UTC(y,m-1,d+amount)).toISOString().slice(0,10);}
 export function minutes(time:string){const[h,m]=time.slice(0,5).split(":").map(Number);return h*60+m;}
 export function timeFromMinutes(value:number){return `${String(Math.floor(value/60)).padStart(2,"0")}:${String(value%60).padStart(2,"0")}`;}
-export function slotFromLocal(date:string,time:string,duration=60):DemoSlot|null{const start=centralLocalToUtc(date,time);if(!start)return null;const end=new Date(start.getTime()+duration*60000);return{startAt:start.toISOString(),endAt:end.toISOString(),date,timeLabel:labelFormatter.format(start)};}
+export function endAtForDuration(start:Date,durationMinutes:number){return new Date(start.getTime()+durationMinutes*MILLISECONDS_PER_MINUTE);}
+export function slotFromLocal(date:string,time:string,duration:number):DemoSlot|null{const start=centralLocalToUtc(date,time);if(!start)return null;const end=endAtForDuration(start,duration);return{startAt:start.toISOString(),endAt:end.toISOString(),date,timeLabel:labelFormatter.format(start)};}
 export function humanDemoTime(start:string,end:string){return `${dateFormatter.format(new Date(start))}, ${labelFormatter.format(new Date(start))} – ${labelFormatter.format(new Date(end))} CT`;}

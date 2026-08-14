@@ -12,7 +12,7 @@ import {
 import { generateAvailableSlots } from "../lib/demo-scheduling/availability";
 import { demoRequestFingerprint } from "../lib/demo-scheduling/client";
 import { createDemoIcs } from "../lib/demo-scheduling/ics";
-import { centralLocalToUtc, slotFromLocal } from "../lib/demo-scheduling/time";
+import { centralLocalToUtc, endAtForDuration, slotFromLocal } from "../lib/demo-scheduling/time";
 import { DEMO_EQUIPMENT_INTERESTS, DEMO_SOURCES, type DemoRequest } from "../lib/demo-scheduling/types";
 import { validateDemoRequest } from "../lib/demo-scheduling/validation";
 import { sanitizeEmailFailure } from "../lib/email-diagnostics";
@@ -20,6 +20,7 @@ import { sanitizeEmailFailure } from "../lib/email-diagnostics";
 const source = (path: string) => readFileSync(path, "utf8");
 const oldMigration = source("supabase/migrations/20260812210000_create_demo_scheduling.sql");
 const newMigration = source("supabase/migrations/20260813000000_expand_demo_scheduling_sources_and_equipment.sql");
+const durationMigration = source("supabase/migrations/20260814031110_change_demo_scheduling_to_four_hour_blocks.sql");
 const equipment = source("components/equipment/EquipmentCatalog.tsx");
 const homepage = source("app/page.tsx");
 const mobileHome = source("components/mobile/MobileHomepage.tsx");
@@ -354,6 +355,12 @@ test("shared dialog still captures required customer fields and pending copy", (
   assert.match(modal, /Central Time/);
 });
 
+test("scheduling UI contains no one-hour copy and admin describes four-hour windows", () => {
+  assert.doesNotMatch(modal, /60[- ]minute|1 hour|one-hour|hourly appointments/i);
+  assert.doesNotMatch(admin, /60[- ]minute|1 hour|one-hour|hourly appointments/i);
+  assert.match(admin, /Recurring four-hour appointment windows in Central Time/);
+});
+
 test("Featured Machines desktop has one section-level scheduler", () => {
   assert.equal((homepage.match(/<ScheduleDemoModal source="featured_machines"/g) ?? []).length, 1);
   assert.ok(homepage.indexOf("Featured Machines") < homepage.indexOf('<ScheduleDemoModal source="featured_machines"'));
@@ -470,6 +477,18 @@ test("the applied migration remains unchanged and the expansion is separate", ()
   assert.match(newMigration, /^begin;[\s\S]*commit;\s*$/);
 });
 
+test("duration migration changes only the demo setting to 240 minutes", () => {
+  assert.match(durationMigration, /drop constraint demo_settings_duration_minutes_check/);
+  assert.match(durationMigration, /alter column duration_minutes set default 240/);
+  assert.match(durationMigration, /update public\.demo_settings[\s\S]*set duration_minutes = 240/);
+  assert.match(durationMigration, /check \(duration_minutes = 240\)/);
+  assert.match(durationMigration, /^begin;[\s\S]*commit;\s*$/);
+  assert.doesNotMatch(durationMigration, /update public\.demo_requests|delete from|truncate|drop table/i);
+  for (const preserved of ["timezone", "scheduling_horizon_days", "demo_availability_rules", "demo_availability_exceptions", "demo_notification_events", "demo_requests_no_overlap", "source", "equipment_interest"]) {
+    assert.doesNotMatch(durationMigration, new RegExp(`(?:alter|update|delete|drop)[^;]*${preserved}`, "i"));
+  }
+});
+
 test("PII tables keep RLS and public availability remains slots-only", () => {
   for (const table of ["demo_requests", "demo_availability_rules", "demo_availability_exceptions", "demo_settings", "demo_notification_events"]) assert.match(oldMigration, new RegExp(`alter table public\\.${table} enable row level security`));
   const availabilityRoute = source("app/api/demo-scheduling/availability/route.ts");
@@ -500,15 +519,94 @@ test("Central conversion remains DST safe", () => {
   assert.equal(centralLocalToUtc("2026-03-08", "02:30"), null);
 });
 
-test("availability removes blackouts and occupied ranges", () => {
-  const first = slotFromLocal("2026-08-17", "09:00")!;
-  const second = slotFromLocal("2026-08-17", "10:00")!;
-  const third = slotFromLocal("2026-08-17", "11:00")!;
-  const slots = generateAvailableSlots({ start: "2026-08-17", end: "2026-08-17", now: new Date("2026-08-16T12:00:00Z"), rules: [{ weekday: 1, enabled: true, start_time: "09:00", end_time: "12:00" }], duration: 60, horizon: 90, exceptions: [{ starts_at: first.startAt, ends_at: first.endAt }], requests: [{ requested_start_at: second.startAt, requested_end_at: second.endAt }] });
-  assert.deepEqual(slots.map((slot) => slot.startAt), [third.startAt]);
+type SlotRequests = Parameters<typeof generateAvailableSlots>[0]["requests"];
+type SlotExceptions = Parameters<typeof generateAvailableSlots>[0]["exceptions"];
+const mondaySlots = (startTime:string,endTime:string,requests:SlotRequests=[],exceptions:SlotExceptions=[]) => generateAvailableSlots({
+  start: "2026-08-17",
+  end: "2026-08-17",
+  now: new Date("2026-08-16T12:00:00Z"),
+  rules: [{ weekday: 1, enabled: true, start_time: startTime, end_time: endTime }],
+  duration: 240,
+  horizon: 90,
+  exceptions,
+  requests,
 });
 
-const request: DemoRequest = { id: "10000000-0000-4000-8000-000000000001", customerName: "Doe, Jane; Jr", customerEmail: "jane@example.com", customerPhone: "555-555-1212", propertyAddress: "1 Main St; Unit 2, Town", requestedStartAt: "2026-08-20T19:00:00.000Z", requestedEndAt: "2026-08-20T20:00:00.000Z", status: "approved", source: "featured_machines", equipmentInterest: "Help Me Decide", adminMessage: null, createdAt: "2026-08-12T00:00:00Z", approvedAt: "2026-08-12T01:00:00Z", deniedAt: null, cancelledAt: null };
+test("08:00-16:00 availability generates two complete four-hour blocks", () => {
+  const first = slotFromLocal("2026-08-17", "08:00", 240)!;
+  const second = slotFromLocal("2026-08-17", "12:00", 240)!;
+  assert.deepEqual(mondaySlots("08:00", "16:00").map(({startAt,endAt})=>[startAt,endAt]), [
+    [first.startAt, first.endAt],
+    [second.startAt, second.endAt],
+  ]);
+});
+
+test("09:00-16:00 availability generates only 09:00-13:00", () => {
+  const only = slotFromLocal("2026-08-17", "09:00", 240)!;
+  assert.deepEqual(mondaySlots("09:00", "16:00").map(({startAt,endAt})=>[startAt,endAt]), [[only.startAt, only.endAt]]);
+});
+
+test("availability never generates a partial four-hour block", () => {
+  const only = slotFromLocal("2026-08-17", "08:00", 240)!;
+  assert.deepEqual(mondaySlots("08:00", "15:00").map(({startAt,endAt})=>[startAt,endAt]), [[only.startAt, only.endAt]]);
+});
+
+test("request creation derives an exact four-hour end from the database setting", () => {
+  const start = new Date("2026-08-17T13:00:00.000Z");
+  assert.equal(endAtForDuration(start, 240).toISOString(), "2026-08-17T17:00:00.000Z");
+  assert.match(server, /from\("demo_settings"\)\.select\("duration_minutes"\)/);
+  assert.match(server, /endAtForDuration\(start,Number\(settings\.duration_minutes\)\)/);
+  assert.match(server, /p_end_at:end\.toISOString\(\)/);
+  assert.doesNotMatch(server, /3600000/);
+  assert.match(oldMigration, /p_end_at<>p_start_at\+make_interval\(mins=>v_settings\.duration_minutes\)/);
+});
+
+test("a pending four-hour request blocks its slot", () => {
+  const first = slotFromLocal("2026-08-17", "08:00", 240)!;
+  const second = slotFromLocal("2026-08-17", "12:00", 240)!;
+  const requests:SlotRequests = [{requested_start_at:first.startAt,requested_end_at:first.endAt,status:"pending"}];
+  assert.deepEqual(mondaySlots("08:00", "16:00", requests).map(slot=>slot.startAt), [second.startAt]);
+});
+
+test("an approved four-hour request blocks its slot", () => {
+  const first = slotFromLocal("2026-08-17", "08:00", 240)!;
+  const second = slotFromLocal("2026-08-17", "12:00", 240)!;
+  const requests:SlotRequests = [{requested_start_at:first.startAt,requested_end_at:first.endAt,status:"approved"}];
+  assert.deepEqual(mondaySlots("08:00", "16:00", requests).map(slot=>slot.startAt), [second.startAt]);
+});
+
+test("a denied request releases its four-hour slot", () => {
+  const first = slotFromLocal("2026-08-17", "08:00", 240)!;
+  const second = slotFromLocal("2026-08-17", "12:00", 240)!;
+  const requests:SlotRequests = [{requested_start_at:first.startAt,requested_end_at:first.endAt,status:"denied"}];
+  assert.deepEqual(mondaySlots("08:00", "16:00", requests).map(slot=>slot.startAt), [first.startAt,second.startAt]);
+});
+
+test("a cancelled request releases its four-hour slot", () => {
+  const first = slotFromLocal("2026-08-17", "08:00", 240)!;
+  const second = slotFromLocal("2026-08-17", "12:00", 240)!;
+  const requests:SlotRequests = [{requested_start_at:first.startAt,requested_end_at:first.endAt,status:"cancelled"}];
+  assert.deepEqual(mondaySlots("08:00", "16:00", requests).map(slot=>slot.startAt), [first.startAt,second.startAt]);
+});
+
+test("adjacent [08:00,12:00) and [12:00,16:00) blocks do not overlap", () => {
+  const first = slotFromLocal("2026-08-17", "08:00", 240)!;
+  const second = slotFromLocal("2026-08-17", "12:00", 240)!;
+  const requests:SlotRequests = [{requested_start_at:first.startAt,requested_end_at:first.endAt,status:"pending"}];
+  assert.deepEqual(mondaySlots("08:00", "16:00", requests).map(slot=>slot.startAt), [second.startAt]);
+  assert.match(oldMigration, /tstzrange\(requested_start_at,requested_end_at,'\[\)'\)/);
+});
+
+test("a blackout overlapping any part of a four-hour slot removes that slot", () => {
+  const first = slotFromLocal("2026-08-17", "08:00", 240)!;
+  const second = slotFromLocal("2026-08-17", "12:00", 240)!;
+  const blackoutStart = centralLocalToUtc("2026-08-17", "10:00")!.toISOString();
+  const blackoutEnd = centralLocalToUtc("2026-08-17", "11:00")!.toISOString();
+  assert.deepEqual(mondaySlots("08:00", "16:00", [], [{starts_at:blackoutStart,ends_at:blackoutEnd}]).map(slot=>slot.startAt), [second.startAt]);
+  assert.notEqual(first.startAt, second.startAt);
+});
+
+const request: DemoRequest = { id: "10000000-0000-4000-8000-000000000001", customerName: "Doe, Jane; Jr", customerEmail: "jane@example.com", customerPhone: "555-555-1212", propertyAddress: "1 Main St; Unit 2, Town", requestedStartAt: "2026-08-20T19:00:00.000Z", requestedEndAt: "2026-08-20T23:00:00.000Z", status: "approved", source: "featured_machines", equipmentInterest: "Help Me Decide", adminMessage: null, createdAt: "2026-08-12T00:00:00Z", approvedAt: "2026-08-12T01:00:00Z", deniedAt: null, cancelledAt: null };
 const calendarOptions = { organizerEmail: "demos@integrityautomowers.com", attendeeEmail: "jane@example.com", attendeeName: "Doe, Jane; Jr" };
 
 test("ICS keeps stable request semantics and includes machine interest", () => {
@@ -516,9 +614,22 @@ test("ICS keeps stable request semantics and includes machine interest", () => {
   assert.match(ics, /METHOD:REQUEST/);
   assert.match(ics, /UID:demo-10000000-0000-4000-8000-000000000001@integrityautomowers\.com/);
   assert.match(ics, /DTSTART:20260820T190000Z/);
-  assert.match(ics, /DTEND:20260820T200000Z/);
+  assert.match(ics, /DTEND:20260820T230000Z/);
+  assert.equal(Date.parse(request.requestedEndAt)-Date.parse(request.requestedStartAt), 240*60000);
   assert.match(ics, /Equipment Interest: Help Me Decide/);
   assert.match(ics, /LOCATION:1 Main St\\; Unit 2\\, Town/);
+});
+
+test("customer confirmation ICS uses the persisted four-hour range", () => {
+  const ics = createDemoIcs(request, calendarOptions).replace(/\r\n /g, "");
+  assert.match(ics, /DTSTART:20260820T190000Z[\s\S]*DTEND:20260820T230000Z/);
+  assert.match(notifications, /attachments:\[attachment\(r,r\.customerEmail,r\.customerName\)\]/);
+});
+
+test("IDS Proton invitation uses the persisted four-hour range", () => {
+  const ics = createDemoIcs(request, {...calendarOptions,attendeeEmail:"calendar@integrityautomowers.com",attendeeName:"IDS Demo Calendar"}).replace(/\r\n /g, "");
+  assert.match(ics, /DTSTART:20260820T190000Z[\s\S]*DTEND:20260820T230000Z/);
+  assert.match(notifications, /attachments:\[attachment\(r,calendarEmail,"IDS Demo Calendar"\)\]/);
 });
 
 test("ICS rejects header injection and keeps organizer and attendee", () => {
