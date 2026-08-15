@@ -16,6 +16,7 @@ const YARBO_MODULES = new Set(["yarbo-mower-module", "yarbo-lawn-mower-pro-modul
 const YARBO_HIDDEN = new Set(["yarbo-plow-module"]);
 const active = (row: { public_status: string }) => row.public_status === "active";
 const reject = (code: ConstructorParameters<typeof CheckoutRejectionError>[0], message: string): never => { throw new CheckoutRejectionError(code, message); };
+const unavailable = (name: string): never => reject("INACTIVE_CATALOG_RECORD", `${name} is currently unavailable. Please update your configuration before continuing.`);
 
 export function checkoutProductIsSupported(product: {
   slug: string;
@@ -32,12 +33,12 @@ export function validateCheckoutEligibility(request: CheckoutRequest, catalog: C
   const { product } = catalog;
   if (product.id !== request.selection.productId) reject("UNKNOWN_CATALOG_RECORD", "Product was not found.");
   if (!checkoutProductIsSupported(product)) reject("QUOTE_ONLY_PRODUCT", "This product is quote-only.");
-  if (!active(product)) reject("INACTIVE_CATALOG_RECORD", "Product is not available for checkout.");
+  if (!active(product)) unavailable(product.name);
   const selectedOptions = request.selection.options.map(({ optionId, quantity }) => {
     const option = catalog.options.find((row) => row.id === optionId);
     if (!option) throw new CheckoutRejectionError("UNKNOWN_CATALOG_RECORD", "Option was not found.");
     if (option.product_id !== product.id) reject("CROSS_PRODUCT_SELECTION", "The selected option belongs to another product.");
-    if (!active(option)) reject("INACTIVE_CATALOG_RECORD", "The selected option is not active.");
+    if (!active(option)) unavailable(option.name);
     const maximum = Math.min(option.maximum_quantity ?? 10, 10);
     if (quantity < Math.max(1, option.minimum_quantity) || quantity > maximum) reject("INVALID_QUANTITY", "Option quantity is outside its allowed range.");
     return { option, quantity };
@@ -47,9 +48,9 @@ export function validateCheckoutEligibility(request: CheckoutRequest, catalog: C
   if (request.selection.variantId && !variant) throw new CheckoutRejectionError("UNKNOWN_CATALOG_RECORD", "Variant was not found.");
   if (request.selection.packageId && !selectedPackage) throw new CheckoutRejectionError("UNKNOWN_CATALOG_RECORD", "Package was not found.");
   if (variant?.product_id !== undefined && variant.product_id !== product.id) reject("CROSS_PRODUCT_SELECTION", "The selected variant belongs to another product.");
-  if (variant && !active(variant)) reject("INACTIVE_CATALOG_RECORD", "The selected variant is not active.");
+  if (variant && !active(variant)) unavailable(variant.name);
   if (selectedPackage?.product_id !== undefined && selectedPackage.product_id !== product.id) reject("CROSS_PRODUCT_SELECTION", "The selected package belongs to another product.");
-  if (selectedPackage && !active(selectedPackage)) reject("INACTIVE_CATALOG_RECORD", "The selected package is not active.");
+  if (selectedPackage && !active(selectedPackage)) unavailable(selectedPackage.package_name);
 
   if (product.slug === "lymow-one-plus") {
     if (!variant || !LYMOW_VARIANTS.has(variant.variant_slug) || request.selection.purchaseMode !== "standard") throw new CheckoutRejectionError("MISSING_CONFIGURATION", "Choose one supported Lymow variant.");
@@ -60,7 +61,7 @@ export function validateCheckoutEligibility(request: CheckoutRequest, catalog: C
     const definingChargers = defining.map((link) => catalog.options.find((option) => option.id === link.option_id)).filter((option): option is CheckoutOptionRow => Boolean(option && option.product_id === product.id && LYMOW_CHARGERS.has(option.option_slug)));
     const expected = variant.variant_slug.endsWith("5a") ? "lymow-5a-charger" : "lymow-10a-charger";
     if (defining.length !== 1 || definingChargers.length !== 1 || definingChargers[0].option_slug !== expected) reject("LYMOW_CHARGER_RELATIONSHIP_INVALID", "Lymow charger relationship is invalid.");
-    if (!active(definingChargers[0])) reject("INACTIVE_CATALOG_RECORD", "The required Lymow charger is not active.");
+    if (!active(definingChargers[0])) unavailable(definingChargers[0].name);
     for (const { option } of selectedOptions) {
       const relationships = catalog.variantOptions.filter((link) => link.option_id === option.id && link.relationship_type !== "defines_variant");
       if (relationships.some((link) => link.variant_id === variant.id && link.relationship_type === "excluded") || (relationships.length > 0 && !relationships.some((link) => link.variant_id === variant.id && ["compatible", "included", "required"].includes(link.relationship_type)))) reject("INCOMPATIBLE_SELECTION", "Option is incompatible with the selected Lymow variant.");
@@ -82,7 +83,8 @@ export function validateCheckoutEligibility(request: CheckoutRequest, catalog: C
     if (new Set(items.map((item) => item.option_id)).size !== items.length) reject("DUPLICATE_SELECTION", "Package contains duplicate components.");
     const packageOptions = items.map((item) => catalog.options.find((option) => option.id === item.option_id));
     if (packageOptions.some((option) => !option || option.product_id !== product.id)) reject("CROSS_PRODUCT_SELECTION", "The selected package contains a missing or cross-product component.");
-    if (packageOptions.some((option) => option && !active(option))) reject("INACTIVE_CATALOG_RECORD", "A required component of the selected package is not active.");
+    const unavailablePackageOption = packageOptions.find((option) => option && !active(option));
+    if (unavailablePackageOption) unavailable(unavailablePackageOption.name);
     return { variant: null, selectedPackage, selectedOptions: selectedOptions.filter(({ option }) => validYarboAccessory(option)), packageItems: items, moduleOnlyWarning: null };
   }
   if (request.selection.purchaseMode !== "individual-equipment" || selectedPackage) reject("INCOMPATIBLE_SELECTION", "Invalid Yarbo purchase mode.");

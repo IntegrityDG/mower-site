@@ -11,6 +11,7 @@ import {
 } from "@/lib/catalog/selection";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import { builderAccessoryOptions, customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
+import { buildAvailabilityIssues, catalogOptionIsAvailable, removeUnavailableBuildSelections } from "@/lib/catalog/availability";
 import { isSelfServiceProduct } from "@/lib/catalog/sales-mode";
 import { isPublicEquipmentProductSlug } from "@/lib/catalog/product-routing";
 import {
@@ -187,14 +188,15 @@ export function productRequestedByBuildSearch(
       (product) =>
         product.slug === requestedSlug &&
         isPublicEquipmentProductSlug(product.slug) &&
-        isSelfServiceProduct(product)
+        isSelfServiceProduct(product) &&
+        product.isAvailable
     ) ?? null
   );
 }
 
 export function accessoryRequestedByBuildSearch(product: CatalogProduct, search: string) {
   const slug = new URLSearchParams(search).get("accessory")?.trim();
-  return slug ? builderAccessoryOptions(product).find((option) => option.slug === slug) ?? null : null;
+  return slug ? builderAccessoryOptions(product).find((option) => option.slug === slug && option.isAvailable) ?? null : null;
 }
 
 function initialBuildSelection(product: CatalogProduct): ProductBuildSelection {
@@ -309,7 +311,7 @@ export default function NationwidePurchaseFlow({
     () =>
       catalog?.products.find(
         (product) =>
-          product.id === selectedProductId && isSelfServiceProduct(product)
+          product.id === selectedProductId && isSelfServiceProduct(product) && product.isAvailable
       ) ??
       null,
     [catalog, selectedProductId]
@@ -322,7 +324,10 @@ export default function NationwidePurchaseFlow({
     );
     return [...purchasable, ...aftermarket].map((option) => ({ product, option }));
   }), [catalog]);
-  const selectedAccessoryChoices = accessoryChoices.filter(({ option }) => (buildSelection.optionQuantities[option.id] ?? 0) > 0);
+  const selectedAccessoryChoices = useMemo(
+    () => accessoryChoices.filter(({ option }) => (buildSelection.optionQuantities[option.id] ?? 0) > 0),
+    [accessoryChoices, buildSelection.optionQuantities],
+  );
   const configurationRequiresQuote = Boolean(
     selectedProduct &&
       resolveBuildSelection(selectedProduct, buildSelection)
@@ -351,7 +356,8 @@ export default function NationwidePurchaseFlow({
     const product = catalog.products.find(
       (item) => item.id === selectedProductId
     );
-    if (!product || !isSelfServiceProduct(product)) {
+    if (!product || !isSelfServiceProduct(product) || !product.isAvailable) {
+      if (product && !product.isAvailable) setSubmitError(`${product.name} is currently unavailable. Choose another product to continue.`);
       setSelectedProductId("");
       setBuildSelection(emptyBuildSelection);
       setStageIndex(0);
@@ -363,9 +369,29 @@ export default function NationwidePurchaseFlow({
       customerInformation.shippingState.trim() &&
       customerInformation.shippingRegion.trim()
   );
-  const buildComplete = Boolean(
-    accessoryMode ? selectedAccessoryChoices.length > 0 : selectedProduct && productBuildIsComplete(selectedProduct, buildSelection)
+  const accessoryAvailabilityIssues = useMemo(
+    () => selectedAccessoryChoices.filter(({ product, option }) => !catalogOptionIsAvailable(product, option)).map(({ option }) => option.name),
+    [selectedAccessoryChoices],
   );
+  const buildComplete = Boolean(
+    accessoryMode ? selectedAccessoryChoices.length > 0 && accessoryAvailabilityIssues.length === 0 : selectedProduct && productBuildIsComplete(selectedProduct, buildSelection)
+  );
+  useEffect(() => {
+    const issues = accessoryMode
+      ? accessoryAvailabilityIssues
+      : selectedProduct
+        ? buildAvailabilityIssues(selectedProduct, buildSelection)
+        : [];
+    if (!issues.length) return;
+    setSubmitStatus("error");
+    setSubmitError(`${issues.join(", ")} ${issues.length === 1 ? "is" : "are"} currently unavailable. Update your configuration before continuing.`);
+    setBuildSelection((current) => accessoryMode
+      ? { ...current, optionQuantities: Object.fromEntries(Object.entries(current.optionQuantities).filter(([optionId, quantity]) => quantity > 0 && accessoryChoices.some(({ product, option }) => option.id === optionId && catalogOptionIsAvailable(product, option)))) }
+      : selectedProduct
+        ? removeUnavailableBuildSelections(selectedProduct, current)
+        : current);
+    setStageIndex((current) => current > 1 ? 1 : current);
+  }, [accessoryChoices, accessoryMode, accessoryAvailabilityIssues, buildSelection, selectedProduct]);
   const customerInformationComplete = Boolean(
     customerInformation.fullName.trim() &&
       (customerInformation.email.trim() || customerInformation.phone.trim()) &&
@@ -415,7 +441,7 @@ export default function NationwidePurchaseFlow({
       return;
     }
     const product = catalog?.products.find((item) => item.id === productId);
-    if (!product || !isSelfServiceProduct(product)) {
+    if (!product || !isSelfServiceProduct(product) || !product.isAvailable) {
       setSelectedProductId("");
       setBuildSelection(emptyBuildSelection);
       return;
@@ -427,6 +453,7 @@ export default function NationwidePurchaseFlow({
   }
 
   function handleSelectVariant(variantId: string) {
+    if (!selectedProduct?.variants.find((variant) => variant.id === variantId)?.isAvailable) return;
     setBuildSelection((currentSelection) => ({
       ...currentSelection,
       variantId,
@@ -448,6 +475,7 @@ export default function NationwidePurchaseFlow({
     const selectedPackage = selectedProduct?.packages.find(
       (catalogPackage) => catalogPackage.id === packageId
     );
+    if (!selectedPackage?.isAvailable) return;
 
     if (selectedProduct && isYarboProduct(selectedProduct)) {
       setBuildSelection((currentSelection) => ({
@@ -483,6 +511,10 @@ export default function NationwidePurchaseFlow({
           (item) => item.id === optionId
         )
       : null;
+    const optionProduct = accessoryMode
+      ? accessoryChoices.find((item) => item.option.id === optionId)?.product ?? null
+      : selectedProduct;
+    if (!option || !optionProduct || !catalogOptionIsAvailable(optionProduct, option)) return;
     const maximum =
       !accessoryMode && selectedProduct &&
       option &&
@@ -569,7 +601,7 @@ export default function NationwidePurchaseFlow({
       const anchor = selectedAccessoryChoices[0]?.product;
       if (!anchor || submissionKind === "quote") { submissionInProgress.current = false; setSubmitStatus("error"); setSubmitError("Choose a card or ACH payment method for eligible accessories."); return; }
       const checkoutRequest: CheckoutRequest = { requestId: crypto.randomUUID(), paymentMethod: submissionKind, selection: { productId: anchor.id, variantId: null, purchaseMode: "accessories", packageId: null, options: selectedAccessoryChoices.map(({ option }) => ({ optionId: option.id, quantity: buildSelection.optionQuantities[option.id] })), includeBaseProduct: false }, customer: { name: customerInformation.fullName, email: customerInformation.email.trim() || null, phone: customerInformation.phone.trim() || null }, referral: null, shippingAddress: { line1: customerInformation.shippingAddress, line2: null, city: customerInformation.shippingRegion, state: customerInformation.shippingState, postalCode: customerInformation.shippingZip, country: "US" } };
-      try { const response = await fetch(checkoutEndpoint(submissionKind), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(checkoutRequest) }); const payload = response.headers.get("content-type")?.includes("application/json") ? await response.json() as { checkoutUrl?: string; error?: string } : null; if (!response.ok) throw new Error(payload?.error ?? "Unable to start secure checkout."); const redirectUrl = response.redirected ? response.url : payload?.checkoutUrl; if (!redirectUrl) throw new Error("The checkout service did not return a payment URL."); window.location.assign(redirectUrl); } catch (error) { submissionInProgress.current = false; setSubmitStatus("error"); setSubmitError(error instanceof Error ? error.message : "Unable to start secure checkout."); }
+      try { const response = await fetch(checkoutEndpoint(submissionKind), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(checkoutRequest) }); const payload = response.headers.get("content-type")?.includes("application/json") ? await response.json() as { checkoutUrl?: string; error?: string } : null; if (!response.ok) { if (response.status === 422 && payload?.error?.includes("currently unavailable")) setCatalogReloadKey((value) => value + 1); throw new Error(payload?.error ?? "Unable to start secure checkout."); } const redirectUrl = response.redirected ? response.url : payload?.checkoutUrl; if (!redirectUrl) throw new Error("The checkout service did not return a payment URL."); window.location.assign(redirectUrl); } catch (error) { submissionInProgress.current = false; setSubmitStatus("error"); setSubmitError(error instanceof Error ? error.message : "Unable to start secure checkout."); }
       return;
     }
     if (!selectedProduct) return;
@@ -675,6 +707,7 @@ export default function NationwidePurchaseFlow({
           : null;
 
         if (!response.ok) {
+          if (response.status === 422 && payload?.error?.includes("currently unavailable")) setCatalogReloadKey((value) => value + 1);
           throw new Error(payload?.error ?? "Unable to start secure checkout.");
         }
 
@@ -1025,13 +1058,13 @@ type AccessoryChoice = { product: CatalogProduct; option: CatalogOption };
 function AccessoryPurchaseConfiguration(props: { choices: AccessoryChoice[]; quantities: Record<string, number>; onChange: (id: string, quantity: number) => void }) {
   const purchasable = props.choices.filter(({ option }) => option.accessoryTab !== "aftermarket" || option.showInBuilder === true);
   const aftermarket = props.choices.filter(({ option }) => option.accessoryTab === "aftermarket" && option.showInBuilder !== true);
-  return <><AccessoryOnlyConfiguration {...props} choices={purchasable} />{aftermarket.length > 0 && <section className="mt-8"><h3 className="text-2xl font-black">Aftermarket Products</h3><p className="mt-2 text-slate-600">These products are sold by their manufacturers and cannot be added to IDS checkout.</p><div className="mt-5 grid gap-4 lg:grid-cols-2">{aftermarket.map(({ option }) => <article key={option.id} className="rounded-2xl border border-slate-300 p-5"><p className="text-xs font-black uppercase text-emerald-700">{option.manufacturerName || "Aftermarket"}</p><h4 className="mt-2 text-lg font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p>{option.accessoryActionUrl && <a href={option.accessoryActionUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-600 px-4 py-3 font-black text-white">{option.accessoryActionLabel || "Go to Manufacturer's Site"}</a>}</article>)}</div></section>}</>;
+  return <><AccessoryOnlyConfiguration {...props} choices={purchasable} />{aftermarket.length > 0 && <section className="mt-8"><h3 className="text-2xl font-black">Aftermarket Products</h3><p className="mt-2 text-slate-600">These products are sold by their manufacturers and cannot be added to IDS checkout.</p><div className="mt-5 grid gap-4 lg:grid-cols-2">{aftermarket.map(({ product, option }) => { const available = catalogOptionIsAvailable(product, option); return <article key={option.id} className="rounded-2xl border border-slate-300 p-5"><p className="text-xs font-black uppercase text-emerald-700">{option.manufacturerName || "Aftermarket"}</p><h4 className="mt-2 text-lg font-black">{option.name}</h4>{!available && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}<p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p>{available && option.accessoryActionUrl && <a href={option.accessoryActionUrl} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex rounded-xl bg-emerald-600 px-4 py-3 font-black text-white">{option.accessoryActionLabel || "Go to Manufacturer's Site"}</a>}</article>; })}</div></section>}</>;
 }
 
 function AccessoryOnlyConfiguration({ choices, quantities, onChange }: { choices: AccessoryChoice[]; quantities: Record<string, number>; onChange: (id: string, quantity: number) => void }) {
   const [search, setSearch] = useState("");
   const visible = choices.filter(({ option, product }) => `${product.brand} ${option.name}`.toLowerCase().includes(search.toLowerCase()));
-  return <div><p className="text-sm font-bold uppercase tracking-[.25em] text-emerald-700">Accessories &amp; Parts</p><h3 className="mt-3 text-3xl font-black">Choose eligible accessories and quantities.</h3><p className="mt-4 leading-7 text-slate-600">Only active, catalog-priced Lymow and Yarbo items approved for IDS checkout appear here. Aftermarket informational links and contact-only items are not checkout items.</p><label className="mt-6 block font-bold">Search accessories<input value={search} onChange={(event) => setSearch(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3" /></label><div className="mt-6 grid gap-4 lg:grid-cols-2">{visible.map(({ product, option }) => { const quantity = quantities[option.id] ?? 0; return <article key={option.id} className={`rounded-2xl border p-5 ${quantity ? "border-emerald-700 bg-emerald-50" : "border-slate-300"}`}><p className="text-xs font-black uppercase text-emerald-700">{product.brand}</p><h4 className="mt-2 text-lg font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p><p className="mt-3 font-black text-emerald-700">{option.currentPriceCents === null ? "Unavailable" : formatCents(option.currentPriceCents)}</p><div className="mt-4 flex items-center gap-3"><button type="button" aria-label={`Decrease ${option.name} quantity`} onClick={() => onChange(option.id, Math.max(0, quantity - 1))} className="h-10 w-10 rounded-xl border bg-white font-black">−</button><span className="min-w-8 text-center font-black">{quantity}</span><button type="button" aria-label={`Increase ${option.name} quantity`} onClick={() => onChange(option.id, quantity + 1)} className="h-10 w-10 rounded-xl border bg-white font-black">+</button></div></article>; })}</div></div>;
+  return <div><p className="text-sm font-bold uppercase tracking-[.25em] text-emerald-700">Accessories &amp; Parts</p><h3 className="mt-3 text-3xl font-black">Choose eligible accessories and quantities.</h3><p className="mt-4 leading-7 text-slate-600">Available catalog-priced Lymow and Yarbo items approved for IDS checkout can be selected. Unavailable items remain visible for reference. Aftermarket informational links and contact-only items are not checkout items.</p><label className="mt-6 block font-bold">Search accessories<input value={search} onChange={(event) => setSearch(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3" /></label><div className="mt-6 grid gap-4 lg:grid-cols-2">{visible.map(({ product, option }) => { const quantity = quantities[option.id] ?? 0; const available = catalogOptionIsAvailable(product, option); return <article key={option.id} className={`rounded-2xl border p-5 ${quantity ? "border-emerald-700 bg-emerald-50" : "border-slate-300"}`}><p className="text-xs font-black uppercase text-emerald-700">{product.brand}</p><h4 className="mt-2 text-lg font-black">{option.name}</h4>{!available && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}<p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p>{available && <p className="mt-3 font-black text-emerald-700">{option.currentPriceCents === null ? "Contact IDS" : formatCents(option.currentPriceCents)}</p>}<div className="mt-4 flex items-center gap-3"><button type="button" disabled={!available} aria-label={`Decrease ${option.name} quantity`} onClick={() => onChange(option.id, Math.max(0, quantity - 1))} className="h-10 w-10 rounded-xl border bg-white font-black disabled:cursor-not-allowed disabled:opacity-40">−</button><span className="min-w-8 text-center font-black">{quantity}</span><button type="button" disabled={!available} aria-label={`Increase ${option.name} quantity`} onClick={() => onChange(option.id, quantity + 1)} className="h-10 w-10 rounded-xl border bg-white font-black disabled:cursor-not-allowed disabled:opacity-40">+</button></div></article>; })}</div></div>;
 }
 
 function AccessoryOnlyReview({ choices, quantities }: { choices: AccessoryChoice[]; quantities: Record<string, number> }) {

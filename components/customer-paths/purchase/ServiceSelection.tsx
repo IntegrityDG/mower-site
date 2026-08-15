@@ -49,6 +49,7 @@ export default function ServiceSelection({
       (selection) => selection.serviceId === service.id
     );
     const isSelected = Boolean(selected);
+    const available = service.isAvailable;
 
     return (
       <article
@@ -80,6 +81,7 @@ export default function ServiceSelection({
             <h5 className="mt-4 text-xl font-black text-slate-950">
               {service.name}
             </h5>
+            {!available && <span className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
             <p className="mt-3 leading-7 text-slate-600">
               {service.description}
             </p>
@@ -99,14 +101,15 @@ export default function ServiceSelection({
 
           <button
             type="button"
+            disabled={!available}
             onClick={() => onToggleService(service)}
-            className={`shrink-0 rounded-2xl px-5 py-3 font-black transition ${
+            className={`shrink-0 rounded-2xl px-5 py-3 font-black transition disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 ${
               isSelected
                 ? "bg-emerald-700 text-white"
                 : "border border-slate-300 bg-white text-slate-950 hover:border-emerald-500"
             }`}
           >
-            {isSelected ? "Selected ✓" : "Add Service"}
+            {!available ? "Unavailable" : isSelected ? "Selected ✓" : "Add Service"}
           </button>
         </div>
 
@@ -137,10 +140,11 @@ export default function ServiceSelection({
                   <button
                     key={paymentOption.id}
                     type="button"
+                    disabled={!paymentOption.isAvailable}
                     onClick={() =>
                       onSelectPaymentOption(service.id, paymentOption.id)
                     }
-                    className={`rounded-2xl border p-4 text-left transition ${
+                    className={`rounded-2xl border p-4 text-left transition disabled:cursor-not-allowed disabled:opacity-70 ${
                       paymentSelected
                         ? "border-emerald-700 bg-white shadow-md"
                         : "border-slate-300 bg-white hover:border-emerald-500"
@@ -151,6 +155,7 @@ export default function ServiceSelection({
                         <p className="font-black text-slate-950">
                           {paymentOption.name}
                         </p>
+                        {!paymentOption.isAvailable && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
                         <p className="mt-2 text-lg font-black text-emerald-700">
                           {priceLabel(paymentOption)}
                         </p>

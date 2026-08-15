@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { grossMarginPercent, grossProfitCents } from "../lib/admin-pricing/gross-margin";
 
 const id = "11111111-1111-4111-8111-111111111111";
-const item: PricingItem = { id, kind:"products", category:"Equipment", name:"Test", slug:"test", brand:"IDS", productName:null, publicStatus:"active", quoteOnly:false, targetLabel:null, values:{regular_price_cents:100}, effectivePriceCents:100, activeScheduleName:null, dealerCostCents:null };
+const item: PricingItem = { id, kind:"products", category:"Equipment", name:"Test", slug:"test", brand:"IDS", productName:null, publicStatus:"active", availabilityField:"public_status", availabilityStatus:"active", isAvailable:true, quoteOnly:false, targetLabel:null, values:{regular_price_cents:100,public_status:"active"}, effectivePriceCents:100, activeScheduleName:null, dealerCostCents:null };
 const context = (kind="products", recordId=id) => ({ params: Promise.resolve({ kind, id: recordId }) });
 const request = (body: unknown) => new Request("http://local/api/admin/pricing/products/"+id,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
 function handlers(admin=true, existing:Record<string,unknown>={sale_starts_at:null,sale_ends_at:null}) { let saved: Record<string,unknown>|null=null; return { saved:()=>saved, api:createPricingAdminHandlers({isAdmin:async()=>admin,read:async()=>({items:[item]}),readValues:async()=>existing,update:async(_kind,_id,values)=>{saved=values;return {...item,values:{...item.values,...values} as PricingItem["values"]};}}) }; }

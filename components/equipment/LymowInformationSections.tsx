@@ -142,7 +142,7 @@ function ConfigurationSummary({ product }: { product: CatalogProduct }) {
                   key={variant.id}
                   className="rounded-2xl border border-emerald-200 bg-white p-6"
                 >
-                  <h3 className="text-xl font-black">{variant.name}</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-xl font-black">{variant.name}</h3>{!variant.isAvailable && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}</div>
                   <dl className="mt-4 space-y-3 text-sm">
                     <div className="flex items-start justify-between gap-5">
                       <dt className="font-bold text-slate-500">Charge time</dt>
@@ -159,11 +159,11 @@ function ConfigurationSummary({ product }: { product: CatalogProduct }) {
                       </dd>
                     </div>
                   </dl>
-                  <LymowPriceDisplay
+                  {variant.isAvailable && <LymowPriceDisplay
                     variant={variant}
                     className="mt-5 border-t border-slate-200 pt-5"
                     priceClassName="text-2xl font-black text-emerald-700"
-                  />
+                  />}
                 </article>
               );
             })}
@@ -408,17 +408,18 @@ function AvailableAccessories({ product }: { product: CatalogProduct }) {
                 {accessoryCategory(option)}
               </p>
               <h3 className="mt-3 text-xl font-black">{option.name}</h3>
+              {!option.isAvailable && <span className="mt-3 w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
               {option.description && (
                 <p className="mt-3 flex-1 leading-7 text-slate-600">
                   {option.description}
                 </p>
               )}
-              <EverydayPriceDisplay
+              {option.isAvailable && <EverydayPriceDisplay
                 item={option}
                 comparisonLabel="Lymow Everyday Price"
                 className="mt-auto pt-5"
                 priceClassName="text-xl font-black text-emerald-700"
-              />
+              />}
             </article>
           ))}
         </div>

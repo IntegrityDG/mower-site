@@ -55,6 +55,7 @@ export default function ProductDetailsModal({
             <h3 className="mt-1 text-2xl font-black text-slate-950">
               {product.page?.heroHeading ?? product.name}
             </h3>
+            {!product.isAvailable && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
           </div>
 
           <button
@@ -79,7 +80,7 @@ export default function ProductDetailsModal({
               />
             </div>
 
-            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+            {product.isAvailable && <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
                 {product.slug === "lymow-one-plus" || isYarboProduct(product)
                   ? "Starting at"
@@ -108,7 +109,7 @@ export default function ProductDetailsModal({
                   equipment. Select a package in the next step.
                 </p>
               )}
-            </div>
+            </div>}
           </div>
 
           <div>
@@ -195,6 +196,7 @@ export default function ProductDetailsModal({
         <div className="sticky bottom-0 flex flex-col gap-3 border-t border-slate-200 bg-white/95 px-6 py-5 backdrop-blur sm:flex-row sm:justify-end md:px-10">
           <button
             type="button"
+            disabled={!product.isAvailable}
             onClick={onClose}
             className="rounded-2xl border border-slate-300 bg-white px-6 py-4 font-bold text-slate-950"
           >
@@ -206,9 +208,9 @@ export default function ProductDetailsModal({
               onSelect();
               onClose();
             }}
-            className="rounded-2xl bg-emerald-600 px-6 py-4 font-black text-white shadow-lg transition hover:bg-emerald-700"
+            className="rounded-2xl bg-emerald-600 px-6 py-4 font-black text-white shadow-lg transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600"
           >
-            {isSelected ? "Continue With This Machine" : `Select ${product.name}`}
+            {!product.isAvailable ? "Unavailable" : isSelected ? "Continue With This Machine" : `Select ${product.name}`}
           </button>
         </div>
       </div>

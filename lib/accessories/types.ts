@@ -4,7 +4,7 @@ export type AccessoryTab = "lymow" | "yarbo" | "pandag" | "aftermarket";
 export type AccessoryAction = "builder" | "contact" | "external" | "none";
 export const ACCESSORY_AVAILABILITY_STATUSES = ["active", "unavailable", "coming_soon", "hidden"] as const;
 export type AccessoryAvailabilityStatus = typeof ACCESSORY_AVAILABILITY_STATUSES[number];
-export const ACCESSORY_AVAILABILITY_LABELS: Record<AccessoryAvailabilityStatus,string> = { active:"Available", unavailable:"Temporarily Unavailable", coming_soon:"Coming Soon", hidden:"Hidden" };
+export const ACCESSORY_AVAILABILITY_LABELS: Record<AccessoryAvailabilityStatus,string> = { active:"Available", unavailable:"Unavailable", coming_soon:"Coming Soon", hidden:"Hidden" };
 
 export type AccessorySettings = {
   lymowEnabled: boolean; lymowLabel: string;

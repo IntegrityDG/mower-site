@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
+import { catalogPackageIsAvailable } from "@/lib/catalog/availability";
 import {
   builderAccessoryOptions,
   customerFacingGroupOptions,
@@ -100,8 +101,8 @@ function groupAppliesToVariant(
 
 function OptionPrice({ option }: { option: CatalogOption }) {
   return (
-    <p className="mt-3 text-sm font-black text-emerald-700">
-      {option.isIncluded ? "Included" : priceLabel(option)}
+    <p className={`mt-3 text-sm font-black ${option.isAvailable ? "text-emerald-700" : "text-amber-800"}`}>
+      {!option.isAvailable ? "Unavailable" : option.isIncluded ? "Included" : priceLabel(option)}
     </p>
   );
 }
@@ -115,6 +116,9 @@ export default function ProductConfiguration({
   onSelectPurchaseMode,
   onToggleBaseProduct,
 }: ProductConfigurationProps) {
+  if (!product.isAvailable) {
+    return <p role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-6 font-black text-amber-950">{product.name} is currently unavailable. Choose another product to continue.</p>;
+  }
   if (isYarboProduct(product)) {
     return (
       <><YarboConfiguration
@@ -142,7 +146,7 @@ export default function ProductConfiguration({
 function OptionalAccessories({product,selection,onChangeOptionQuantity}:{product:CatalogProduct;selection:ProductBuildSelection;onChangeOptionQuantity:(id:string,q:number)=>void}){
   const [open,setOpen]=useState(false);const[search,setSearch]=useState("");const accessories=builderAccessoryOptions(product).filter(o=>o.name.toLowerCase().includes(search.toLowerCase()));
   if(!accessories.length)return null;
-  return <section className="mt-8 rounded-[2rem] border border-emerald-200 bg-emerald-50/40 p-5 md:p-7"><button type="button" aria-expanded={open} onClick={()=>setOpen(v=>!v)} className="flex w-full items-center justify-between text-left"><span><span className="text-xs font-bold uppercase tracking-[.18em] text-emerald-700">Optional Accessories &amp; Parts</span><span className="mt-2 block text-2xl font-black">Add Optional Accessories &amp; Parts</span></span><span className="text-2xl">{open?'−':'+'}</span></button>{open&&<div className="mt-6"><label className="block font-bold">Search accessories<input value={search} onChange={e=>setSearch(e.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3"/></label><div className="mt-5 grid gap-4 lg:grid-cols-2">{accessories.map(option=>{const q=quantityForOption(selection,option);return <article key={option.id} className="rounded-2xl border bg-white p-4"><h4 className="font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p><OptionPrice option={option}/><div className="mt-3 flex items-center gap-3"><button type="button" aria-label={`Decrease ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q-1))} className="h-9 w-9 rounded-lg border font-black">−</button><span className="min-w-6 text-center font-black">{q}</span><button type="button" aria-label={`Increase ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q+1))} className="h-9 w-9 rounded-lg border font-black">+</button></div></article>})}</div></div>}</section>
+  return <section className="mt-8 rounded-[2rem] border border-emerald-200 bg-emerald-50/40 p-5 md:p-7"><button type="button" aria-expanded={open} onClick={()=>setOpen(v=>!v)} className="flex w-full items-center justify-between text-left"><span><span className="text-xs font-bold uppercase tracking-[.18em] text-emerald-700">Optional Accessories &amp; Parts</span><span className="mt-2 block text-2xl font-black">Add Optional Accessories &amp; Parts</span></span><span className="text-2xl">{open?'−':'+'}</span></button>{open&&<div className="mt-6"><label className="block font-bold">Search accessories<input value={search} onChange={e=>setSearch(e.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3"/></label><div className="mt-5 grid gap-4 lg:grid-cols-2">{accessories.map(option=>{const q=quantityForOption(selection,option);return <article key={option.id} className="rounded-2xl border bg-white p-4"><h4 className="font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p><OptionPrice option={option}/><div className="mt-3 flex items-center gap-3"><button type="button" disabled={!option.isAvailable} aria-label={`Decrease ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q-1))} className="h-9 w-9 rounded-lg border font-black disabled:cursor-not-allowed disabled:opacity-40">−</button><span className="min-w-6 text-center font-black">{q}</span><button type="button" disabled={!option.isAvailable} aria-label={`Increase ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q+1))} className="h-9 w-9 rounded-lg border font-black disabled:cursor-not-allowed disabled:opacity-40">+</button></div></article>})}</div></div>}</section>
 }
 
 function YarboConfiguration({
@@ -164,16 +168,20 @@ function YarboConfiguration({
   const completeMode = selection.purchaseMode === "complete-system";
 
   function selectPackage(packageId: string) {
+    const catalogPackage = product.packages.find((item) => item.id === packageId);
+    if (!catalogPackage || !catalogPackageIsAvailable(catalogPackage)) return;
     onSelectPurchaseMode("complete-system");
     onSelectPackage(packageId);
   }
 
   function toggleCore() {
+    if (!product.isAvailable) return;
     onSelectPurchaseMode("individual-equipment");
     onToggleBaseProduct(!coreSelected);
   }
 
   function toggleModule(option: CatalogOption) {
+    if (!option.isAvailable) return;
     const selected = selectedModules.some(
       ({ option: selectedOption }) => selectedOption.id === option.id
     );
@@ -297,14 +305,16 @@ function YarboConfiguration({
                   {group.packages.map((catalogPackage) => {
                     const isSelected = catalogPackage.id === selection.packageId;
                     const moduleNames = yarboPackageModuleNames(catalogPackage);
+                    const available = catalogPackageIsAvailable(catalogPackage);
 
                     return (
                       <button
                         key={catalogPackage.id}
                         type="button"
+                        disabled={!available}
                         onClick={() => selectPackage(catalogPackage.id)}
                         aria-pressed={isSelected}
-                        className={`rounded-[1.5rem] border p-5 text-left transition ${
+                        className={`rounded-[1.5rem] border p-5 text-left transition disabled:cursor-not-allowed disabled:opacity-70 ${
                           isSelected
                             ? "border-emerald-700 bg-white shadow-lg"
                             : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
@@ -318,11 +328,12 @@ function YarboConfiguration({
                             <h6 className="mt-2 text-xl font-black text-slate-950">
                               {yarboPackageDisplayName(catalogPackage)}
                             </h6>
+                            {!available && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
                           </div>
-                          <YarboPriceDisplay
+                          {available && <YarboPriceDisplay
                             item={catalogPackage}
                             priceClassName="text-xl font-black text-emerald-700"
-                          />
+                          />}
                         </div>
 
                         {catalogPackage.description && (
@@ -404,9 +415,10 @@ function YarboConfiguration({
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <button
               type="button"
+              disabled={!product.isAvailable}
               onClick={toggleCore}
               aria-pressed={coreSelected}
-              className={`rounded-[1.5rem] border p-5 text-left transition ${
+              className={`rounded-[1.5rem] border p-5 text-left transition disabled:cursor-not-allowed disabled:opacity-70 ${
                 coreSelected && individualMode
                   ? "border-emerald-700 bg-white shadow-lg"
                   : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
@@ -451,9 +463,10 @@ function YarboConfiguration({
                 <button
                   key={option.id}
                   type="button"
+                  disabled={!option.isAvailable}
                   onClick={() => toggleModule(option)}
                   aria-pressed={isSelected}
-                  className={`rounded-[1.5rem] border p-5 text-left transition ${
+                  className={`rounded-[1.5rem] border p-5 text-left transition disabled:cursor-not-allowed disabled:opacity-70 ${
                     isSelected && individualMode
                       ? "border-emerald-700 bg-white shadow-lg"
                       : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
@@ -467,6 +480,7 @@ function YarboConfiguration({
                       <h5 className="mt-2 text-xl font-black text-slate-950">
                         {yarboOptionDisplayName(option)}
                       </h5>
+                      {!option.isAvailable && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
                       <p className="mt-2 leading-6 text-slate-600">
                         {option.description?.replaceAll(
                           "Leaf Blower",
@@ -484,11 +498,11 @@ function YarboConfiguration({
                       ✓
                     </span>
                   </div>
-                  <YarboPriceDisplay
+                  {option.isAvailable && <YarboPriceDisplay
                     item={option}
                     className="mt-4"
                     priceClassName="text-lg font-black text-emerald-700"
-                  />
+                  />}
                   <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-950">
                     {YARBO_MODULE_ONLY_NOTICE}
                   </p>
@@ -562,6 +576,7 @@ function StandardProductConfiguration({
     group: CatalogOptionGroup,
     option: CatalogOption
   ) {
+    if (!option.isAvailable) return;
     const currentQuantity = quantityForOption(selection, option);
 
     for (const groupOption of group.options) {
@@ -579,6 +594,7 @@ function StandardProductConfiguration({
     const quantity = quantityForOption(selection, option);
     const isSelected = quantity > 0;
     const isIncludedInPackage = packageIncludedOptionIds.has(option.id);
+    const available = option.isAvailable;
 
     if (group.selectionType === "quantity") {
       return (
@@ -595,6 +611,7 @@ function StandardProductConfiguration({
               <h5 className="text-lg font-black text-slate-950">
                 {option.name}
               </h5>
+              {!available && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
               <p className="mt-2 leading-6 text-slate-600">
                 {option.description}
               </p>
@@ -609,19 +626,21 @@ function StandardProductConfiguration({
               <div className="flex items-center rounded-2xl border border-slate-300 bg-slate-50 p-1">
                 <button
                   type="button"
+                  disabled={!available}
                   onClick={() =>
                     onChangeOptionQuantity(
                       option.id,
                       clampQuantity(option, quantity - 1)
                     )
                   }
-                  className="h-10 w-10 rounded-xl bg-white text-xl font-black text-slate-950 shadow-sm"
+                  className="h-10 w-10 rounded-xl bg-white text-xl font-black text-slate-950 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label={`Decrease ${option.name} quantity`}
                 >
                   −
                 </button>
                 <input
                   type="number"
+                  disabled={!available}
                   min={option.minimumQuantity}
                   max={option.maximumQuantity ?? undefined}
                   value={quantity}
@@ -631,18 +650,19 @@ function StandardProductConfiguration({
                       clampQuantity(option, Number(event.target.value))
                     )
                   }
-                  className="w-16 bg-transparent text-center text-lg font-black text-slate-950 outline-none"
+                  className="w-16 bg-transparent text-center text-lg font-black text-slate-950 outline-none disabled:opacity-50"
                   aria-label={`${option.name} quantity`}
                 />
                 <button
                   type="button"
+                  disabled={!available}
                   onClick={() =>
                     onChangeOptionQuantity(
                       option.id,
                       clampQuantity(option, quantity + 1)
                     )
                   }
-                  className="h-10 w-10 rounded-xl bg-white text-xl font-black text-slate-950 shadow-sm"
+                  className="h-10 w-10 rounded-xl bg-white text-xl font-black text-slate-950 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
                   aria-label={`Increase ${option.name} quantity`}
                 >
                   +
@@ -660,7 +680,7 @@ function StandardProductConfiguration({
       <button
         key={option.id}
         type="button"
-        disabled={isIncludedInPackage || option.isIncluded}
+        disabled={!available || isIncludedInPackage || option.isIncluded}
         onClick={() => {
           if (isSingle) {
             handleSingleGroupSelection(group, option);
@@ -670,7 +690,7 @@ function StandardProductConfiguration({
           onChangeOptionQuantity(option.id, isSelected ? 0 : 1);
         }}
         aria-pressed={isSelected || isIncludedInPackage || option.isIncluded}
-        className={`rounded-2xl border p-5 text-left transition ${
+        className={`rounded-2xl border p-5 text-left transition disabled:cursor-not-allowed disabled:opacity-70 ${
           isIncludedInPackage || option.isIncluded
             ? "border-emerald-300 bg-emerald-50"
             : isSelected
@@ -681,6 +701,7 @@ function StandardProductConfiguration({
         <div className="flex items-start justify-between gap-4">
           <div>
             <h5 className="text-lg font-black text-slate-950">{option.name}</h5>
+            {!available && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
             <p className="mt-2 leading-6 text-slate-600">
               {option.description}
             </p>
@@ -746,9 +767,10 @@ function StandardProductConfiguration({
                 <button
                   key={variant.id}
                   type="button"
+                  disabled={!variant.isAvailable}
                   onClick={() => onSelectVariant(variant.id)}
                   aria-pressed={isSelected}
-                  className={`rounded-2xl border p-5 text-left transition ${
+                  className={`rounded-2xl border p-5 text-left transition disabled:cursor-not-allowed disabled:opacity-70 ${
                     isSelected
                       ? "border-emerald-700 bg-white shadow-lg"
                       : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
@@ -759,6 +781,7 @@ function StandardProductConfiguration({
                       <h5 className="text-xl font-black text-slate-950">
                         {variant.name}
                       </h5>
+                      {!variant.isAvailable && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
                       <p className="mt-2 leading-6 text-slate-600">
                         {variant.description}
                       </p>
@@ -773,7 +796,7 @@ function StandardProductConfiguration({
                       ✓
                     </span>
                   </div>
-                  {product.slug === "lymow-one-plus" ? (
+                  {variant.isAvailable && (product.slug === "lymow-one-plus" ? (
                     <EverydayPriceDisplay
                       item={variant}
                       comparisonLabel="Lymow Everyday Price"
@@ -784,7 +807,7 @@ function StandardProductConfiguration({
                     <p className="mt-4 text-lg font-black text-emerald-700">
                       {priceLabel(variant)}
                     </p>
-                  )}
+                  ))}
                 </button>
               );
             })}
@@ -832,14 +855,16 @@ function StandardProductConfiguration({
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
             {filteredPackages.map((catalogPackage) => {
               const isSelected = catalogPackage.id === selection.packageId;
+              const available = catalogPackageIsAvailable(catalogPackage);
 
               return (
                 <button
                   key={catalogPackage.id}
                   type="button"
+                  disabled={!available}
                   onClick={() => onSelectPackage(catalogPackage.id)}
                   aria-pressed={isSelected}
-                  className={`rounded-2xl border p-5 text-left transition ${
+                  className={`rounded-2xl border p-5 text-left transition disabled:cursor-not-allowed disabled:opacity-70 ${
                     isSelected
                       ? "border-emerald-700 bg-white shadow-lg"
                       : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
@@ -850,6 +875,7 @@ function StandardProductConfiguration({
                       <h5 className="text-xl font-black text-slate-950">
                         {catalogPackage.name}
                       </h5>
+                      {!available && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
                       <p className="mt-2 leading-6 text-slate-600">
                         {catalogPackage.description}
                       </p>
@@ -882,9 +908,9 @@ function StandardProductConfiguration({
                     </div>
                   )}
 
-                  <p className="mt-4 text-xl font-black text-emerald-700">
+                  {available && <p className="mt-4 text-xl font-black text-emerald-700">
                     {priceLabel(catalogPackage)}
-                  </p>
+                  </p>}
                 </button>
               );
             })}
@@ -942,6 +968,7 @@ function StandardProductConfiguration({
                         <p className="font-black text-slate-950">
                           {option.name}
                         </p>
+                        {!option.isAvailable && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
                         <p className="mt-2 text-sm leading-6 text-slate-600">
                           {option.description}
                         </p>

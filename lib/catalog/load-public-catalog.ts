@@ -13,6 +13,10 @@ import { customerFacingOptions } from "@/lib/catalog/customer-facing-options";
 import { getSupabaseCatalogClient } from "@/lib/supabase";
 import type { ActivePriceSchedule, PriceScheduleTarget } from "@/lib/catalog/active-price-schedule";
 import { scheduledPublicPrice, type PublicPriceRow } from "@/lib/catalog/public-price";
+import {
+  catalogAvailabilityFromPublicStatus,
+  PUBLIC_CATALOG_STATUSES,
+} from "@/lib/catalog/availability";
 
 const fallbackImages: Record<string, string> = {
   "lymow-one-plus": "/products/lymow-one-plus-thumb.PNG",
@@ -49,7 +53,7 @@ export async function loadPublicCatalog(
     let productsQuery = supabase
       .from("catalog_products")
       .select("*")
-      .eq("public_status", "active");
+      .in("public_status", [...PUBLIC_CATALOG_STATUSES]);
 
     if (productSlug) {
       productsQuery = productsQuery.eq("slug", productSlug);
@@ -82,7 +86,7 @@ export async function loadPublicCatalog(
         .from("catalog_product_variants")
         .select("*")
         .in("product_id", productIds)
-        .eq("public_status", "active")
+        .in("public_status", [...PUBLIC_CATALOG_STATUSES])
         .order("sort_order")
         .order("name"),
       supabase
@@ -95,14 +99,14 @@ export async function loadPublicCatalog(
         .from("catalog_options")
         .select("*")
         .in("product_id", productIds)
-        .eq("public_status", "active")
+        .in("public_status", [...PUBLIC_CATALOG_STATUSES])
         .order("sort_order")
         .order("name"),
       supabase
         .from("catalog_packages")
         .select("*")
         .in("product_id", productIds)
-        .eq("public_status", "active")
+        .in("public_status", [...PUBLIC_CATALOG_STATUSES])
         .order("sort_order")
         .order("package_name"),
       supabase
@@ -266,6 +270,7 @@ export async function loadPublicCatalog(
       accessoryActionUrl: option.accessory_action_url ?? null,
       accessoryPriceText: option.accessory_price_text ?? null,
       manufacturerName: option.manufacturer_name ?? null,
+      ...catalogAvailabilityFromPublicStatus(option.public_status),
       ...scheduledPublicPrice(option as PublicPriceRow, schedules, "option", option.id, now).price,
     }));
 
@@ -303,25 +308,34 @@ export async function loadPublicCatalog(
 
       const normalizedVariants = variants
         .filter((variant) => variant.product_id === product.id)
-        .map((variant) => ({
-          id: variant.id,
-          slug: variant.variant_slug,
-          sku: variant.sku,
-          name: variant.name,
-          description: variant.description,
-          sortOrder: variant.sort_order,
-          definingOptionIds: variantOptions
+        .map((variant) => {
+          const definingOptionIds = variantOptions
             .filter(
               (link) =>
                 link.variant_id === variant.id &&
                 link.relationship_type === "defines_variant"
             )
-            .map((link) => link.option_id),
-          ...(salesMode === "quote_only"
-            ? { specifications: specificationsForVariant(variant.id) }
-            : {}),
-          ...publicPrice(variant, "variant", variant.id),
-        }));
+            .map((link) => link.option_id);
+          const availability = catalogAvailabilityFromPublicStatus(variant.public_status);
+          const definingOptionsAvailable = definingOptionIds.every(
+            (optionId) => normalizedOptions.find((option) => option.id === optionId)?.isAvailable === true,
+          );
+          return {
+            id: variant.id,
+            slug: variant.variant_slug,
+            sku: variant.sku,
+            name: variant.name,
+            description: variant.description,
+            sortOrder: variant.sort_order,
+            definingOptionIds,
+            ...availability,
+            isAvailable: availability.isAvailable && definingOptionsAvailable,
+            ...(salesMode === "quote_only"
+              ? { specifications: specificationsForVariant(variant.id) }
+              : {}),
+            ...publicPrice(variant, "variant", variant.id),
+          };
+        });
 
       const customerFacingProductOptionRows = customerFacingOptions(
         productOptionRows,
@@ -347,13 +361,8 @@ export async function loadPublicCatalog(
 
       const normalizedPackages = packages
         .filter((catalogPackage) => catalogPackage.product_id === product.id)
-        .map((catalogPackage) => ({
-          id: catalogPackage.id,
-          slug: catalogPackage.package_slug,
-          name: catalogPackage.package_name,
-          description: catalogPackage.description,
-          sortOrder: catalogPackage.sort_order,
-          items: packageItems
+        .map((catalogPackage) => {
+          const items = packageItems
             .filter((item) => item.package_id === catalogPackage.id)
             .map((item) => ({
               optionId: item.option_id,
@@ -363,9 +372,20 @@ export async function loadPublicCatalog(
                 productOptionRows.find(
                   (option) => option.id === item.option_id
                 ) ?? null,
-            })),
-          ...publicPrice(catalogPackage, "package", catalogPackage.id),
-        }));
+            }));
+          const availability = catalogAvailabilityFromPublicStatus(catalogPackage.public_status);
+          return {
+            id: catalogPackage.id,
+            slug: catalogPackage.package_slug,
+            name: catalogPackage.package_name,
+            description: catalogPackage.description,
+            sortOrder: catalogPackage.sort_order,
+            items,
+            ...availability,
+            isAvailable: availability.isAvailable && items.every((item) => item.option?.isAvailable === true),
+            ...publicPrice(catalogPackage, "package", catalogPackage.id),
+          };
+        });
 
       return {
         id: product.id,
@@ -383,6 +403,7 @@ export async function loadPublicCatalog(
         imageAlt: primaryMedia?.altText ?? `${product.name} autonomous mower`,
         sortOrder: product.sort_order,
         salesMode,
+        ...catalogAvailabilityFromPublicStatus(product.public_status),
         page: page
           ? {
               heroHeading: page.hero_heading,

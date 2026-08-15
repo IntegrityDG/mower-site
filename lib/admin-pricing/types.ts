@@ -10,6 +10,9 @@ export type PricingItem = {
   brand: string | null;
   productName: string | null;
   publicStatus: string | null;
+  availabilityField: "public_status" | "is_available";
+  availabilityStatus: string;
+  isAvailable: boolean;
   quoteOnly: boolean;
   targetLabel: string | null;
   values: Record<string, string | number | boolean | null>;

@@ -3,9 +3,11 @@ import Link from "next/link";
 export default function ProductBuildCta({
   supportingText,
   productSlug,
+  isAvailable = true,
 }: {
   supportingText: string;
   productSlug?: string;
+  isAvailable?: boolean;
 }) {
   const href = productSlug
     ? `/?product=${encodeURIComponent(productSlug)}#location-and-customer-path`
@@ -17,12 +19,12 @@ export default function ProductBuildCta({
       <p className="mt-3 max-w-2xl leading-7 text-slate-300">
         {supportingText}
       </p>
-      <Link
-        href={href}
-        className="mt-6 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950"
-      >
-        Build Your System
-      </Link>
+      {isAvailable ? <Link
+          href={href}
+          className="mt-6 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950"
+        >
+          Build Your System
+        </Link> : <p className="mt-6 inline-flex rounded-2xl bg-amber-100 px-7 py-4 font-black text-amber-950">Unavailable</p>}
     </div>
   );
 }

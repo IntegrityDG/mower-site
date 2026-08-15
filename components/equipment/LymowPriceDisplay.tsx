@@ -22,7 +22,7 @@ type LymowPriceDisplayProps = {
 
 function lowestPricedVariant(product: CatalogProduct | undefined) {
   return product?.variants.reduce<CatalogVariant | null>((lowest, candidate) => {
-    if (candidate.currentPriceCents === null) return lowest;
+    if (!candidate.isAvailable || candidate.currentPriceCents === null) return lowest;
     if (!lowest || lowest.currentPriceCents === null) return candidate;
 
     return candidate.currentPriceCents < lowest.currentPriceCents
@@ -62,7 +62,7 @@ export default function LymowPriceDisplay({
   }, [product, variant]);
 
   const item = useMemo<CatalogPrice | null>(
-    () => variant ?? lowestPricedVariant(product ?? homepageProduct) ?? null,
+    () => variant?.isAvailable === false ? null : variant ?? lowestPricedVariant(product ?? homepageProduct) ?? null,
     [homepageProduct, product, variant]
   );
 

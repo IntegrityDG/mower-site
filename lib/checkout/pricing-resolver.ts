@@ -36,8 +36,10 @@ async function resolveAccessoryOnlyPricing(input: CheckoutRequest): Promise<Orde
     const option = options.find((row) => row.id === selected.optionId)!;
     const product = products.find((row) => row.id === option.product_id);
     const correctTab = product?.slug === "lymow-one-plus" ? "lymow" : product?.slug === "yarbo" ? "yarbo" : product?.slug === "ids-aftermarket" ? "aftermarket" : null;
-    if (!product || product.public_status !== "active" || !correctTab) throw new CheckoutRejectionError("QUOTE_ONLY_PRODUCT", "This accessory is not eligible for checkout.");
-    if (option.public_status !== "active" || option.accessory_listing_enabled !== true || option.accessory_tab !== correctTab || option.show_in_builder !== true || (correctTab !== "aftermarket" && option.accessory_action_type !== "builder") || option.contact_for_pricing || option.regular_price_cents === null || ACCESSORY_BLOCKLIST.has(option.option_slug)) throw new CheckoutRejectionError("INCOMPATIBLE_SELECTION", "This accessory is not available for IDS checkout.");
+    if (!product || !correctTab) throw new CheckoutRejectionError("QUOTE_ONLY_PRODUCT", "This accessory is not eligible for checkout.");
+    if (product.public_status !== "active") throw new CheckoutRejectionError("INACTIVE_CATALOG_RECORD", `${product.name} is currently unavailable. Please update your configuration before continuing.`);
+    if (option.public_status !== "active") throw new CheckoutRejectionError("INACTIVE_CATALOG_RECORD", `${option.name} is currently unavailable. Please update your configuration before continuing.`);
+    if (option.accessory_listing_enabled !== true || option.accessory_tab !== correctTab || option.show_in_builder !== true || (correctTab !== "aftermarket" && option.accessory_action_type !== "builder") || option.contact_for_pricing || option.regular_price_cents === null || ACCESSORY_BLOCKLIST.has(option.option_slug)) throw new CheckoutRejectionError("INCOMPATIBLE_SELECTION", "This accessory is not available for IDS checkout.");
     const maximum = Math.min(option.maximum_quantity ?? 10, 10);
     if (selected.quantity < Math.max(1, option.minimum_quantity) || selected.quantity > maximum) throw new CheckoutRejectionError("INVALID_QUANTITY", "Accessory quantity is outside its allowed range.");
   }

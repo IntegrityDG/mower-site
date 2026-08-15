@@ -70,7 +70,6 @@ export function builderAccessoryOptions(product: CatalogProduct) {
       option.showInBuilder &&
       option.accessoryActionType === "builder" &&
       option.accessoryTab === (product.slug === "yarbo" ? "yarbo" : "lymow") &&
-      option.currentPriceCents !== null &&
-      !option.contactForPricing,
+      (!option.isAvailable || (option.currentPriceCents !== null && !option.contactForPricing)),
   );
 }

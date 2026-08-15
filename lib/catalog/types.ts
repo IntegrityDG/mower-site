@@ -11,6 +11,15 @@ export type CatalogPrice = {
   saleEndsAt?: string | null;
 };
 
+export type CatalogPublicStatus = "active" | "unavailable";
+
+export type CatalogAvailability = {
+  /** Normalized sellability. Never infer this from price presence. */
+  isAvailable: boolean;
+  /** Retained when the source record uses public_status. */
+  publicStatus: CatalogPublicStatus | null;
+};
+
 export type CatalogSalesMode = "self_service" | "quote_only";
 
 export type CatalogSpecificationCategory =
@@ -66,7 +75,7 @@ export type CatalogProductPage = {
   sections: CatalogPageSection[];
 };
 
-export type CatalogOption = CatalogPrice & {
+export type CatalogOption = CatalogPrice & CatalogAvailability & {
   id: string;
   slug: string;
   name: string;
@@ -106,7 +115,7 @@ export type CatalogOptionGroup = {
   options: CatalogOption[];
 };
 
-export type CatalogVariant = CatalogPrice & {
+export type CatalogVariant = CatalogPrice & CatalogAvailability & {
   id: string;
   slug: string;
   sku: string | null;
@@ -124,7 +133,7 @@ export type CatalogPackageItem = {
   option: CatalogOption | null;
 };
 
-export type CatalogPackage = CatalogPrice & {
+export type CatalogPackage = CatalogPrice & CatalogAvailability & {
   id: string;
   slug: string;
   name: string;
@@ -133,7 +142,7 @@ export type CatalogPackage = CatalogPrice & {
   items: CatalogPackageItem[];
 };
 
-export type CatalogServicePaymentOption = CatalogPrice & {
+export type CatalogServicePaymentOption = CatalogPrice & CatalogAvailability & {
   id: string;
   slug: string;
   name: string;
@@ -144,7 +153,7 @@ export type CatalogServicePaymentOption = CatalogPrice & {
   sortOrder: number;
 };
 
-export type CatalogService = CatalogPrice & {
+export type CatalogService = CatalogPrice & CatalogAvailability & {
   id: string;
   slug: string;
   name: string;
@@ -162,7 +171,7 @@ export type CatalogService = CatalogPrice & {
   paymentOptions: CatalogServicePaymentOption[];
 };
 
-export type CatalogProduct = CatalogPrice & {
+export type CatalogProduct = CatalogPrice & CatalogAvailability & {
   id: string;
   slug: string;
   brand: string;

@@ -13,6 +13,7 @@ import {
   yarboOptionDisplayName,
 } from "./yarbo";
 import { builderAccessoryOptions, customerFacingProductOptions } from "./customer-facing-options";
+import { buildAvailabilityIssues } from "./availability";
 
 export function allProductOptions(product: CatalogProduct) {
   const options = customerFacingProductOptions(product);
@@ -141,12 +142,13 @@ export function resolveServiceSelections(
     const service = product.services.find(
       (item) => item.id === selection.serviceId
     );
-    if (!service) return [];
+    if (!service || !service.isAvailable) return [];
 
     const paymentOption =
       service.paymentOptions.find(
-        (item) => item.id === selection.paymentOptionId
+        (item) => item.id === selection.paymentOptionId && item.isAvailable
       ) ?? null;
+    if (selection.paymentOptionId && !paymentOption) return [];
     const priceSource = paymentOption ?? service;
 
     return [
@@ -188,10 +190,12 @@ export function optionGroupIsComplete(
     }
 
     const customerFacingIds = new Set(allProductOptions(product).map((option) => option.id));
-    const selectableOptions = group.options.filter(
+    const customerSelectableOptions = group.options.filter(
       (option) => customerFacingIds.has(option.id) && !option.isIncluded
     );
-    if (!group.isRequired || selectableOptions.length === 0) return true;
+    const selectableOptions = customerSelectableOptions.filter((option) => option.isAvailable);
+    if (!group.isRequired || customerSelectableOptions.length === 0) return true;
+    if (selectableOptions.length === 0) return false;
 
     const selectedCount = selectableOptions.filter(
       (option) => (selection.optionQuantities[option.id] ?? 0) > 0
@@ -205,6 +209,7 @@ export function productBuildIsComplete(
   product: CatalogProduct,
   selection: ProductBuildSelection
 ) {
+  if (buildAvailabilityIssues(product, selection).length > 0) return false;
   if (isYarboProduct(product)) {
     if (selection.purchaseMode === "complete-system") {
       return Boolean(selection.packageId);

@@ -65,7 +65,7 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
-      <CatalogHeader salesMode={product.salesMode} />
+      <CatalogHeader salesMode={product.salesMode} isAvailable={product.isAvailable} />
       <main>
         <section className="overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-5 py-14 text-white sm:px-8 lg:py-20">
           <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
@@ -79,6 +79,7 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
               <p className="mt-8 text-sm font-black uppercase tracking-[0.22em] text-emerald-400">
                 Pandag G1 Commercial Platform
               </p>
+              {!product.isAvailable && <UnavailableBadge />}
               <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-6xl">
                 Autonomous mowing built for large properties and demanding
                 commercial operations.
@@ -94,8 +95,8 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
                 charging access, and operating schedule shape the final model
                 recommendation and commercial proposal.
               </p>
-              <p className="mt-6 text-xl font-black text-emerald-300">Contact IDS for a Commercial Quote Today</p>
-              <QuoteOnlyNotice className="mt-7" />
+              {product.isAvailable && <p className="mt-6 text-xl font-black text-emerald-300">Contact IDS for a Commercial Quote Today</p>}
+              <QuoteOnlyNotice className="mt-7" isAvailable={product.isAvailable} />
             </div>
             <div className="relative flex min-h-96 items-center justify-center overflow-hidden rounded-[2rem] border border-white/10 bg-white/95 p-4 shadow-2xl sm:p-8">
               <div
@@ -126,7 +127,7 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
 function YarboProductPage({ product }: { product: CatalogProduct }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
-      <CatalogHeader productSlug="yarbo" />
+      <CatalogHeader productSlug="yarbo" isAvailable={product.isAvailable} />
       <main>
         <section className="bg-gradient-to-br from-slate-950 to-emerald-950 px-5 py-14 text-white sm:px-8">
           <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2">
@@ -140,6 +141,7 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
               <p className="mt-8 text-sm font-black uppercase tracking-[0.22em] text-emerald-400">
                 Yarbo
               </p>
+              {!product.isAvailable && <UnavailableBadge />}
               <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">
                 {product.page?.heroHeading ?? product.name}
               </h1>
@@ -148,7 +150,7 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
                   product.fullDescription ??
                   product.page?.heroSubheading}
               </p>
-              <div className="mt-7">
+              {product.isAvailable && <div className="mt-7">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">
                   Starting at
                 </p>
@@ -159,13 +161,13 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
                   labelClassName="text-xs font-bold uppercase tracking-[0.14em] text-slate-300"
                   regularClassName="text-lg font-bold text-slate-300 line-through"
                 />
-              </div>
-              <Link
+              </div>}
+              {product.isAvailable && <Link
                 href="/?product=yarbo#location-and-customer-path"
                 className="mt-7 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 hover:bg-emerald-400"
               >
                 Build Your System
-              </Link>
+              </Link>}
             </div>
             <div className="flex min-h-80 items-center justify-center rounded-[2rem] bg-white/95 p-8">
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -197,6 +199,7 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
           <ProductBuildCta
             supportingText="Choose your Yarbo configuration and compatible accessories first, then check delivery and service availability."
             productSlug="yarbo"
+            isAvailable={product.isAvailable}
           />
         </section>
       </main>
@@ -212,7 +215,7 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
-      <CatalogHeader productSlug={isLymowOnePlus ? product.slug : undefined} />
+      <CatalogHeader productSlug={isLymowOnePlus ? product.slug : undefined} isAvailable={product.isAvailable} />
       <main>
         <section className="bg-gradient-to-br from-slate-950 to-emerald-950 px-5 py-14 text-white sm:px-8">
           <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2">
@@ -226,6 +229,7 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
               <p className="mt-8 text-sm font-black uppercase tracking-[0.22em] text-emerald-400">
                 {isLymowOnePlus ? "Lymow One Plus features" : product.brand}
               </p>
+              {!product.isAvailable && <UnavailableBadge />}
               <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-6xl">
                 {product.page?.heroHeading ?? product.name}
               </h1>
@@ -236,7 +240,7 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                     product.fullDescription ??
                     product.homepageSummary}
               </p>
-              {product.slug === "lymow-one-plus" ? (
+              {product.isAvailable && (product.slug === "lymow-one-plus" ? (
                 <div className="mt-7">
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">
                     Starting at
@@ -264,8 +268,8 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                 <p className="mt-7 text-3xl font-black">
                   {priceLabel(product)}
                 </p>
-              )}
-              <Link
+              ))}
+              {product.isAvailable && <Link
                 href={
                   isLymowOnePlus
                     ? "/?product=lymow-one-plus#location-and-customer-path"
@@ -274,7 +278,7 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                 className="mt-7 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 hover:bg-emerald-400"
               >
                 Build Your System
-              </Link>
+              </Link>}
             </div>
             <div className="flex min-h-80 items-center justify-center overflow-hidden rounded-[2rem] bg-white/95">
               {isLymowOnePlus ? (
@@ -347,6 +351,7 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
             <ProductBuildCta
               supportingText="Choose your Lymow One Plus configuration and compatible accessories first, then check delivery and service availability."
               productSlug="lymow-one-plus"
+              isAvailable={product.isAvailable}
             />
           ) : (
             <div className="mt-14 rounded-[2rem] bg-slate-950 p-8 text-white sm:p-10">
@@ -358,12 +363,12 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                 delivery and service availability. No payment is collected
                 online.
               </p>
-              <Link
-                href="/#location-and-customer-path"
-                className="mt-6 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950"
-              >
-                Build Your System
-              </Link>
+              {product.isAvailable ? <Link
+                  href="/#location-and-customer-path"
+                  className="mt-6 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950"
+                >
+                  Build Your System
+                </Link> : <p className="mt-6 inline-flex rounded-2xl bg-amber-100 px-7 py-4 font-black text-amber-950">Unavailable</p>}
             </div>
           )}
         </section>
@@ -403,14 +408,14 @@ function EquipmentList({
           >
             <div className="flex justify-between gap-4">
               <h4 className="font-black">{item.name}</h4>
-              <span className="shrink-0 text-sm font-bold text-emerald-700">
-                {item.isIncluded ? "Included" : priceLabel(item)}
+              <span className={`shrink-0 text-sm font-bold ${item.isAvailable ? "text-emerald-700" : "text-amber-800"}`}>
+                {!item.isAvailable ? "Unavailable" : item.isIncluded ? "Included" : priceLabel(item)}
               </span>
             </div>
             <p className="mt-3 text-sm leading-6 text-slate-600">
               {item.description ?? "Compatible with this product configuration."}
             </p>
-            {!item.isIncluded && (
+            {!item.isIncluded && item.isAvailable && (
               <Link
                 href="/#location-and-customer-path"
                 className="mt-4 inline-flex text-sm font-black text-emerald-700"
@@ -423,4 +428,8 @@ function EquipmentList({
       </div>
     </div>
   );
+}
+
+function UnavailableBadge() {
+  return <span className="mt-4 inline-flex rounded-full bg-amber-100 px-4 py-2 text-sm font-black text-amber-950">Unavailable</span>;
 }

@@ -9,7 +9,7 @@ import { customerFacingGroupOptions, customerFacingProductOptions } from "../lib
 import { productBuildIsComplete, resolveBuildSelection } from "../lib/catalog/selection";
 import type { CatalogOption, CatalogProduct, CatalogVariant, ProductBuildSelection } from "../lib/catalog/types";
 
-const price = { regularPriceCents: 10000, salePriceCents: null, currentPriceCents: 10000, showPublicPrice: true, contactForPricing: false, promotionLabel: null, saleIsActive: false };
+const price = { isAvailable: true, publicStatus: "active" as const, regularPriceCents: 10000, salePriceCents: null, currentPriceCents: 10000, showPublicPrice: true, contactForPricing: false, promotionLabel: null, saleIsActive: false };
 function option(id: string, slug: string, name: string): CatalogOption { return { id, slug, name, description: `${name} description`, optionGroupId: "group", isRequired: false, isIncluded: false, isRecommended: false, defaultQuantity: 0, minimumQuantity: 0, maximumQuantity: 1, sortOrder: 1, ...price }; }
 function variant(id: string, slug: string, definingOptionIds: string[]): CatalogVariant { return { id, slug, sku: null, name: slug, description: null, sortOrder: 1, definingOptionIds, ...price }; }
 function product(overrides: Partial<CatalogProduct> = {}): CatalogProduct { return { id: "product", slug: "lymow-one-plus", brand: "Lymow", name: "Lymow One Plus", homepageSummary: null, fullDescription: null, capabilityLevel: null, propertyScale: null, customerGuidance: null, brochureUrl: null, videoUrl: null, imageUrl: "/lymow.png", imageAlt: "Lymow", sortOrder: 1, salesMode: "self_service", page: null, media: [], variants: [], optionGroups: [], ungroupedOptions: [], packages: [], ...price, ...overrides }; }

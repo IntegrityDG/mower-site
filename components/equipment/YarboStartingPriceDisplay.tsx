@@ -46,10 +46,10 @@ export default function YarboStartingPriceDisplay({
 
   const item = product ?? homepageProduct;
 
-  if (!item) {
+  if (!item || !item.isAvailable) {
     return (
       <p className={`${className ?? ""} text-sm font-bold text-slate-500`.trim()}>
-        Pricing unavailable
+        {item?.isAvailable === false ? "Unavailable" : "Pricing unavailable"}
       </p>
     );
   }

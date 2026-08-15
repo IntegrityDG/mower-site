@@ -31,6 +31,8 @@ import type {
 import { findCatalogProductBySlug } from "../lib/catalog/product-routing";
 
 const catalogPrice = {
+  isAvailable: true,
+  publicStatus: "active" as const,
   regularPriceCents: 10000,
   salePriceCents: null,
   currentPriceCents: 10000,
@@ -267,6 +269,8 @@ function lymowProduct(
 }
 
 const pandagPrice = {
+  isAvailable: true,
+  publicStatus: "active" as const,
   displayMsrpPriceCents: 10000,
   regularPriceCents: null,
   salePriceCents: null,

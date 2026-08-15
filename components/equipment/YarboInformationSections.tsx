@@ -216,6 +216,7 @@ function ActiveComponentCards({
             {coreContent.category}
           </p>
           <h3 className="mt-3 text-xl font-black">Yarbo Core</h3>
+          {!product.isAvailable && <span className="mt-3 inline-flex w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
           <p className="mt-3 leading-7 text-slate-600">
             {product.homepageSummary ?? coreContent.description}
           </p>
@@ -236,11 +237,11 @@ function ActiveComponentCards({
               </div>
             ))}
           </dl>
-          <YarboPriceDisplay
+          {product.isAvailable && <YarboPriceDisplay
             item={product}
             className="mt-auto pt-5"
             priceClassName="text-xl font-black text-emerald-700"
-          />
+          />}
         </article>
 
         {modules.map((option) => {
@@ -264,6 +265,7 @@ function ActiveComponentCards({
               <h3 className="mt-3 text-xl font-black">
                 {yarboOptionDisplayName(option)}
               </h3>
+              {!option.isAvailable && <span className="mt-3 inline-flex w-fit rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
               <p className="mt-3 leading-7 text-slate-600">
                 {moduleDescription(option)}
               </p>
@@ -286,11 +288,11 @@ function ActiveComponentCards({
                   ))}
                 </dl>
               )}
-              <YarboPriceDisplay
+              {option.isAvailable && <YarboPriceDisplay
                 item={option}
                 className="mt-auto pt-5"
                 priceClassName="text-xl font-black text-emerald-700"
-              />
+              />}
               <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-950">
                 {YARBO_MODULE_ONLY_NOTICE}
               </p>

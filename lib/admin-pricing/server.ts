@@ -31,7 +31,11 @@ function rowToItem(kind: PricingKind, row: Record<string, unknown>, maps: { prod
   if (kind === "schedules") for (const [column, map] of [["product_id", maps.products], ["variant_id", maps.variants], ["option_id", maps.options], ["package_id", maps.packages], ["service_id", maps.services], ["product_service_id", maps.productServices]] as const) if (row[column]) targetLabel = map.get(String(row[column])) ?? String(row[column]);
   const values = Object.fromEntries(Object.entries(row).filter(([key, item]) => !["id", "created_at", "updated_at"].includes(key) && (item === null || ["string", "number", "boolean"].includes(typeof item)))) as Record<string, string | number | boolean | null>;
   const slugValue = String(slugs[kind] ?? "");
-  return { id: String(row.id), kind, category: category[kind], name: String(names[kind] ?? "Unnamed"), slug: slugValue, brand: kind === "products" ? String(row.brand ?? "") || null : null, productName: product, publicStatus: typeof row.public_status === "string" ? row.public_status : null, quoteOnly: (kind === "products" && slugValue === "pandag-g1") || product?.toLowerCase().includes("pandag") === true, targetLabel, values, effectivePriceCents: effective(applyActivePriceSchedule(basePriceRow(kind, row), activeSchedule)), activeScheduleName: activeSchedule?.schedule_name ?? null, dealerCostCents };
+  const availabilityField = kind === "service-payment-options" || kind === "product-services" ? "is_available" : "public_status";
+  const availabilityStatus = availabilityField === "is_available"
+    ? row.is_available === true ? "active" : "unavailable"
+    : typeof row.public_status === "string" ? row.public_status : "unavailable";
+  return { id: String(row.id), kind, category: category[kind], name: String(names[kind] ?? "Unnamed"), slug: slugValue, brand: kind === "products" ? String(row.brand ?? "") || null : null, productName: product, publicStatus: typeof row.public_status === "string" ? row.public_status : null, availabilityField, availabilityStatus, isAvailable: availabilityStatus === "active", quoteOnly: (kind === "products" && slugValue === "pandag-g1") || product?.toLowerCase().includes("pandag") === true, targetLabel, values, effectivePriceCents: effective(applyActivePriceSchedule(basePriceRow(kind, row), activeSchedule)), activeScheduleName: activeSchedule?.schedule_name ?? null, dealerCostCents };
 }
 
 export async function readPricingCatalog(): Promise<PricingCatalog> {

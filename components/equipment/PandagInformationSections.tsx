@@ -258,6 +258,7 @@ function ModelComparison({ product }: { product: CatalogProduct }) {
                   <h3 className="mt-3 text-2xl font-black">
                     {content.displayName}
                   </h3>
+                  {!variant.isAvailable && <span className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
                   <p className="mt-3 leading-7 text-slate-600">
                     {content.summary}
                   </p>
@@ -265,13 +266,13 @@ function ModelComparison({ product }: { product: CatalogProduct }) {
                     <SpecList specs={content.comparisonFacts} />
                   </div>
                   <div className="mt-auto border-t border-slate-200 pt-5">
-                    <CatalogPricing item={variant} />
-                    <Link
+                    {variant.isAvailable && <CatalogPricing item={variant} />}
+                    {variant.isAvailable && <Link
                       href={`/pandag/project-quote?model=${content.quoteModel}`}
                       className="mt-5 inline-flex w-full justify-center rounded-2xl bg-emerald-600 px-5 py-4 text-center font-black text-white hover:bg-emerald-700"
                     >
                       Request Pricing
-                    </Link>
+                    </Link>}
                   </div>
                 </div>
               </article>
