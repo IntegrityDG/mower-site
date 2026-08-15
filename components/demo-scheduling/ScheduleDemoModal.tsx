@@ -204,6 +204,10 @@ export default function ScheduleDemoModal({
               <label className="font-bold">Property Address<input name="propertyAddress" required maxLength={500} autoComplete="street-address" className="mt-2 w-full rounded-xl border p-3" /></label>
               <label className="sr-only" aria-hidden="true">Company<input name="company" tabIndex={-1} autoComplete="off" /></label>
             </section>
+            <section aria-labelledby={`${titleId}-travel-notice`} className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
+              <h4 id={`${titleId}-travel-notice`} className="text-lg font-black">Travel &amp; Fuel Notice</h4>
+              <p className="mt-2 text-sm font-medium leading-6">Because IDS covers a large service area, some demo requests may require a reasonable travel or fuel charge depending on distance. If a charge applies, IDS will contact you before approving the appointment so there are no surprises. We appreciate your understanding as we work to provide on-site demos across a wide region.</p>
+            </section>
             <p className="rounded-xl bg-amber-50 p-4 text-sm font-bold text-amber-950">Submitting this request does not confirm an appointment. IDS must approve the requested time.</p>
             {message && <p role="alert" className="font-bold text-red-700">{message}</p>}
             <button disabled={sending || !selectedStart} className="min-h-12 w-full rounded-xl bg-emerald-600 px-6 py-3 font-black text-white disabled:opacity-50">{sending ? "Submittingâ€¦" : "Request Demo Time"}</button>

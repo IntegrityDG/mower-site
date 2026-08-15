@@ -9,11 +9,21 @@ import {
   requestMatchesDemoFilter,
   selectDemoRequestForCalendarDate,
 } from "../lib/demo-scheduling/admin-state";
+import {
+  demoAreaAssignmentDisplay,
+  isDemoServiceDate,
+  serviceDateParts,
+  validateDemoAreaAssignment,
+} from "../lib/demo-scheduling/area-planning";
+import {
+  createDemoAreaAssignmentHandlers,
+  createDemoAreaAssignmentItemHandlers,
+} from "../lib/demo-scheduling/area-planning-handlers";
 import { generateAvailableSlots } from "../lib/demo-scheduling/availability";
 import { demoRequestFingerprint } from "../lib/demo-scheduling/client";
 import { createDemoIcs } from "../lib/demo-scheduling/ics";
 import { centralLocalToUtc, endAtForDuration, slotFromLocal } from "../lib/demo-scheduling/time";
-import { DEMO_EQUIPMENT_INTERESTS, DEMO_SOURCES, type DemoRequest } from "../lib/demo-scheduling/types";
+import { DEMO_DURATION_MINUTES, DEMO_EQUIPMENT_INTERESTS, DEMO_SOURCES, type DemoAreaAssignment, type DemoRequest, type DemoServiceArea, type DemoServiceAreaCity } from "../lib/demo-scheduling/types";
 import { validateDemoRequest } from "../lib/demo-scheduling/validation";
 import { sanitizeEmailFailure } from "../lib/email-diagnostics";
 
@@ -21,6 +31,7 @@ const source = (path: string) => readFileSync(path, "utf8");
 const oldMigration = source("supabase/migrations/20260812210000_create_demo_scheduling.sql");
 const newMigration = source("supabase/migrations/20260813000000_expand_demo_scheduling_sources_and_equipment.sql");
 const durationMigration = source("supabase/migrations/20260814031110_change_demo_scheduling_to_four_hour_blocks.sql");
+const areaPlanningMigration = source("supabase/migrations/20260815011728_add_demo_area_planning.sql");
 const equipment = source("components/equipment/EquipmentCatalog.tsx");
 const homepage = source("app/page.tsx");
 const mobileHome = source("components/mobile/MobileHomepage.tsx");
@@ -34,6 +45,10 @@ const server = source("lib/demo-scheduling/server.ts");
 const notifications = source("lib/demo-scheduling/notifications.ts");
 const emailSource = source("lib/email.ts");
 const admin = source("app/admin/demo-scheduling/page.tsx");
+const areaPlanningServer = source("lib/demo-scheduling/server.ts");
+const areaPlanningHandlers = source("lib/demo-scheduling/area-planning-handlers.ts");
+const publicAvailabilityRoute = source("app/api/demo-scheduling/availability/route.ts");
+const publicRequestRoute = source("app/api/demo-scheduling/requests/route.ts");
 
 const valid = {
   name: "A Customer",
@@ -487,6 +502,237 @@ test("duration migration changes only the demo setting to 240 minutes", () => {
   for (const preserved of ["timezone", "scheduling_horizon_days", "demo_availability_rules", "demo_availability_exceptions", "demo_notification_events", "demo_requests_no_overlap", "source", "equipment_interest"]) {
     assert.doesNotMatch(durationMigration, new RegExp(`(?:alter|update|delete|drop)[^;]*${preserved}`, "i"));
   }
+});
+
+const areaId = "10000000-0000-4000-8000-000000000010";
+const cityId = "10000000-0000-4000-8000-000000000011";
+const assignmentInput = { serviceDate: "2026-08-18", regionId: areaId, cityId: null, customCity: null, internalNote: null };
+const areaAssignment: DemoAreaAssignment = { id: "10000000-0000-4000-8000-000000000012", ...assignmentInput, createdAt: "2026-08-14T00:00:00Z", updatedAt: "2026-08-14T00:00:00Z" };
+const southernIllinois: DemoServiceArea = { id: areaId, name: "Southern Illinois", description: null, active: true, sortOrder: 130, createdAt: "2026-08-14T00:00:00Z", updatedAt: "2026-08-14T00:00:00Z" };
+const marion: DemoServiceAreaCity = { id: cityId, regionId: areaId, name: "Marion", stateAbbreviation: "IL", active: true, sortOrder: 80, createdAt: "2026-08-14T00:00:00Z", updatedAt: "2026-08-14T00:00:00Z" };
+
+test("admin can create a region-only day assignment and Specific City remains null", async () => {
+  let saved: typeof assignmentInput | null = null;
+  const handlers = createDemoAreaAssignmentHandlers({ isAdmin: async () => true, save: async (value) => { saved = value; return areaAssignment; } });
+  const response = await handlers.PUT(new Request("https://ids.test/api/admin/demo-scheduling/day-plans", { method: "PUT", body: JSON.stringify(assignmentInput) }));
+  assert.equal(response.status, 200);
+  assert.deepEqual(saved, assignmentInput);
+  assert.equal((await response.json()).assignment.cityId, null);
+});
+
+test("Southern Illinois with blank city and blank note validates successfully", () => {
+  const parsed = validateDemoAreaAssignment({ ...assignmentInput, cityId: "", customCity: "", internalNote: "" });
+  assert.equal(parsed.ok, true);
+  if (parsed.ok) assert.deepEqual(parsed.value, assignmentInput);
+});
+
+test("region plus a saved city validates successfully", () => {
+  const parsed = validateDemoAreaAssignment({ ...assignmentInput, cityId });
+  assert.equal(parsed.ok, true);
+  if (parsed.ok) assert.equal(parsed.value.cityId, cityId);
+});
+
+test("existing day assignments can change region, city, custom city, and internal note", () => {
+  const withCity = validateDemoAreaAssignment({ ...assignmentInput, cityId, internalNote: "Start near Marion" });
+  assert.equal(withCity.ok, true);
+  const withCustomCity = validateDemoAreaAssignment({ ...assignmentInput, customCity: "Makanda", internalNote: "Updated route" });
+  assert.equal(withCustomCity.ok, true);
+  if (withCustomCity.ok) assert.deepEqual(withCustomCity.value, { ...assignmentInput, customCity: "Makanda", internalNote: "Updated route" });
+});
+
+test("optional city and internal note can be removed without removing the region", () => {
+  const parsed = validateDemoAreaAssignment({ ...assignmentInput, cityId: "", customCity: " ", internalNote: " " });
+  assert.equal(parsed.ok, true);
+  if (parsed.ok) assert.deepEqual(parsed.value, assignmentInput);
+});
+
+test("malformed dates, region IDs, mixed city modes, and overlong notes are rejected", () => {
+  assert.equal(validateDemoAreaAssignment({ ...assignmentInput, serviceDate: "2026-02-30" }).ok, false);
+  assert.equal(validateDemoAreaAssignment({ ...assignmentInput, regionId: "missing" }).ok, false);
+  assert.equal(validateDemoAreaAssignment({ ...assignmentInput, cityId, customCity: "Marion" }).ok, false);
+  assert.equal(validateDemoAreaAssignment({ ...assignmentInput, internalNote: "x".repeat(501) }).ok, false);
+});
+
+test("calendar display shows region only when no city exists and never invents a placeholder", () => {
+  const display = demoAreaAssignmentDisplay(areaAssignment, [southernIllinois], [marion]);
+  assert.deepEqual(display, { regionName: "Southern Illinois", cityName: null });
+  assert.doesNotMatch(JSON.stringify(display), /No city selected/i);
+});
+
+test("calendar display adds the optional saved or custom city", () => {
+  assert.deepEqual(demoAreaAssignmentDisplay({ ...areaAssignment, cityId }, [southernIllinois], [marion]), { regionName: "Southern Illinois", cityName: "Marion" });
+  assert.deepEqual(demoAreaAssignmentDisplay({ ...areaAssignment, customCity: "Makanda" }, [southernIllinois], [marion]), { regionName: "Southern Illinois", cityName: "Makanda" });
+});
+
+test("historical assignments remain readable after a region or city becomes inactive", () => {
+  const inactiveArea = { ...southernIllinois, active: false };
+  const inactiveCity = { ...marion, active: false };
+  assert.deepEqual(demoAreaAssignmentDisplay({ ...areaAssignment, cityId }, [inactiveArea], [inactiveCity]), { regionName: "Southern Illinois", cityName: "Marion" });
+});
+
+test("unauthenticated users cannot create or edit area assignments", async () => {
+  let writes = 0;
+  const handlers = createDemoAreaAssignmentHandlers({ isAdmin: async () => false, save: async () => { writes += 1; return areaAssignment; } });
+  for (let index = 0; index < 2; index++) {
+    const response = await handlers.PUT(new Request("https://ids.test/api/admin/demo-scheduling/day-plans", { method: "PUT", body: JSON.stringify(assignmentInput) }));
+    assert.equal(response.status, 401);
+  }
+  assert.equal(writes, 0);
+});
+
+test("unauthenticated users cannot clear an area assignment", async () => {
+  let clears = 0;
+  const handlers = createDemoAreaAssignmentItemHandlers({ isAdmin: async () => false, clear: async () => { clears += 1; } });
+  const response = await handlers.DELETE("2026-08-18");
+  assert.equal(response.status, 401);
+  assert.equal(clears, 0);
+});
+
+test("authenticated admin can clear an assignment by stable service date", async () => {
+  let cleared = "";
+  const handlers = createDemoAreaAssignmentItemHandlers({ isAdmin: async () => true, clear: async (date) => { cleared = date; } });
+  const response = await handlers.DELETE("2026-08-18");
+  assert.equal(response.status, 204);
+  assert.equal(cleared, "2026-08-18");
+});
+
+test("server rejects missing, inactive, and mismatched region or city records", () => {
+  for (const code of ["region_not_found", "inactive_region", "city_not_found", "inactive_city", "city_region_mismatch"]) assert.match(areaPlanningServer, new RegExp(code));
+  assert.match(areaPlanningServer, /city\.region_id!==value\.regionId/);
+  assert.match(areaPlanningServer, /!region\.active&&existing\?\.region_id!==value\.regionId/);
+});
+
+test("migration creates private normalized planning tables with optional city columns", () => {
+  for (const table of ["demo_service_areas", "demo_service_area_cities", "demo_area_assignments"]) {
+    assert.match(areaPlanningMigration, new RegExp(`create table public\\.${table}`));
+    assert.match(areaPlanningMigration, new RegExp(`alter table public\\.${table} enable row level security`));
+  }
+  assert.match(areaPlanningMigration, /service_date date not null unique/);
+  assert.match(areaPlanningMigration, /city_id uuid,/);
+  assert.match(areaPlanningMigration, /custom_city text check/);
+  assert.doesNotMatch(areaPlanningMigration, /city_id uuid not null|custom_city text not null/);
+  assert.match(areaPlanningMigration, /internal_note text check \(internal_note is null or char_length\(internal_note\) <= 500\)/);
+});
+
+test("one service date cannot receive duplicate day-plan rows and city-region integrity is database-enforced", () => {
+  assert.match(areaPlanningMigration, /service_date date not null unique/);
+  assert.match(areaPlanningMigration, /foreign key \(city_id, region_id\)[\s\S]*references public\.demo_service_area_cities\(id, region_id\)/);
+  assert.match(areaPlanningServer, /upsert\([\s\S]*onConflict:"service_date"/);
+});
+
+test("regions and cities archive in place and cannot be hard-deleted through grants or APIs", () => {
+  assert.match(areaPlanningMigration, /grant select, insert, update\s+on table public\.demo_service_areas, public\.demo_service_area_cities/);
+  assert.doesNotMatch(areaPlanningMigration, /grant[^;]*delete[^;]*demo_service_areas|grant[^;]*delete[^;]*demo_service_area_cities/i);
+  assert.equal(source("app/api/admin/demo-scheduling/areas/[id]/route.ts").includes("DELETE"), false);
+  assert.match(areaPlanningMigration, /on delete restrict/g);
+});
+
+test("planning tables expose no anon or authenticated policies or privileges", () => {
+  assert.match(areaPlanningMigration, /revoke all on table[\s\S]*from public, anon, authenticated, service_role/);
+  assert.doesNotMatch(areaPlanningMigration, /create policy/i);
+  assert.doesNotMatch(areaPlanningMigration, /grant[^;]*(?:anon|authenticated)/i);
+  assert.match(areaPlanningHandlers, /if \(!\(await dependencies\.isAdmin\(\)\)\) return unauthorized\(\)/);
+});
+
+test("every area-planning mutation route reuses existing IDS admin authentication", () => {
+  for (const route of [
+    "app/api/admin/demo-scheduling/day-plans/route.ts",
+    "app/api/admin/demo-scheduling/day-plans/[date]/route.ts",
+    "app/api/admin/demo-scheduling/areas/route.ts",
+    "app/api/admin/demo-scheduling/areas/[id]/route.ts",
+    "app/api/admin/demo-scheduling/areas/[id]/cities/route.ts",
+    "app/api/admin/demo-scheduling/areas/[id]/cities/[cityId]/route.ts",
+  ]) assert.match(source(route), /isReviewAdmin/);
+  assert.equal((areaPlanningHandlers.match(/if \(!\(await dependencies\.isAdmin\(\)\)\) return unauthorized\(\)/g) ?? []).length, 6);
+});
+
+test("migration seeds all thirteen active regions in the requested order", () => {
+  const names = ["St. Louis Metro / Eastern Missouri", "Cape Girardeau Area", "Sikeston / Bootheel", "Poplar Bluff Area", "West Plains Area", "Springfield / Branson", "Joplin Area", "Northeastern Arkansas", "Northwestern Arkansas", "Paducah / Western Kentucky", "Jackson / Western Tennessee", "Memphis Metro", "Southern Illinois"];
+  let previous = -1;
+  names.forEach((name, index) => {
+    const position = areaPlanningMigration.indexOf(`('${name}', ${(index + 1) * 10})`);
+    assert.ok(position > previous, name);
+    previous = position;
+  });
+  assert.match(areaPlanningMigration, /active boolean not null default true/);
+});
+
+test("starter cities are seeded without making city selection required", () => {
+  for (const city of ["St. Louis", "Cape Girardeau", "Sikeston", "Poplar Bluff", "West Plains", "Springfield", "Joplin", "Jonesboro", "Bentonville", "Paducah", "Jackson", "Memphis", "Marion"]) assert.match(areaPlanningMigration, new RegExp(`'${city.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'`));
+  assert.match(areaPlanningMigration, /demo_service_area_cities_region_name_state_unique/);
+  assert.doesNotMatch(areaPlanningMigration, /city_id uuid not null/);
+});
+
+test("public scheduling APIs never expose area assignments or internal notes", () => {
+  for (const route of [publicAvailabilityRoute, publicRequestRoute]) {
+    assert.doesNotMatch(route, /demo_area_assignments|serviceAreas|areaAssignments|internal_note|internalNote/);
+  }
+  assert.match(publicAvailabilityRoute, /slots:await getAvailableSlots/);
+});
+
+test("admin calendar keeps occupancy separate from region and optional city labels", () => {
+  assert.match(admin, /demoAreaAssignmentDisplay/);
+  assert.match(admin, /display\.regionName/);
+  assert.match(admin, /display\.cityName\s*&&/);
+  assert.match(admin, /occupancyCount > 0/);
+  assert.match(admin, /Demo\{occupancyCount === 1/);
+  assert.doesNotMatch(admin, /No city selected/);
+});
+
+test("calendar date selection keeps Day Plan and customer request access together", () => {
+  assert.match(admin, /setSelectedDate\(date\)/);
+  assert.match(admin, /selectDemoRequestForCalendarDate\(rows, current\.filter, now\)/);
+  assert.match(admin, /Requests on this date/);
+  assert.match(admin, /setRequestView\(\{ filter: "all", selected: request \}\)/);
+});
+
+test("Day Plan UI supports save, update, optional city and note, and clear", () => {
+  for (const copy of ["Day Plan / Area Planning", "Area / Region", "Specific City", "(optional)", "Internal Note", "Save Day Plan", "Update Day Plan", "Clear Area Assignment"]) assert.match(admin, new RegExp(copy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(admin, /cityId: dayPlanDraft\.cityId \|\| null/);
+  assert.match(admin, /internalNote: dayPlanDraft\.internalNote \|\| null/);
+  assert.match(admin, /serviceAreas\.filter\(\(area\) => area\.active \|\| area\.id === selectedAssignment\?\.regionId\)/);
+});
+
+test("Manage Areas supports region and city creation, editing, sort, and active state", () => {
+  for (const copy of ["Demo Service Areas", "Add Area / Region", "Edit Region", "City Options", "Sort order", "Active", "Save Region"]) assert.match(admin, new RegExp(copy));
+  for (const route of ["/api/admin/demo-scheduling/areas", "/cities"]) assert.match(admin, new RegExp(route));
+});
+
+test("Travel & Fuel Notice is prominent before submission and contains the approval promise", () => {
+  const notice = "Because IDS covers a large service area, some demo requests may require a reasonable travel or fuel charge depending on distance. If a charge applies, IDS will contact you before approving the appointment so there are no surprises. We appreciate your understanding as we work to provide on-site demos across a wide region.";
+  assert.match(modal, /Travel &amp; Fuel Notice/);
+  assert.ok(modal.includes(notice));
+  assert.ok(modal.indexOf("Travel &amp; Fuel Notice") < modal.indexOf("Request Demo Time"));
+  assert.match(modal, /before approving the appointment so there are no surprises/);
+});
+
+test("area planning and travel notice add no automated fee or payment behavior", () => {
+  const newFeatureSource = [areaPlanningMigration, areaPlanningHandlers, source("lib/demo-scheduling/area-planning.ts"), source("app/api/admin/demo-scheduling/day-plans/route.ts")].join("\n");
+  assert.doesNotMatch(newFeatureSource, /Stripe|payment_intent|line_items|mileage|fuel_price|charge a card/i);
+  assert.doesNotMatch(modal, /calculate mileage|automatic fuel fee|payment authorization/i);
+});
+
+test("service dates preserve YYYY-MM-DD semantics without timezone conversion", () => {
+  assert.equal(isDemoServiceDate("2026-08-18"), true);
+  assert.deepEqual(serviceDateParts("2026-08-18"), { year: 2026, month: 8, day: 18 });
+  assert.equal(isDemoServiceDate("2026-02-29"), false);
+  assert.equal(isDemoServiceDate("2028-02-29"), true);
+  assert.doesNotMatch(source("lib/demo-scheduling/area-planning.ts"), /toISOString|Date\.parse|new Date/);
+});
+
+test("area assignments do not participate in availability or mutate demo requests", () => {
+  assert.doesNotMatch(areaPlanningServer.slice(areaPlanningServer.indexOf("export async function getAvailableSlots"), areaPlanningServer.indexOf("export async function createDemoRequest")), /demo_area_assignments|demo_service_areas/);
+  const requestRecord = adminRequest("pending", "planning-isolated");
+  const before = structuredClone(requestRecord);
+  validateDemoAreaAssignment(assignmentInput);
+  assert.deepEqual(requestRecord, before);
+  assert.doesNotMatch(areaPlanningServer.slice(areaPlanningServer.indexOf("export async function saveDemoAreaAssignment")), /from\("demo_requests"\)\.(?:update|delete|insert|upsert)/);
+});
+
+test("the public availability contract reports the unchanged four-hour duration", () => {
+  assert.equal(DEMO_DURATION_MINUTES, 240);
+  assert.match(publicAvailabilityRoute, /durationMinutes:DEMO_DURATION_MINUTES/);
+  assert.doesNotMatch(publicAvailabilityRoute, /durationMinutes:60/);
 });
 
 test("PII tables keep RLS and public availability remains slots-only", () => {

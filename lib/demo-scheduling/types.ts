@@ -1,4 +1,5 @@
 export const DEMO_TIMEZONE="America/Chicago";
+export const DEMO_DURATION_MINUTES=240;
 export const DEMO_SOURCES=["featured_lymow","featured_yarbo","featured_machines","contact_ids","meet_or_beat","ids_in_action"] as const;
 export type DemoSource=typeof DEMO_SOURCES[number];
 export const DEMO_EQUIPMENT_INTERESTS=["Lymow One Plus","Yarbo Core","Help Me Decide"] as const;
@@ -7,3 +8,9 @@ export type DemoRequest={id:string;customerName:string;customerEmail:string;cust
 export type DemoSlot={startAt:string;endAt:string;date:string;timeLabel:string};
 export type AvailabilityRule={id:string;weekday:number;enabled:boolean;startTime:string;endTime:string};
 export type AvailabilityException={id:string;startsAt:string;endsAt:string;allDay:boolean;reason:string|null};
+export type DemoServiceArea={id:string;name:string;description:string|null;active:boolean;sortOrder:number;createdAt:string;updatedAt:string};
+export type DemoServiceAreaCity={id:string;regionId:string;name:string;stateAbbreviation:string|null;active:boolean;sortOrder:number;createdAt:string;updatedAt:string};
+export type DemoAreaAssignment={id:string;serviceDate:string;regionId:string;cityId:string|null;customCity:string|null;internalNote:string|null;createdAt:string;updatedAt:string};
+export type DemoAreaAssignmentInput={serviceDate:string;regionId:string;cityId:string|null;customCity:string|null;internalNote:string|null};
+export type DemoServiceAreaInput={name:string;description:string|null;active:boolean;sortOrder:number};
+export type DemoServiceAreaCityInput={name:string;stateAbbreviation:string|null;active:boolean;sortOrder:number};
