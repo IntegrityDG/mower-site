@@ -12,11 +12,21 @@ import {
   notifyDealerActivation,
   notifyDealerDecision,
   notifyNewDealerApplication,
+  notifyNewDealerMessage,
   sendDealerActivationEmail,
   sendPinResetEmail,
 } from "./notifications";
 import { markMemberGeocodeStale, refreshMemberGeocode } from "./geocoding";
-import type { BrandStatus, MemberStatus, SuggestionStatus } from "./types";
+import type {
+  BrandStatus,
+  MemberStatus,
+  ReportStatus,
+  SuggestionStatus,
+} from "./types";
+import {
+  MESSAGE_BUCKET,
+  MESSAGE_SIGNED_READ_SECONDS,
+} from "./messaging-storage";
 import {
   readBoundedText,
   safeHttpUrl,
@@ -25,7 +35,7 @@ import {
 } from "./validation";
 
 const memberColumns =
-  "id,application_id,member_name,company_name,phone,email,address_line_1,address_line_2,city,state,zip_code,country,website_url,role,experience,service_region,introduction,logo_path,status,account_locked,activated_at,suspended_at,archived_at,last_login_at,created_at,updated_at";
+  "id,application_id,member_name,company_name,phone,email,address_line_1,address_line_2,city,state,zip_code,country,website_url,role,experience,service_region,introduction,logo_path,status,account_locked,messaging_enabled,activated_at,suspended_at,archived_at,last_login_at,created_at,updated_at";
 
 export async function readDealerNetworkAdminDashboard() {
   const client = getSupabaseServiceClient();
@@ -36,6 +46,7 @@ export async function readDealerNetworkAdminDashboard() {
     { data: memberBrands },
     { data: suggestions, error: suggestionError },
     { data: notifications, error: notificationError },
+    { data: reports, error: reportError },
   ] = await Promise.all([
     readAdminApplications(),
     client
@@ -68,9 +79,15 @@ export async function readDealerNetworkAdminDashboard() {
         "id,event_key,event_type,application_id,member_id,status,attempt_count,last_error,created_at,sent_at,updated_at",
       )
       .order("created_at", { ascending: false }),
+    client
+      .from("dealer_network_reports")
+      .select(
+        "id,reporter_member_id,reported_member_id,conversation_id,reason,status,admin_note,created_at,reviewed_at,resolved_at,reporter:dealer_network_members!dealer_network_reports_reporter_member_id_fkey(member_name,company_name),reported:dealer_network_members!dealer_network_reports_reported_member_id_fkey(member_name,company_name)",
+      )
+      .order("created_at", { ascending: false }),
   ]);
-  if (memberError || brandError || suggestionError || notificationError)
-    throw memberError ?? brandError ?? suggestionError ?? notificationError;
+  if (memberError || brandError || suggestionError || notificationError || reportError)
+    throw memberError ?? brandError ?? suggestionError ?? notificationError ?? reportError;
   const members = await Promise.all(
     (memberRows ?? []).map(async (row) => {
       const { data: security } = await client.rpc(
@@ -97,6 +114,7 @@ export async function readDealerNetworkAdminDashboard() {
         introduction: String(row.introduction),
         status: row.status as MemberStatus,
         accountLocked: Boolean(row.account_locked),
+        messagingEnabled: Boolean(row.messaging_enabled),
         activatedAt: row.activated_at,
         suspendedAt: row.suspended_at,
         archivedAt: row.archived_at,
@@ -118,6 +136,26 @@ export async function readDealerNetworkAdminDashboard() {
     ),
     suggestions: suggestions ?? [],
     notifications: notifications ?? [],
+    reports: (reports ?? []).map((row) => {
+      const reporter = row.reporter as unknown as { member_name?: string; company_name?: string } | null;
+      const reported = row.reported as unknown as { member_name?: string; company_name?: string } | null;
+      return {
+        id: String(row.id),
+        reporterMemberId: String(row.reporter_member_id),
+        reporterName: reporter?.member_name ?? "Unknown member",
+        reporterCompany: reporter?.company_name ?? null,
+        reportedMemberId: String(row.reported_member_id),
+        reportedName: reported?.member_name ?? "Unknown member",
+        reportedCompany: reported?.company_name ?? null,
+        conversationId: String(row.conversation_id),
+        reason: String(row.reason),
+        status: row.status as ReportStatus,
+        adminNote: row.admin_note as string | null,
+        createdAt: String(row.created_at),
+        reviewedAt: row.reviewed_at as string | null,
+        resolvedAt: row.resolved_at as string | null,
+      };
+    }),
     pendingApplicationCount: applications.filter(
       (application) => application.status === "pending",
     ).length,
@@ -182,7 +220,7 @@ export async function retryDealerNotification(eventId: string, origin: string) {
   const client = getSupabaseServiceClient();
   const { data: event, error } = await client
     .from("dealer_network_notification_events")
-    .select("id,event_key,event_type,application_id,member_id,status")
+    .select("id,event_key,event_type,application_id,member_id,conversation_id,message_id,status")
     .eq("id", eventId)
     .single();
   if (error) throw error;
@@ -261,6 +299,43 @@ export async function retryDealerNotification(eventId: string, origin: string) {
         });
       },
     );
+  } else if (
+    event.event_type === "member_new_message" &&
+    event.member_id &&
+    event.conversation_id &&
+    event.message_id
+  ) {
+    const [recipientResult, messageResult] = await Promise.all([
+      client
+        .from("dealer_network_members")
+        .select("member_name,email")
+        .eq("id", event.member_id)
+        .single(),
+      client
+        .from("dealer_network_messages")
+        .select("sender_member_id")
+        .eq("id", event.message_id)
+        .eq("conversation_id", event.conversation_id)
+        .single(),
+    ]);
+    const recipient = recipientResult.data;
+    const message = messageResult.data;
+    if (!recipient || !message) throw new Error("NOTIFICATION_CONTEXT_UNAVAILABLE");
+    const { data: sender } = await client
+      .from("dealer_network_members")
+      .select("member_name")
+      .eq("id", message.sender_member_id)
+      .single();
+    if (!sender) throw new Error("NOTIFICATION_CONTEXT_UNAVAILABLE");
+    await notifyNewDealerMessage({
+      messageId: event.message_id,
+      conversationId: event.conversation_id,
+      recipientMemberId: event.member_id,
+      recipientName: recipient.member_name,
+      recipientEmail: recipient.email,
+      senderName: sender.member_name,
+      origin,
+    });
   } else throw new Error("NOTIFICATION_CONTEXT_UNAVAILABLE");
   return { retried: true };
 }
@@ -333,7 +408,7 @@ export async function setMemberAccountState(memberId: string, input: unknown) {
   const client = getSupabaseServiceClient();
   const { data: current, error } = await client
     .from("dealer_network_members")
-    .select("status,account_locked")
+    .select("status,account_locked,messaging_enabled")
     .eq("id", memberId)
     .single();
   if (error) throw error;
@@ -343,7 +418,12 @@ export async function setMemberAccountState(memberId: string, input: unknown) {
   let eventType: string;
   let fromValue: string;
   let toValue: string;
-  if (typeof body.accountLocked === "boolean") {
+  if (typeof body.messagingEnabled === "boolean") {
+    values.messaging_enabled = body.messagingEnabled;
+    eventType = "messaging_enabled";
+    fromValue = String(current.messaging_enabled);
+    toValue = String(body.messagingEnabled);
+  } else if (typeof body.accountLocked === "boolean") {
     values.account_locked = body.accountLocked;
     eventType = "account_locked";
     fromValue = String(current.account_locked);
@@ -392,6 +472,140 @@ export async function setMemberAccountState(memberId: string, input: unknown) {
       to_value: toValue,
       actor_type: "admin",
     });
+}
+
+export async function updateDealerReport(reportId: string, input: unknown) {
+  const body = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  const status = body.status as ReportStatus;
+  const adminNote = readBoundedText(body.adminNote, 3000) || null;
+  if (!(["new", "reviewed", "resolved"] as const).includes(status))
+    throw new Error("INVALID_REPORT_STATUS");
+  const client = getSupabaseServiceClient();
+  const { data: current, error: currentError } = await client
+    .from("dealer_network_reports")
+    .select("status,reviewed_at")
+    .eq("id", reportId)
+    .maybeSingle();
+  if (currentError || !current) throw currentError ?? new Error("REPORT_NOT_FOUND");
+  const transitions: Record<ReportStatus, ReportStatus[]> = {
+    new: ["new", "reviewed", "resolved"],
+    reviewed: ["reviewed", "resolved"],
+    resolved: ["resolved"],
+  };
+  if (!transitions[current.status as ReportStatus].includes(status))
+    throw new Error("INVALID_REPORT_STATUS");
+  const now = new Date().toISOString();
+  const { data, error } = await client
+    .from("dealer_network_reports")
+    .update({
+      status,
+      admin_note: adminNote,
+      reviewed_at:
+        status === "new" ? null : (current.reviewed_at ?? now),
+      resolved_at: status === "resolved" ? now : null,
+      updated_at: now,
+    })
+    .eq("id", reportId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data) throw error ?? new Error("REPORT_NOT_FOUND");
+}
+
+export async function readReportedConversation(reportId: string) {
+  const client = getSupabaseServiceClient();
+  const { data: report, error } = await client
+    .from("dealer_network_reports")
+    .select("id,conversation_id,reporter_member_id,reported_member_id,reported_through_message_id")
+    .eq("id", reportId)
+    .maybeSingle();
+  if (error || !report) throw new Error("REPORT_NOT_FOUND");
+  if (!report.reported_through_message_id)
+    return {
+      reportId: report.id,
+      conversationId: report.conversation_id,
+      messages: [],
+    };
+  const { data: marker, error: markerError } = await client
+    .from("dealer_network_messages")
+    .select("created_at")
+    .eq("id", report.reported_through_message_id)
+    .eq("conversation_id", report.conversation_id)
+    .single();
+  if (markerError) throw markerError;
+  const { data: messages, error: messageError } = await client
+    .from("dealer_network_messages")
+    .select("id,sender_member_id,body,created_at,dealer_network_message_attachments(id,width,height,position)")
+    .eq("conversation_id", report.conversation_id)
+    .lte("created_at", marker.created_at)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(200);
+  if (messageError) throw messageError;
+  return {
+    reportId: report.id,
+    conversationId: report.conversation_id,
+    messages: [...(messages ?? [])]
+      .filter(
+        (message) =>
+          message.created_at < marker.created_at ||
+          (message.created_at === marker.created_at &&
+            message.id <= report.reported_through_message_id),
+      )
+      .reverse()
+      .map((message) => ({
+      id: message.id,
+      senderMemberId: message.sender_member_id,
+      body: message.body,
+      createdAt: message.created_at,
+      attachments: ((message.dealer_network_message_attachments ?? []) as Array<{ id: string; width: number; height: number; position: number }>).map((attachment) => ({
+        ...attachment,
+        url: `/api/admin/dealer-network/reports/${report.id}/attachments/${attachment.id}`,
+      })),
+    })),
+  };
+}
+
+export async function signedReportedAttachment(reportId: string, attachmentId: string) {
+  const client = getSupabaseServiceClient();
+  const { data: report } = await client
+    .from("dealer_network_reports")
+    .select("conversation_id,reported_through_message_id")
+    .eq("id", reportId)
+    .maybeSingle();
+  if (!report?.reported_through_message_id) throw new Error("REPORT_NOT_FOUND");
+  const { data: attachment } = await client
+    .from("dealer_network_message_attachments")
+    .select("storage_path,message_id")
+    .eq("id", attachmentId)
+    .maybeSingle();
+  if (!attachment) throw new Error("ATTACHMENT_NOT_FOUND");
+  const [{ data: message }, { data: marker }] = await Promise.all([
+    client
+      .from("dealer_network_messages")
+      .select("conversation_id,created_at")
+      .eq("id", attachment.message_id)
+      .eq("conversation_id", report.conversation_id)
+      .maybeSingle(),
+    client
+      .from("dealer_network_messages")
+      .select("created_at")
+      .eq("id", report.reported_through_message_id)
+      .eq("conversation_id", report.conversation_id)
+      .maybeSingle(),
+  ]);
+  if (
+    !message ||
+    !marker ||
+    message.created_at > marker.created_at ||
+    (message.created_at === marker.created_at &&
+      attachment.message_id > report.reported_through_message_id)
+  )
+    throw new Error("ATTACHMENT_NOT_FOUND");
+  const { data, error } = await client.storage
+    .from(MESSAGE_BUCKET)
+    .createSignedUrl(attachment.storage_path, MESSAGE_SIGNED_READ_SECONDS);
+  if (error || !data?.signedUrl) throw new Error("ATTACHMENT_NOT_FOUND");
+  return data.signedUrl;
 }
 
 export async function adminUpdateMemberProfile(

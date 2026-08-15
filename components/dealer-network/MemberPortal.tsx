@@ -13,12 +13,24 @@ import {
   ROLE_LABELS,
   type AccountState,
   type DealerBrand,
+  type ConversationDetail,
+  type ConversationSummary,
   type DirectoryResult,
+  type FriendResult,
+  type MemberBlock,
+  type MessageAttachment,
   type MemberProfile,
+  type UnavailableFriendResult,
 } from "@/lib/dealer-network/types";
+import {
+  MESSAGE_TEXT_LIMIT,
+  messageFileType,
+  validateMessageFiles,
+} from "@/lib/dealer-network/messaging-validation";
+import { uploadMessagePhoto } from "@/lib/dealer-network/message-upload";
 import { US_STATES } from "@/lib/dealer-network/validation";
 
-type Tab = "directory" | "profile" | "suggestions";
+type Tab = "directory" | "friends" | "messages" | "profile" | "suggestions";
 type Suggestion = {
   id: string;
   category: string;
@@ -39,7 +51,12 @@ export default function MemberPortal() {
     [brands, setBrands] = useState<DealerBrand[]>([]),
     [suggestions, setSuggestions] = useState<Suggestion[]>([]),
     [results, setResults] = useState<DirectoryResult[]>([]),
-    [searched, setSearched] = useState(false);
+    [searched, setSearched] = useState(false),
+    [friends, setFriends] = useState<Array<FriendResult | UnavailableFriendResult>>([]),
+    [blockedMembers, setBlockedMembers] = useState<MemberBlock[]>([]),
+    [conversations, setConversations] = useState<ConversationSummary[]>([]),
+    [unreadTotal, setUnreadTotal] = useState(0),
+    [openConversationId, setOpenConversationId] = useState<string | null>(null);
   const searchForm = useRef<HTMLFormElement>(null);
   const load = useCallback(async () => {
     const response = await fetch("/api/dealer-network/auth/session");
@@ -51,11 +68,14 @@ export default function MemberPortal() {
     setAccount(payload.account);
     setLoading(false);
     if (!payload.account.effectiveLocked) {
-      const [profileResponse, brandResponse, suggestionResponse] =
+      const [profileResponse, brandResponse, suggestionResponse, friendResponse, blockResponse, conversationResponse] =
         await Promise.all([
           fetch("/api/dealer-network/member/profile"),
           fetch("/api/dealer-network/brands"),
           fetch("/api/dealer-network/member/suggestions"),
+          fetch("/api/dealer-network/member/friends"),
+          fetch("/api/dealer-network/member/blocks"),
+          fetch("/api/dealer-network/member/messages/conversations"),
         ]);
       if (profileResponse.ok)
         setProfile((await profileResponse.json()).profile);
@@ -63,6 +83,15 @@ export default function MemberPortal() {
         setBrands((await brandResponse.json()).brands ?? []);
       if (suggestionResponse.ok)
         setSuggestions((await suggestionResponse.json()).suggestions ?? []);
+      if (friendResponse.ok)
+        setFriends((await friendResponse.json()).friends ?? []);
+      if (blockResponse.ok)
+        setBlockedMembers((await blockResponse.json()).blockedMembers ?? []);
+      if (conversationResponse.ok) {
+        const communication = await conversationResponse.json();
+        setConversations(communication.conversations ?? []);
+        setUnreadTotal(communication.unreadTotal ?? 0);
+      }
     }
   }, []);
   useEffect(() => {
@@ -70,6 +99,80 @@ export default function MemberPortal() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+  const refreshCommunication = useCallback(async () => {
+    const sessionResponse = await fetch("/api/dealer-network/auth/session");
+    if (!sessionResponse.ok) {
+      setAccount(null);
+      return;
+    }
+    const nextAccount = (await sessionResponse.json()).account as AccountState;
+    setAccount(nextAccount);
+    if (nextAccount.effectiveLocked) return;
+    const response = await fetch("/api/dealer-network/member/messages/conversations");
+    if (!response.ok) return;
+    const payload = await response.json();
+    setConversations(payload.conversations ?? []);
+    setUnreadTotal(payload.unreadTotal ?? 0);
+  }, []);
+  useEffect(() => {
+    if (!account || account.effectiveLocked) return;
+    const timer = window.setInterval(() => void refreshCommunication(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [account, refreshCommunication]);
+  async function refreshFriends() {
+    const response = await fetch("/api/dealer-network/member/friends");
+    if (response.ok) setFriends((await response.json()).friends ?? []);
+  }
+  async function toggleFriend(memberId: string, saved: boolean) {
+    const response = await fetch("/api/dealer-network/member/friends", {
+      method: saved ? "POST" : "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ memberId }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return setMessage(payload.error ?? "Friend list could not be updated.");
+    setResults((current) =>
+      current.map((result) => result.id === memberId ? { ...result, isFriend: saved } : result),
+    );
+    await refreshFriends();
+    setMessage(saved ? "Saved privately to My Friends." : "Removed from My Friends.");
+  }
+  async function startMessage(memberId: string) {
+    const response = await fetch("/api/dealer-network/member/messages/conversations", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ memberId }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return setMessage(payload.error ?? "Conversation could not be opened.");
+    setOpenConversationId(payload.conversationId);
+    setTab("messages");
+    await refreshCommunication();
+  }
+  async function setBlock(memberId: string, blocked: boolean) {
+    const response = await fetch("/api/dealer-network/member/blocks", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ memberId, blocked }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setMessage(payload.error ?? "Block setting could not be changed.");
+      return false;
+    }
+    setResults((current) => current.map((result) =>
+      result.id === memberId ? { ...result, blockedByYou: blocked } : result,
+    ));
+    setFriends((current) => current.map((friend) =>
+      friend.id === memberId && friend.available
+        ? { ...friend, blockedByYou: blocked }
+        : friend,
+    ));
+    const blockResponse = await fetch("/api/dealer-network/member/blocks");
+    if (blockResponse.ok)
+      setBlockedMembers((await blockResponse.json()).blockedMembers ?? []);
+    return true;
+  }
   async function signOut() {
     await fetch("/api/dealer-network/auth/logout", { method: "DELETE" });
     window.location.href = "/dealer-tech-resources/login";
@@ -137,6 +240,8 @@ export default function MemberPortal() {
           {(
             [
               ["directory", "Directory Search"],
+              ["friends", "My Friends"],
+              ["messages", `Messages${unreadTotal ? ` (${unreadTotal})` : ""}`],
               ["profile", "My Profile"],
               ["suggestions", "Contact IDS / Suggest an Improvement"],
             ] as const
@@ -169,6 +274,31 @@ export default function MemberPortal() {
               setSearched(true);
             }}
             onMessage={setMessage}
+            messagingEnabled={account.messagingEnabled}
+            onFriend={toggleFriend}
+            onStartMessage={startMessage}
+            onBlock={setBlock}
+          />
+        )}{" "}
+        {tab === "friends" && (
+          <FriendsPanel
+            friends={friends}
+            blockedMembers={blockedMembers}
+            messagingEnabled={account.messagingEnabled}
+            onFriend={toggleFriend}
+            onStartMessage={startMessage}
+            onBlock={setBlock}
+          />
+        )}{" "}
+        {tab === "messages" && (
+          <MessagingPanel
+            account={account}
+            conversations={conversations}
+            selectedId={openConversationId}
+            onSelected={setOpenConversationId}
+            onRefresh={refreshCommunication}
+            onMessage={setMessage}
+            onBlock={setBlock}
           />
         )}{" "}
         {tab === "profile" && profile && (
@@ -198,6 +328,10 @@ function DirectoryPanel({
   searched,
   onResults,
   onMessage,
+  messagingEnabled,
+  onFriend,
+  onStartMessage,
+  onBlock,
 }: {
   formRef: React.RefObject<HTMLFormElement | null>;
   brands: DealerBrand[];
@@ -205,6 +339,10 @@ function DirectoryPanel({
   searched: boolean;
   onResults: (value: DirectoryResult[]) => void;
   onMessage: (value: string) => void;
+  messagingEnabled: boolean;
+  onFriend: (memberId: string, saved: boolean) => Promise<void>;
+  onStartMessage: (memberId: string) => Promise<void>;
+  onBlock: (memberId: string, blocked: boolean) => Promise<boolean>;
 }) {
   const [searching, setSearching] = useState(false);
   async function search(
@@ -396,7 +534,14 @@ function DirectoryPanel({
       </div>
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
         {results.map((result) => (
-          <DirectoryCard key={result.id} result={result} />
+          <DirectoryCard
+            key={result.id}
+            result={result}
+            messagingEnabled={messagingEnabled}
+            onFriend={onFriend}
+            onStartMessage={onStartMessage}
+            onBlock={onBlock}
+          />
         ))}
         {searched && results.length === 0 && (
           <p className="rounded-3xl bg-white p-8 text-slate-600">
@@ -408,7 +553,19 @@ function DirectoryPanel({
     </section>
   );
 }
-function DirectoryCard({ result }: { result: DirectoryResult }) {
+function DirectoryCard({
+  result,
+  messagingEnabled,
+  onFriend,
+  onStartMessage,
+  onBlock,
+}: {
+  result: DirectoryResult;
+  messagingEnabled: boolean;
+  onFriend: (memberId: string, saved: boolean) => Promise<void>;
+  onStartMessage: (memberId: string) => Promise<void>;
+  onBlock: (memberId: string, blocked: boolean) => Promise<boolean>;
+}) {
   return (
     <article className="rounded-3xl bg-white p-6 shadow-sm">
       <div className="flex gap-4">
@@ -487,7 +644,505 @@ function DirectoryCard({ result }: { result: DirectoryResult }) {
         title="Brands Serviced / Repaired"
         items={result.brandsServiced}
       />
+      <div className="mt-5 flex flex-wrap gap-2 border-t pt-5">
+        <button
+          type="button"
+          onClick={() => void onFriend(result.id, !result.isFriend)}
+          className="rounded-xl border border-emerald-700 px-4 py-2 font-black text-emerald-800"
+        >
+          {result.isFriend ? "Remove Friend" : "Save Friend"}
+        </button>
+        <button
+          type="button"
+          disabled={!messagingEnabled || result.blockedByYou}
+          onClick={() => void onStartMessage(result.id)}
+          className="rounded-xl bg-slate-950 px-4 py-2 font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Message
+        </button>
+        {result.blockedByYou && (
+          <button
+            type="button"
+            onClick={() => void onBlock(result.id, false)}
+            className="rounded-xl border border-red-300 px-4 py-2 font-black text-red-800"
+          >
+            Unblock
+          </button>
+        )}
+      </div>
     </article>
+  );
+}
+
+function FriendsPanel({
+  friends,
+  blockedMembers,
+  messagingEnabled,
+  onFriend,
+  onStartMessage,
+  onBlock,
+}: {
+  friends: Array<FriendResult | UnavailableFriendResult>;
+  blockedMembers: MemberBlock[];
+  messagingEnabled: boolean;
+  onFriend: (memberId: string, saved: boolean) => Promise<void>;
+  onStartMessage: (memberId: string) => Promise<void>;
+  onBlock: (memberId: string, blocked: boolean) => Promise<boolean>;
+}) {
+  return (
+    <section className="mt-7">
+      <div className="rounded-3xl bg-white p-6 shadow-sm">
+        <h2 className="text-3xl font-black">My Friends</h2>
+        <p className="mt-2 text-slate-600">
+          Your saved list is private. Saving someone does not notify them or require approval.
+        </p>
+      </div>
+      <div className="mt-6 grid gap-5 lg:grid-cols-2">
+        {friends.map((friend) =>
+          friend.available ? (
+            <DirectoryCard
+              key={friend.id}
+              result={friend}
+              messagingEnabled={messagingEnabled}
+              onFriend={onFriend}
+              onStartMessage={onStartMessage}
+              onBlock={onBlock}
+            />
+          ) : (
+            <article key={friend.id} className="rounded-3xl bg-white p-6 shadow-sm">
+              <h3 className="text-xl font-black">Member unavailable</h3>
+              <p className="mt-2 text-slate-600">Their details are no longer available.</p>
+              <button
+                type="button"
+                onClick={() => void onFriend(friend.id, false)}
+                className="mt-4 rounded-xl border px-4 py-2 font-black"
+              >
+                Remove Friend
+              </button>
+            </article>
+          ),
+        )}
+        {!friends.length && (
+          <p className="rounded-3xl bg-white p-8 text-slate-600">
+            No saved friends yet. Use Directory Search to build your private list.
+          </p>
+        )}
+      </div>
+      <div className="mt-8 rounded-3xl bg-white p-6 shadow-sm">
+        <h3 className="text-2xl font-black">Blocked Members</h3>
+        <p className="mt-2 text-sm text-slate-600">
+          This list is private. Blocked members are given only generic messaging availability behavior.
+        </p>
+        <div className="mt-4 space-y-3">
+          {blockedMembers.map((member) => (
+            <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4">
+              <div>
+                <b>{member.available ? member.memberName : member.displayName}</b>
+                {member.available && <p className="text-sm text-slate-600">{member.companyName}</p>}
+              </div>
+              <button type="button" onClick={() => void onBlock(member.id, false)} className="rounded-xl border border-red-300 px-4 py-2 font-black text-red-800">
+                Unblock
+              </button>
+            </div>
+          ))}
+          {!blockedMembers.length && <p className="text-sm text-slate-500">No blocked members.</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PrivateMessagePhoto({ attachment }: { attachment: MessageAttachment }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  if (failed)
+    return (
+      <p className="rounded-xl bg-black/10 p-3 text-sm" role="status">
+        Private photo unavailable.
+      </p>
+    );
+  return (
+    <div className="relative min-h-24 overflow-hidden rounded-xl bg-black/10">
+      {!loaded && (
+        <span className="absolute inset-0 flex items-center justify-center p-3 text-sm" role="status">
+          Loading private photo…
+        </span>
+      )}
+      <a href={attachment.url} target="_blank" rel="noreferrer" className="block">
+        <Image
+          src={attachment.url}
+          alt="Private message photo"
+          width={attachment.width}
+          height={attachment.height}
+          unoptimized
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className={`max-h-80 w-full rounded-xl object-contain ${loaded ? "opacity-100" : "opacity-0"}`}
+        />
+      </a>
+    </div>
+  );
+}
+
+function MessagingPanel({
+  account,
+  conversations,
+  selectedId,
+  onSelected,
+  onRefresh,
+  onMessage,
+  onBlock,
+}: {
+  account: AccountState;
+  conversations: ConversationSummary[];
+  selectedId: string | null;
+  onSelected: (id: string | null) => void;
+  onRefresh: () => Promise<void>;
+  onMessage: (message: string) => void;
+  onBlock: (memberId: string, blocked: boolean) => Promise<boolean>;
+}) {
+  const [detail, setDetail] = useState<ConversationDetail | null>(null),
+    [body, setBody] = useState(""),
+    [files, setFiles] = useState<File[]>([]),
+    [progress, setProgress] = useState<number[]>([]),
+    [busy, setBusy] = useState(false),
+    [reporting, setReporting] = useState(false),
+    [reportReason, setReportReason] = useState("");
+  const clientMessageId = useRef<string | null>(null);
+  const clientReportId = useRef<string | null>(null);
+
+  const loadDetail = useCallback(async () => {
+    if (!selectedId) {
+      setDetail(null);
+      return;
+    }
+    const response = await fetch(
+      `/api/dealer-network/member/messages/conversations/${selectedId}`,
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setDetail(null);
+      onMessage(payload.error ?? "Conversation unavailable.");
+      return;
+    }
+    setDetail(payload.detail);
+    await fetch(
+      `/api/dealer-network/member/messages/conversations/${selectedId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          lastVisibleMessageId:
+            payload.detail.messages.at(-1)?.id ?? null,
+        }),
+      },
+    );
+    await onRefresh();
+  }, [onMessage, onRefresh, selectedId]);
+
+  useEffect(() => {
+    // Loading is tied to the explicit conversation selection.
+    void loadDetail();
+  }, [loadDetail]);
+  useEffect(() => {
+    if (!selectedId) return;
+    const timer = window.setInterval(() => void loadDetail(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [loadDetail, selectedId]);
+
+  function chooseFiles(chosen: FileList | null) {
+    if (!chosen) return;
+    const error = validateMessageFiles(chosen);
+    if (error) {
+      onMessage(error);
+      return;
+    }
+    const normalized = Array.from(chosen).map((file) => {
+      const type = messageFileType(file);
+      return type && file.type !== type
+        ? new File([file], file.name, { type, lastModified: file.lastModified })
+        : file;
+    });
+    setFiles(normalized);
+    setProgress(normalized.map(() => 0));
+  }
+
+  async function send(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedId || busy) return;
+    if (!body.trim() && !files.length) {
+      onMessage("Enter a message or add a photo.");
+      return;
+    }
+    const fileError = validateMessageFiles(files);
+    if (fileError) return onMessage(fileError);
+    setBusy(true);
+    onMessage("");
+    let uploadIds: string[] = [];
+    const activeUploads: Array<ReturnType<typeof uploadMessagePhoto>> = [];
+    try {
+      if (files.length) {
+        const ticketResponse = await fetch(
+          "/api/dealer-network/member/messages/uploads",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              conversationId: selectedId,
+              files: files.map((file) => ({
+                contentType: file.type,
+                byteSize: file.size,
+              })),
+            }),
+          },
+        );
+        const ticketPayload = await ticketResponse.json().catch(() => ({}));
+        if (!ticketResponse.ok)
+          throw new Error(ticketPayload.error ?? "Photo upload could not be prepared.");
+        uploadIds = ticketPayload.tickets.map((ticket: { id: string }) => ticket.id);
+        await Promise.all(
+          files.map((file, index) => {
+            const ticket = ticketPayload.tickets[index] as {
+              path: string;
+              signedUrl: string;
+              token: string;
+            };
+            const upload = uploadMessagePhoto({
+              file,
+              endpoint: ticket.signedUrl,
+              bucket: ticketPayload.bucket,
+              path: ticket.path,
+              token: ticket.token,
+              onProgress(value) {
+                setProgress((current) =>
+                  current.map((item, position) =>
+                    position === index ? value : item,
+                  ),
+                );
+              },
+            });
+            activeUploads.push(upload);
+            return upload.promise;
+          }),
+        );
+      }
+      const response = await fetch("/api/dealer-network/member/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          conversationId: selectedId,
+          clientMessageId: (clientMessageId.current ??= crypto.randomUUID()),
+          body,
+          uploadIds,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Message could not be sent.");
+      setBody("");
+      clientMessageId.current = null;
+      setFiles([]);
+      setProgress([]);
+      await loadDetail();
+    } catch (error) {
+      await Promise.allSettled(activeUploads.map((upload) => upload.cancel()));
+      await Promise.allSettled(
+        uploadIds.map((id) =>
+          fetch(`/api/dealer-network/member/messages/uploads/${id}`, {
+            method: "DELETE",
+          }),
+        ),
+      );
+      onMessage(error instanceof Error ? error.message : "Message could not be sent.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changeBlock() {
+    if (!detail) return;
+    const blocked = !detail.conversation.participant.blockedByYou;
+    if (!(await onBlock(detail.conversation.participant.id, blocked))) return;
+    onMessage(blocked ? "Member blocked. Message history was preserved." : "Member unblocked.");
+    await loadDetail();
+  }
+
+  async function loadOlder() {
+    if (!selectedId || !detail?.nextBefore) return;
+    const response = await fetch(
+      `/api/dealer-network/member/messages/conversations/${selectedId}?before=${encodeURIComponent(detail.nextBefore)}`,
+    );
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok)
+      return onMessage(payload.error ?? "Older messages could not be loaded.");
+    const older = payload.detail as ConversationDetail;
+    setDetail((current) =>
+      current
+        ? {
+            ...current,
+            messages: [...older.messages, ...current.messages],
+            hasMore: older.hasMore,
+            nextBefore: older.nextBefore,
+          }
+        : older,
+    );
+  }
+
+  async function submitReport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!detail) return;
+    const response = await fetch("/api/dealer-network/member/reports", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        conversationId: detail.conversation.id,
+        clientReportId: (clientReportId.current ??= crypto.randomUUID()),
+        reason: reportReason,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return onMessage(payload.error ?? "Report could not be submitted.");
+    setReporting(false);
+    setReportReason("");
+    clientReportId.current = null;
+    onMessage("Report sent privately to IDS for review.");
+  }
+
+  return (
+    <section className="mt-7 overflow-hidden rounded-3xl bg-white shadow-sm">
+      {!account.messagingEnabled && (
+        <p className="border-b border-amber-200 bg-amber-50 p-4 font-bold text-amber-950">
+          Messaging is disabled for this account. You can read existing conversations, but cannot send or upload photos.
+        </p>
+      )}
+      <div className="grid min-h-[36rem] md:grid-cols-[18rem_minmax(0,1fr)]">
+        <aside className="border-b bg-slate-50 p-3 md:border-b-0 md:border-r">
+          <h2 className="px-2 py-3 text-xl font-black">Messages</h2>
+          <div className="flex gap-2 overflow-x-auto md:block md:space-y-2">
+            {conversations.map((conversation) => (
+              <button
+                key={conversation.id}
+                type="button"
+                onClick={() => {
+                  clientMessageId.current = null;
+                  clientReportId.current = null;
+                  setBody("");
+                  setFiles([]);
+                  setProgress([]);
+                  onSelected(conversation.id);
+                }}
+                className={`min-w-56 rounded-xl p-3 text-left md:w-full ${selectedId === conversation.id ? "bg-slate-950 text-white" : "bg-white"}`}
+              >
+                <span className="flex items-center justify-between gap-2 font-black">
+                  {conversation.participant.displayName}
+                  {conversation.unreadCount > 0 && (
+                    <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-xs text-white">
+                      {conversation.unreadCount}
+                    </span>
+                  )}
+                </span>
+                <span className="mt-1 block truncate text-xs opacity-70">
+                  {conversation.lastMessagePreview}
+                </span>
+              </button>
+            ))}
+            {!conversations.length && !selectedId && (
+              <p className="p-2 text-sm text-slate-600">Start a conversation from Directory Search or My Friends.</p>
+            )}
+          </div>
+        </aside>
+        <div className="flex min-w-0 flex-col">
+          {detail ? (
+            <>
+              <header className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
+                <div>
+                  <h3 className="text-xl font-black">{detail.conversation.participant.displayName}</h3>
+                  {detail.conversation.participant.companyName && (
+                    <p className="text-sm text-slate-600">{detail.conversation.participant.companyName}</p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setReporting((value) => !value)} className="rounded-lg border px-3 py-2 text-sm font-black">
+                    Report
+                  </button>
+                  <button type="button" onClick={() => void changeBlock()} className="rounded-lg border border-red-300 px-3 py-2 text-sm font-black text-red-800">
+                    {detail.conversation.participant.blockedByYou ? "Unblock" : "Block"}
+                  </button>
+                </div>
+              </header>
+              {reporting && (
+                <form onSubmit={(event) => void submitReport(event)} className="border-b bg-red-50 p-4">
+                  <label className="font-bold">
+                    Reason for report
+                    <textarea required minLength={5} maxLength={2000} value={reportReason} onChange={(event) => setReportReason(event.target.value)} className={inputClass} />
+                  </label>
+                  <button className="mt-3 rounded-xl bg-red-800 px-4 py-2 font-black text-white">Submit Private Report</button>
+                </form>
+              )}
+              <div className="flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
+                {detail.hasMore && (
+                  <button type="button" onClick={() => void loadOlder()} className="mx-auto block rounded-xl border px-4 py-2 text-sm font-black">
+                    Load Older Messages
+                  </button>
+                )}
+                {detail.messages.map((item) => (
+                  <article key={item.id} className={`max-w-[85%] rounded-2xl p-3 ${item.sentByMe ? "ml-auto bg-emerald-700 text-white" : "bg-slate-100"}`}>
+                    {item.body && <p className="whitespace-pre-wrap break-words">{item.body}</p>}
+                    {item.attachments.length > 0 && (
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {item.attachments.map((attachment) => (
+                          <PrivateMessagePhoto
+                            key={attachment.id}
+                            attachment={attachment}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <time className="mt-2 block text-xs opacity-70">{new Date(item.createdAt).toLocaleString()}</time>
+                  </article>
+                ))}
+                {!detail.messages.length && <p className="text-center text-slate-500">No messages yet.</p>}
+              </div>
+              <form onSubmit={(event) => void send(event)} className="border-t p-4">
+                {!detail.canSend && (
+                  <p className="mb-3 rounded-xl bg-amber-50 p-3 text-sm font-bold text-amber-950">
+                    You cannot send to this member right now. Existing history remains private and readable.
+                  </p>
+                )}
+                <textarea
+                  value={body}
+                  onChange={(event) => setBody(event.target.value)}
+                  maxLength={MESSAGE_TEXT_LIMIT}
+                  disabled={!detail.canSend || busy}
+                  aria-label="Message"
+                  className={inputClass}
+                  placeholder="Write a private message"
+                />
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <label className="cursor-pointer rounded-xl border px-4 py-2 font-black">
+                    Add Photos
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple disabled={!detail.canSend || busy} onChange={(event) => chooseFiles(event.target.files)} className="sr-only" />
+                  </label>
+                  <span className="text-sm text-slate-600">{files.length}/3 photos · 15 MB each</span>
+                  <button disabled={!detail.canSend || busy || (!body.trim() && !files.length)} className="ml-auto rounded-xl bg-emerald-700 px-5 py-2 font-black text-white disabled:opacity-50">
+                    {busy ? "Sending…" : "Send"}
+                  </button>
+                </div>
+                {files.map((file, index) => (
+                  <p key={`${file.name}-${file.lastModified}`} className="mt-2 text-xs text-slate-600">
+                    {file.name} {progress[index] ? `— ${progress[index]}%` : ""}
+                  </p>
+                ))}
+                <p className="mt-2 text-right text-xs text-slate-500">{body.length}/{MESSAGE_TEXT_LIMIT}</p>
+              </form>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center p-8 text-center text-slate-500">
+              Select a conversation, or start one from a member card.
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 function BrandList({

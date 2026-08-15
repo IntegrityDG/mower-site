@@ -35,7 +35,7 @@ export const MEMBER_LOGO_TYPES = {
 } as const;
 export const MEMBER_LOGO_LIMIT = 5 * 1024 * 1024;
 
-async function signedLogo(path: string | null) {
+export async function signedLogo(path: string | null) {
   if (!path) return null;
   const { data } = await getSupabaseServiceClient()
     .storage.from("dealer-network-private")
@@ -338,6 +338,18 @@ export async function searchDealerDirectory(
   const { data, error } = await client.rpc("dealer_network_directory_rows");
   if (error) throw error;
   const rows = (Array.isArray(data) ? data : []) as PrivateDirectoryRow[];
+  const [{ data: friends }, { data: blocks }] = await Promise.all([
+    client
+      .from("dealer_network_friends")
+      .select("friend_member_id")
+      .eq("owner_member_id", memberId),
+    client
+      .from("dealer_network_blocks")
+      .select("blocked_member_id")
+      .eq("blocker_member_id", memberId),
+  ]);
+  const friendIds = new Set((friends ?? []).map((row) => row.friend_member_id));
+  const blockedIds = new Set((blocks ?? []).map((row) => row.blocked_member_id));
   let origin: { latitude: number; longitude: number } | null = null;
   if (
     filters.near === "coordinates" &&
@@ -359,11 +371,114 @@ export async function searchDealerDirectory(
       () => null,
     );
   if (filters.near && !origin) throw new Error("LOCATION_UNAVAILABLE");
-  const matches = filterDirectoryRows(rows, filters, origin).slice(0, 100);
+  const matches = filterDirectoryRows(
+    rows.filter((row) => row.id !== memberId),
+    filters,
+    origin,
+  ).slice(0, 100);
   return Promise.all(
-    matches.map(async ({ row, distance }) =>
-      toDirectoryResult(row, distance, await signedLogo(row.logoPath)),
+    matches.map(async ({ row, distance }) => ({
+      ...toDirectoryResult(row, distance, await signedLogo(row.logoPath)),
+      isFriend: friendIds.has(row.id),
+      blockedByYou: blockedIds.has(row.id),
+    })),
+  );
+}
+
+export async function readFriends(memberId: string) {
+  const client = getSupabaseServiceClient();
+  const [{ data: friendships, error }, { data: directory, error: directoryError }] =
+    await Promise.all([
+      client
+        .from("dealer_network_friends")
+        .select("friend_member_id,created_at")
+        .eq("owner_member_id", memberId)
+        .order("created_at", { ascending: false }),
+      client.rpc("dealer_network_directory_rows"),
+    ]);
+  if (error || directoryError) throw error ?? directoryError;
+  const rows = (Array.isArray(directory) ? directory : []) as PrivateDirectoryRow[];
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const ids = (friendships ?? []).map((row) => String(row.friend_member_id));
+  const { data: blocks } = ids.length
+    ? await client
+        .from("dealer_network_blocks")
+        .select("blocked_member_id")
+        .eq("blocker_member_id", memberId)
+        .in("blocked_member_id", ids)
+    : { data: [] as Array<{ blocked_member_id: string }> };
+  const blockedIds = new Set((blocks ?? []).map((row) => row.blocked_member_id));
+  return Promise.all(
+    ids.map(async (id) => {
+      const row = byId.get(id);
+      if (!row)
+        return {
+          id,
+          available: false as const,
+          isFriend: true as const,
+          displayName: "Member unavailable" as const,
+        };
+      return {
+        ...toDirectoryResult(row, null, await signedLogo(row.logoPath)),
+        available: true as const,
+        isFriend: true as const,
+        blockedByYou: blockedIds.has(id),
+      };
+    }),
+  );
+}
+
+export async function setFriend(
+  ownerMemberId: string,
+  friendMemberId: string,
+  saved: boolean,
+) {
+  if (!validateUuid(friendMemberId) || friendMemberId === ownerMemberId)
+    throw new Error("MEMBER_UNAVAILABLE");
+  const { error } = await getSupabaseServiceClient().rpc(
+    saved ? "dealer_network_add_friend" : "dealer_network_remove_friend",
+    {
+      p_owner_member_id: ownerMemberId,
+      p_friend_member_id: friendMemberId,
+    },
+  );
+  if (error) throw new Error("MEMBER_UNAVAILABLE");
+}
+
+export async function readBlockedMembers(memberId: string) {
+  const client = getSupabaseServiceClient();
+  const [{ data: blocks, error }, { data: directory, error: directoryError }] =
+    await Promise.all([
+      client
+        .from("dealer_network_blocks")
+        .select("blocked_member_id,created_at")
+        .eq("blocker_member_id", memberId)
+        .order("created_at", { ascending: false }),
+      client.rpc("dealer_network_directory_rows"),
+    ]);
+  if (error || directoryError) throw error ?? directoryError;
+  const byId = new Map(
+    ((Array.isArray(directory) ? directory : []) as PrivateDirectoryRow[]).map(
+      (row) => [row.id, row],
     ),
+  );
+  return Promise.all(
+    (blocks ?? []).map(async (block) => {
+      const id = String(block.blocked_member_id);
+      const row = byId.get(id);
+      if (!row)
+        return {
+          id,
+          available: false as const,
+          displayName: "Member unavailable" as const,
+          blockedByYou: true as const,
+        };
+      return {
+        ...toDirectoryResult(row, null, await signedLogo(row.logoPath)),
+        available: true as const,
+        blockedByYou: true as const,
+      };
+    }),
   );
 }
 

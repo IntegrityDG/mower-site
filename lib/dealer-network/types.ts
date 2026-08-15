@@ -46,7 +46,10 @@ export type NotificationEventType =
   | "applicant_activation"
   | "applicant_denied"
   | "applicant_more_information"
-  | "member_pin_reset";
+  | "member_pin_reset"
+  | "member_new_message";
+
+export type ReportStatus = "new" | "reviewed" | "resolved";
 
 export type AccountState = {
   memberId: string;
@@ -54,6 +57,7 @@ export type AccountState = {
   companyName: string;
   status: MemberStatus;
   accountLocked: boolean;
+  messagingEnabled: boolean;
   effectiveLocked: boolean;
   expiresAt: string;
 };
@@ -164,6 +168,95 @@ export type DirectoryResult = {
   brandsSold: Array<{ id: string; name: string }>;
   brandsServiced: Array<{ id: string; name: string }>;
   distanceMiles: number | null;
+  isFriend?: boolean;
+  blockedByYou?: boolean;
+};
+
+export type FriendResult = DirectoryResult & {
+  available: true;
+  isFriend: true;
+};
+
+export type UnavailableFriendResult = {
+  id: string;
+  available: false;
+  isFriend: true;
+  displayName: "Member unavailable";
+};
+
+export type MemberBlock =
+  | (DirectoryResult & { available: true; blockedByYou: true })
+  | {
+      id: string;
+      available: false;
+      displayName: "Member unavailable";
+      blockedByYou: true;
+    };
+
+export type MessageAttachment = {
+  id: string;
+  url: string;
+  width: number;
+  height: number;
+  position: number;
+};
+
+export type DealerMessage = {
+  id: string;
+  conversationId: string;
+  sentByMe: boolean;
+  body: string | null;
+  attachments: MessageAttachment[];
+  createdAt: string;
+};
+
+export type ConversationParticipant = {
+  id: string;
+  displayName: string;
+  companyName: string | null;
+  available: boolean;
+  blockedByYou: boolean;
+};
+
+export type MessagingPermission = "send" | "read_only";
+
+export type ConversationSummary = {
+  id: string;
+  participant: ConversationParticipant;
+  unreadCount: number;
+  lastMessageAt: string | null;
+  lastMessagePreview: string;
+};
+
+export type ConversationDetail = {
+  conversation: ConversationSummary;
+  messages: DealerMessage[];
+  canSend: boolean;
+  messagingPermission: MessagingPermission;
+  hasMore: boolean;
+  nextBefore: string | null;
+};
+
+export type MessageUploadTicket = {
+  id: string;
+  path: string;
+  signedUrl: string;
+  token: string;
+};
+
+export type DealerReport = {
+  id: string;
+  reporterMemberId: string;
+  reporterName: string;
+  reportedMemberId: string;
+  reportedName: string;
+  conversationId: string;
+  reason: string;
+  status: ReportStatus;
+  adminNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  resolvedAt: string | null;
 };
 
 export const ROLE_LABELS: Record<MemberRole, string> = {

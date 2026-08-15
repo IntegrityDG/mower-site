@@ -7,6 +7,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import Image from "next/image";
 import {
   APPLICATION_STATUS_LABELS,
   BUSINESS_TYPE_LABELS,
@@ -20,7 +21,13 @@ import {
 } from "@/lib/dealer-network/types";
 import { US_STATES } from "@/lib/dealer-network/validation";
 
-type Tab = "applications" | "members" | "brands" | "suggestions" | "security";
+type Tab =
+  | "applications"
+  | "members"
+  | "brands"
+  | "suggestions"
+  | "reports"
+  | "security";
 type Notice = {
   id: string;
   event_type: string;
@@ -98,6 +105,7 @@ type Member = {
   introduction: string;
   status: MemberStatus;
   accountLocked: boolean;
+  messagingEnabled: boolean;
   activatedAt: string | null;
   suspendedAt: string | null;
   archivedAt: string | null;
@@ -129,6 +137,7 @@ type Dashboard = {
   members: Member[];
   brands: DealerBrand[];
   suggestions: Suggestion[];
+  reports: Report[];
   notifications: Array<
     Notice & {
       event_key: string;
@@ -137,6 +146,20 @@ type Dashboard = {
     }
   >;
   pendingApplicationCount: number;
+};
+type Report = {
+  id: string;
+  reporterMemberId: string;
+  reporterName: string;
+  reporterCompany: string | null;
+  reportedMemberId: string;
+  reportedName: string;
+  reportedCompany: string | null;
+  conversationId: string;
+  reason: string;
+  status: "new" | "reviewed" | "resolved";
+  adminNote: string | null;
+  createdAt: string;
 };
 const inputClass =
   "mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200";
@@ -255,6 +278,7 @@ export default function DealerNetworkAdmin() {
               ["members", "Members"],
               ["brands", "Brands"],
               ["suggestions", "Suggestions"],
+              ["reports", `Reports (${data.reports.filter((report) => report.status === "new").length})`],
               ["security", "Account / Security"],
             ] as const
           ).map(([value, label]) => (
@@ -298,6 +322,9 @@ export default function DealerNetworkAdmin() {
             reload={load}
             notify={setMessage}
           />
+        )}{" "}
+        {tab === "reports" && (
+          <ReportsTab reports={data.reports} reload={load} notify={setMessage} />
         )}{" "}
         {tab === "security" && (
           <SecurityTab
@@ -665,6 +692,14 @@ function MembersTab({
             className="rounded-xl border px-4 py-3 font-black"
           >
             Set {selected.accountLocked ? "Unlocked" : "Locked"}
+          </button>
+          <button
+            onClick={() =>
+              void patch({ messagingEnabled: !selected.messagingEnabled })
+            }
+            className="rounded-xl border border-violet-500 px-4 py-3 font-black text-violet-800"
+          >
+            {selected.messagingEnabled ? "Disable" : "Enable"} Messaging
           </button>
           {selected.status === "active" && (
             <button
@@ -1052,6 +1087,142 @@ function SuggestionsTab({
       ))}
       {!suggestions.length && (
         <p className="rounded-3xl bg-white p-8">No suggestions.</p>
+      )}
+    </section>
+  );
+}
+
+function ReportsTab({
+  reports,
+  reload,
+  notify,
+}: {
+  reports: Report[];
+  reload: () => Promise<void>;
+  notify: (value: string) => void;
+}) {
+  const [selected, setSelected] = useState<Report | null>(null),
+    [messages, setMessages] = useState<Array<{
+      id: string;
+      senderMemberId: string;
+      body: string | null;
+      createdAt: string;
+      attachments: Array<{ id: string; url: string; width: number; height: number }>;
+    }> | null>(null),
+    [adminNote, setAdminNote] = useState("");
+
+  async function openReport(report: Report) {
+    setSelected(report);
+    setAdminNote(report.adminNote ?? "");
+    setMessages(null);
+    const response = await fetch(`/api/admin/dealer-network/reports/${report.id}`);
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok) setMessages(payload.conversation.messages ?? []);
+    else notify(payload.error ?? "Reported conversation unavailable.");
+  }
+
+  async function update(status: Report["status"]) {
+    if (!selected) return;
+    const response = await fetch(`/api/admin/dealer-network/reports/${selected.id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status, adminNote }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    notify(response.ok ? "Report updated." : payload.error ?? "Report update failed.");
+    if (response.ok) {
+      await reload();
+      setSelected({ ...selected, status, adminNote: adminNote || null });
+    }
+  }
+
+  async function disableReportedMessaging() {
+    if (!selected) return;
+    const response = await fetch(
+      `/api/admin/dealer-network/members/${selected.reportedMemberId}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messagingEnabled: false }),
+      },
+    );
+    notify(
+      response.ok
+        ? "Reported member messaging disabled. Their other account access is unchanged."
+        : "Messaging could not be disabled.",
+    );
+    if (response.ok) await reload();
+  }
+
+  return (
+    <section className="mt-7 grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
+      <div className="space-y-3">
+        {reports.map((report) => (
+          <button
+            key={report.id}
+            type="button"
+            onClick={() => void openReport(report)}
+            className={`w-full rounded-2xl p-4 text-left shadow-sm ${selected?.id === report.id ? "bg-slate-950 text-white" : "bg-white"}`}
+          >
+            <span className="flex justify-between gap-2 font-black">
+              {report.reportedName}
+              <StatusBadge>{report.status}</StatusBadge>
+            </span>
+            <span className="mt-1 block text-sm opacity-75">Reported by {report.reporterName}</span>
+            <span className="mt-2 block line-clamp-2 text-sm">{report.reason}</span>
+          </button>
+        ))}
+        {!reports.length && <p className="rounded-3xl bg-white p-8">No member reports.</p>}
+      </div>
+      {selected ? (
+        <article className="min-w-0 rounded-3xl bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[.15em] text-red-700">Private moderation report</p>
+              <h2 className="mt-1 text-2xl font-black">{selected.reportedName}</h2>
+              <p className="text-sm text-slate-600">Reported by {selected.reporterName} on {new Date(selected.createdAt).toLocaleString()}</p>
+            </div>
+            <StatusBadge>{selected.status}</StatusBadge>
+          </div>
+          <div className="mt-5 rounded-2xl bg-red-50 p-4">
+            <h3 className="font-black">Reason</h3>
+            <p className="mt-2 whitespace-pre-wrap">{selected.reason}</p>
+          </div>
+          <h3 className="mt-6 text-xl font-black">Reported conversation</h3>
+          <p className="mt-1 text-sm text-slate-500">Conversation content is available here only because it is attached to this report.</p>
+          <div className="mt-4 max-h-[32rem] space-y-3 overflow-y-auto rounded-2xl border p-4">
+            {messages?.map((message) => (
+              <div key={message.id} className="rounded-xl bg-slate-100 p-3">
+                <p className="text-xs font-black text-slate-500">
+                  {message.senderMemberId === selected.reporterMemberId ? selected.reporterName : selected.reportedName} · {new Date(message.createdAt).toLocaleString()}
+                </p>
+                {message.body && <p className="mt-2 whitespace-pre-wrap break-words">{message.body}</p>}
+                {message.attachments.length > 0 && (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {message.attachments.map((attachment) => (
+                      <a key={attachment.id} href={attachment.url} target="_blank" rel="noreferrer">
+                        <Image src={attachment.url} alt="Reported private message attachment" width={attachment.width} height={attachment.height} unoptimized className="max-h-72 w-full rounded-xl object-contain" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {messages === null && <p>Loading reported conversation…</p>}
+            {messages?.length === 0 && <p>No messages are available.</p>}
+          </div>
+          <label className="mt-5 block font-bold">
+            Private admin note
+            <textarea value={adminNote} maxLength={3000} onChange={(event) => setAdminNote(event.target.value)} className={inputClass} />
+          </label>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={() => void update("reviewed")} className="rounded-xl border px-4 py-2 font-black">Mark Reviewed</button>
+            <button type="button" onClick={() => void update("resolved")} className="rounded-xl bg-emerald-700 px-4 py-2 font-black text-white">Resolve</button>
+            <button type="button" onClick={() => void disableReportedMessaging()} className="rounded-xl border border-red-500 px-4 py-2 font-black text-red-800">Disable Reported Member Messaging</button>
+          </div>
+        </article>
+      ) : (
+        <div className="rounded-3xl bg-white p-8 text-slate-600 shadow-sm">Select a report to open its report-scoped conversation view.</div>
       )}
     </section>
   );

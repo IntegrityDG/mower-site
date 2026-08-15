@@ -165,6 +165,16 @@ export async function requireActiveUnlockedMember() {
   return session;
 }
 
+export async function requireMessagingEnabledMember() {
+  const session = await requireActiveUnlockedMember();
+  if (!session.messagingEnabled)
+    throw new MemberAccessError(
+      403,
+      "Messaging is disabled for this account. Existing messages remain available.",
+    );
+  return session;
+}
+
 export async function revokeCurrentMemberSession() {
   const cookieStore = await cookies();
   const token = cookieStore.get(MEMBER_SESSION_COOKIE)?.value;

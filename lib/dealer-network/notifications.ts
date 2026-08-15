@@ -3,6 +3,7 @@ import "server-only";
 import { sendIdsNotification, sendServerEmail } from "@/lib/email";
 import { sanitizeEmailFailure } from "@/lib/email-diagnostics";
 import { getSupabaseServiceClient } from "@/lib/supabase";
+import { sendNewMessageEmail } from "./new-message-email";
 import type { NotificationEventType } from "./types";
 
 type Claim = { claimed: boolean; eventId: string; claimedAt: string };
@@ -11,6 +12,8 @@ type EventContext = {
   eventType: NotificationEventType;
   applicationId?: string | null;
   memberId?: string | null;
+  conversationId?: string | null;
+  messageId?: string | null;
 };
 
 export async function deliverDealerNotification(
@@ -30,6 +33,16 @@ export async function deliverDealerNotification(
   if (error || !data) throw new Error("Notification claim failed.");
   const claim = data as Claim;
   if (!claim.claimed) return "skipped" as const;
+  if (context.conversationId || context.messageId) {
+    const { error: contextError } = await client
+      .from("dealer_network_notification_events")
+      .update({
+        conversation_id: context.conversationId ?? null,
+        message_id: context.messageId ?? null,
+      })
+      .eq("id", claim.eventId);
+    if (contextError) throw new Error("Notification context failed.");
+  }
   try {
     await send();
     await client.rpc("dealer_network_finish_notification", {
@@ -48,6 +61,30 @@ export async function deliverDealerNotification(
     });
     throw error;
   }
+}
+
+export function notifyNewDealerMessage(
+  input: {
+    messageId: string;
+    conversationId: string;
+    recipientMemberId: string;
+    recipientName: string;
+    recipientEmail: string;
+    senderName: string;
+    origin: string;
+  },
+  sender = sendServerEmail,
+) {
+  return deliverDealerNotification(
+    {
+      eventKey: `dealer-message:${input.messageId}:first-unread`,
+      eventType: "member_new_message",
+      memberId: input.recipientMemberId,
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+    },
+    () => sendNewMessageEmail(input, sender),
+  );
 }
 
 type ApplicationNotice = {
