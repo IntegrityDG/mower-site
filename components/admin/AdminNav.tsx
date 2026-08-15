@@ -4,6 +4,7 @@ const links = [
   ["Reviews", "/admin/reviews"],
   ["IDS in Action", "/admin/ids-in-action"],
   ["Featured Businesses", "/admin/featured-businesses"],
+  ["Dealer Network", "/admin/dealer-network"],
   ["Demo Scheduling", "/admin/demo-scheduling"],
   ["Sales & Specials", "/admin/sales-specials"],
   ["Meet or Beat", "/admin/price-match"],
@@ -17,7 +18,11 @@ export default function AdminNav() {
   return (
     <nav aria-label="IDS administration" className="mt-4 flex flex-wrap gap-2">
       {links.map(([label, href]) => (
-        <Link key={href} href={href} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold hover:border-emerald-600 hover:text-emerald-700">
+        <Link
+          key={href}
+          href={href}
+          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold hover:border-emerald-600 hover:text-emerald-700"
+        >
           {label}
         </Link>
       ))}
