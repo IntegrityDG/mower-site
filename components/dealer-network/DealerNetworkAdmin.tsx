@@ -13,12 +13,13 @@ import {
   BUSINESS_TYPE_LABELS,
   MEMBER_STATUS_LABELS,
   ROLE_LABELS,
+  type AdminTroubleshootingEntry,
   type ApplicationStatus,
   type BusinessType,
   type DealerBrand,
   type MemberRole,
   type MemberStatus,
-  type TroubleshootingEntry,
+  type TroubleshootingStatus,
 } from "@/lib/dealer-network/types";
 import { US_STATES } from "@/lib/dealer-network/validation";
 
@@ -139,7 +140,7 @@ type Dashboard = {
   members: Member[];
   brands: DealerBrand[];
   suggestions: Suggestion[];
-  troubleshooting: TroubleshootingEntry[];
+  troubleshooting: AdminTroubleshootingEntry[];
   reports: Report[];
   notifications: Array<
     Notice & {
@@ -1111,27 +1112,70 @@ function TroubleshootingTab({
   reload,
   notify,
 }: {
-  entries: TroubleshootingEntry[];
+  entries: AdminTroubleshootingEntry[];
   reload: () => Promise<void>;
   notify: (value: string) => void;
 }) {
-  async function update(id: string, status: "approved" | "denied") {
-    const response = await fetch(
-      `/api/admin/dealer-network/troubleshooting/${id}`,
-      {
+  const [updating, setUpdating] = useState<string | null>(null);
+
+  async function update(
+    key: string,
+    url: string,
+    body: Record<string, unknown>,
+    successMessage: string,
+  ) {
+    setUpdating(key);
+    try {
+      const response = await fetch(url, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status }),
-      },
-    );
-    const payload = await response.json().catch(() => ({}));
-    notify(
-      response.ok
-        ? `Troubleshooting entry ${status}.`
-        : (payload.error ?? "Troubleshooting entry update failed."),
-    );
-    if (response.ok) await reload();
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => ({}));
+      notify(
+        response.ok
+          ? successMessage
+          : (payload.error ?? "Troubleshooting entry update failed."),
+      );
+      if (response.ok) await reload();
+    } catch {
+      notify("Troubleshooting entry update failed.");
+    } finally {
+      setUpdating(null);
+    }
   }
+
+  function updateStatus(id: string, status: TroubleshootingStatus) {
+    return update(
+      `status:${id}`,
+      `/api/admin/dealer-network/troubleshooting/${id}`,
+      { status },
+      `Dealer Network status changed to ${status}.`,
+    );
+  }
+
+  function updatePublication(id: string, publiclyPublished: boolean) {
+    return update(
+      `publication:${id}`,
+      `/api/admin/dealer-network/troubleshooting/${id}/publication`,
+      { publiclyPublished },
+      publiclyPublished
+        ? "Troubleshooting entry published on the public website."
+        : "Troubleshooting entry removed from the public website.",
+    );
+  }
+
+  function updatePhotoPublication(photoId: string, publiclyVisible: boolean) {
+    return update(
+      `photo:${photoId}`,
+      `/api/admin/dealer-network/troubleshooting/photos/${photoId}/publication`,
+      { publiclyVisible },
+      publiclyVisible
+        ? "Photo marked to show on the public website."
+        : "Photo removed from the public website.",
+    );
+  }
+
   return (
     <section className="mt-7 space-y-4">
       {entries.map((entry) => (
@@ -1164,6 +1208,70 @@ function TroubleshootingTab({
               <dd>{entry.systemArea}{entry.badPart ? ` · ${entry.badPart}` : ""}</dd>
             </div>
           </dl>
+          <div className="mt-5 grid gap-4 lg:grid-cols-2">
+            <section className="rounded-2xl border border-slate-200 p-5">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                Dealer Network Status
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {(["pending", "approved", "denied"] as const).map(
+                  (status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      disabled={
+                        entry.status === status ||
+                        updating === `status:${entry.id}`
+                      }
+                      onClick={() => void updateStatus(entry.id, status)}
+                      className={`rounded-xl px-4 py-3 font-black capitalize disabled:cursor-not-allowed disabled:opacity-55 ${
+                        status === "approved"
+                          ? "bg-emerald-600 text-white"
+                          : status === "denied"
+                            ? "border border-red-300 text-red-700"
+                            : "border border-amber-300 text-amber-800"
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ),
+                )}
+              </div>
+            </section>
+            <section className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/50 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-800">
+                    Public Website
+                  </p>
+                  <p className="mt-1 text-lg font-black text-slate-950">
+                    {entry.publiclyPublished && entry.status === "approved"
+                      ? "Published"
+                      : "Not Published"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    entry.status !== "approved" ||
+                    updating === `publication:${entry.id}`
+                  }
+                  onClick={() =>
+                    void updatePublication(entry.id, !entry.publiclyPublished)
+                  }
+                  className="rounded-xl bg-slate-950 px-5 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {entry.publiclyPublished ? "Unpublish" : "Publish"}
+                </button>
+              </div>
+              {entry.status !== "approved" && (
+                <p className="mt-3 text-sm font-semibold text-slate-600">
+                  Public publishing is disabled until the Dealer Network status
+                  is Approved.
+                </p>
+              )}
+            </section>
+          </div>
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             {(["issue", "fix"] as const).map((kind) => (
               <section key={kind} className="rounded-2xl bg-slate-50 p-4">
@@ -1175,37 +1283,48 @@ function TroubleshootingTab({
                   {entry.photos
                     .filter((photo) => photo.photoKind === kind)
                     .map((photo) => (
-                      <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer">
-                        <Image
-                          src={photo.url}
-                          alt={`${kind} photo`}
-                          width={photo.width}
-                          height={photo.height}
-                          unoptimized
-                          className="aspect-square w-full rounded-xl border bg-white object-cover"
-                        />
-                      </a>
+                      <div key={photo.id} className="space-y-2">
+                        <a
+                          href={photo.url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Image
+                            src={photo.url}
+                            alt={`${kind} photo`}
+                            width={photo.width}
+                            height={photo.height}
+                            unoptimized
+                            className="aspect-square w-full rounded-xl border bg-white object-cover"
+                          />
+                        </a>
+                        <label
+                          className={`flex cursor-pointer items-start gap-2 rounded-xl border-2 p-3 text-xs font-black leading-5 ${
+                            photo.publiclyVisible
+                              ? "border-emerald-400 bg-emerald-50 text-emerald-900"
+                              : "border-slate-300 bg-white text-slate-700"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={photo.publiclyVisible}
+                            disabled={updating === `photo:${photo.id}`}
+                            onChange={(event) =>
+                              void updatePhotoPublication(
+                                photo.id,
+                                event.target.checked,
+                              )
+                            }
+                            className="mt-0.5 size-4 accent-emerald-600"
+                          />
+                          <span>Show on Public Website</span>
+                        </label>
+                      </div>
                     ))}
                 </div>
               </section>
             ))}
           </div>
-          {entry.status === "pending" && (
-            <div className="mt-5 flex flex-wrap gap-2">
-              <button
-                onClick={() => void update(entry.id, "approved")}
-                className="rounded-xl bg-emerald-600 px-5 py-3 font-black text-white"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => void update(entry.id, "denied")}
-                className="rounded-xl border border-red-300 px-5 py-3 font-black text-red-700"
-              >
-                Deny
-              </button>
-            </div>
-          )}
         </article>
       ))}
       {!entries.length && (

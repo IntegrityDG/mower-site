@@ -275,6 +275,15 @@ export type TroubleshootingEntry = {
   createdAt: string;
 };
 
+export type AdminTroubleshootingPhoto = TroubleshootingPhoto & {
+  publiclyVisible: boolean;
+};
+
+export type AdminTroubleshootingEntry = Omit<TroubleshootingEntry, "photos"> & {
+  publiclyPublished: boolean;
+  photos: AdminTroubleshootingPhoto[];
+};
+
 export type TroubleshootingUploadTicket = MessageUploadTicket & {
   photoKind: TroubleshootingPhotoKind;
   position: number;

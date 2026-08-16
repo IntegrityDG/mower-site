@@ -1,5 +1,6 @@
 import ContactInformationModal from "@/components/contact/ContactInformationModal";
 import ScheduleDemoModal from "@/components/demo-scheduling/ScheduleDemoModal";
+import Link from "next/link";
 
 export default function HomepageContactSection() {
   return (
@@ -26,6 +27,12 @@ export default function HomepageContactSection() {
         <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           <ContactInformationModal triggerClassName="inline-flex min-h-14 items-center justify-center rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 shadow-lg transition hover:bg-emerald-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300" />
           <ScheduleDemoModal source="contact_ids" triggerClassName="inline-flex min-h-14 items-center justify-center rounded-2xl border border-emerald-300 px-7 py-4 text-center font-black text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300" />
+          <Link
+            href="/troubleshoot-your-robot"
+            className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-emerald-300 px-7 py-4 text-center font-black text-white transition hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+          >
+            Troubleshoot Your Robot
+          </Link>
         </div>
       </div>
     </section>

@@ -18,6 +18,8 @@ import {
   TROUBLESHOOTING_SIGNED_READ_SECONDS,
 } from "./troubleshooting-storage";
 import type {
+  AdminTroubleshootingEntry,
+  AdminTroubleshootingPhoto,
   TroubleshootingEntry,
   TroubleshootingPhoto,
   TroubleshootingPhotoKind,
@@ -56,8 +58,17 @@ type PhotoRow = {
   position: number;
 };
 
+type AdminEntryRow = EntryRow & {
+  publicly_published: boolean;
+};
+
+type AdminPhotoRow = PhotoRow & {
+  publicly_visible: boolean;
+};
+
 const entryColumns =
   "id,member_id,member_name_snapshot,company_name_snapshot,title,brand,model,issue_date,firmware_software_version,system_area,bad_part,issue_description,fix_description,status,approved_at,created_at";
+const adminEntryColumns = `${entryColumns},publicly_published`;
 
 function tusEndpoint() {
   const url = new URL(getSupabaseUrl());
@@ -128,6 +139,30 @@ async function mapEntries(
   return rows.map((row) => mapEntry(row, photos, photoRoute));
 }
 
+function mapAdminEntry(
+  row: AdminEntryRow,
+  photos: AdminPhotoRow[],
+): AdminTroubleshootingEntry {
+  const publiclyVisibleById = new Map(
+    photos.map((photo) => [photo.id, Boolean(photo.publicly_visible)]),
+  );
+  const entry = mapEntry(
+    row,
+    photos,
+    (id) => `/api/admin/dealer-network/troubleshooting/photos/${id}`,
+  );
+  return {
+    ...entry,
+    publiclyPublished: Boolean(row.publicly_published),
+    photos: entry.photos.map(
+      (photo): AdminTroubleshootingPhoto => ({
+        ...photo,
+        publiclyVisible: publiclyVisibleById.get(photo.id) === true,
+      }),
+    ),
+  };
+}
+
 export async function readTroubleshootingLibrary(searchValue: unknown) {
   const search = validateTroubleshootingSearch(searchValue);
   if (search === null) throw new Error("INVALID_SEARCH");
@@ -165,16 +200,31 @@ export async function readOwnTroubleshootingEntries(memberId: string) {
 }
 
 export async function readAdminTroubleshootingEntries() {
-  const { data, error } = await getSupabaseServiceClient()
+  const client = getSupabaseServiceClient();
+  const { data, error } = await client
     .from("dealer_network_troubleshooting_entries")
-    .select(entryColumns)
+    .select(adminEntryColumns)
     .order("created_at", { ascending: false })
     .limit(500);
   if (error) throw error;
-  return mapEntries(
-    (data ?? []) as EntryRow[],
-    (id) => `/api/admin/dealer-network/troubleshooting/photos/${id}`,
-  );
+  const rows = (data ?? []) as AdminEntryRow[];
+  if (!rows.length) return [];
+  const { data: photoData, error: photoError } = await client
+    .from("dealer_network_troubleshooting_photos")
+    .select("id,entry_id,photo_kind,width,height,position,publicly_visible")
+    .in(
+      "entry_id",
+      rows.map((row) => row.id),
+    );
+  if (photoError) throw photoError;
+  const photos = (photoData ?? []) as AdminPhotoRow[];
+  const photosByEntry = new Map<string, AdminPhotoRow[]>();
+  for (const photo of photos) {
+    const group = photosByEntry.get(photo.entry_id) ?? [];
+    group.push(photo);
+    photosByEntry.set(photo.entry_id, group);
+  }
+  return rows.map((row) => mapAdminEntry(row, photosByEntry.get(row.id) ?? []));
 }
 
 async function cleanExpiredUploads() {
@@ -497,23 +547,78 @@ export async function updateTroubleshootingStatus(
       ? (input as Record<string, unknown>)
       : {};
   const status = body.status;
-  if (status !== "approved" && status !== "denied")
+  if (status !== "pending" && status !== "approved" && status !== "denied")
     throw new Error("INVALID_TROUBLESHOOTING_STATUS");
   const now = new Date().toISOString();
+  const statusUpdate = {
+    status,
+    approved_at: status === "approved" ? now : null,
+    denied_at: status === "denied" ? now : null,
+    updated_at: now,
+    ...(status === "approved" ? {} : { publicly_published: false }),
+  };
   const { data, error } = await getSupabaseServiceClient()
     .from("dealer_network_troubleshooting_entries")
-    .update({
-      status,
-      approved_at: status === "approved" ? now : null,
-      denied_at: status === "denied" ? now : null,
-      updated_at: now,
-    })
+    .update(statusUpdate)
     .eq("id", entryId)
-    .eq("status", "pending")
     .select("id")
     .maybeSingle();
   if (error || !data)
-    throw error ?? new Error("PENDING_TROUBLESHOOTING_ENTRY_NOT_FOUND");
+    throw error ?? new Error("TROUBLESHOOTING_ENTRY_NOT_FOUND");
+}
+
+function requiredBoolean(
+  input: unknown,
+  field: string,
+  errorCode: string,
+) {
+  const body =
+    input && typeof input === "object"
+      ? (input as Record<string, unknown>)
+      : {};
+  if (typeof body[field] !== "boolean") throw new Error(errorCode);
+  return body[field];
+}
+
+export async function updateTroubleshootingPublication(
+  entryId: string,
+  input: unknown,
+) {
+  const publiclyPublished = requiredBoolean(
+    input,
+    "publiclyPublished",
+    "INVALID_PUBLICATION_STATE",
+  );
+  let query = getSupabaseServiceClient()
+    .from("dealer_network_troubleshooting_entries")
+    .update({
+      publicly_published: publiclyPublished,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", entryId);
+  if (publiclyPublished) query = query.eq("status", "approved");
+  const { data, error } = await query.select("id").maybeSingle();
+  if (error || !data)
+    throw error ?? new Error("PUBLICATION_REQUIRES_APPROVAL");
+}
+
+export async function updateTroubleshootingPhotoPublication(
+  photoId: string,
+  input: unknown,
+) {
+  const publiclyVisible = requiredBoolean(
+    input,
+    "publiclyVisible",
+    "INVALID_PHOTO_PUBLICATION_STATE",
+  );
+  const { data, error } = await getSupabaseServiceClient()
+    .from("dealer_network_troubleshooting_photos")
+    .update({ publicly_visible: publiclyVisible })
+    .eq("id", photoId)
+    .select("id")
+    .maybeSingle();
+  if (error || !data)
+    throw error ?? new Error("TROUBLESHOOTING_PHOTO_NOT_FOUND");
 }
 
 export async function signedMemberTroubleshootingPhoto(
