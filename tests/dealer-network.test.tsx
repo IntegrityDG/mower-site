@@ -11,6 +11,7 @@ import {
 } from "../lib/dealer-network/directory";
 import { geocodeUsLocation } from "../lib/dealer-network/geocoding-adapter";
 import { hasExpectedFileSignature } from "../lib/dealer-network/uploads";
+import { sendSuggestionStatusEmail } from "../lib/dealer-network/suggestion-status-email";
 import {
   normalizeCompanyName,
   normalizeEmail,
@@ -733,6 +734,58 @@ test("suggestions are member-owned and admin workflows reuse existing IDS authen
     readFileSync("lib/dealer-network/admin-auth.ts", "utf8"),
     /isReviewAdmin/,
   );
+});
+
+test("suggestion Reviewed and Resolved emails use the current member address and fire only on transitions", async () => {
+  const sent: Array<{ to: string; subject: string; text: string }> = [];
+  const sender = async (message: (typeof sent)[number]) => sent.push(message);
+  await sendSuggestionStatusEmail(
+    {
+      memberName: "Member",
+      memberEmail: "current@example.com",
+      status: "reviewed",
+    },
+    sender,
+  );
+  await sendSuggestionStatusEmail(
+    {
+      memberName: "Member",
+      memberEmail: "current@example.com",
+      status: "resolved",
+    },
+    sender,
+  );
+  assert.deepEqual(
+    sent.map((message) => message.subject),
+    [
+      "Your IDS Dealer Network Suggestion Has Been Reviewed",
+      "Your IDS Dealer Network Suggestion Has Been Resolved",
+    ],
+  );
+  assert.ok(sent.every((message) => message.to === "current@example.com"));
+  assert.ok(
+    sent.every((message) =>
+      message.text.includes("helping improve the IDS Dealer & Tech Network"),
+    ),
+  );
+
+  const admin = readFileSync("lib/dealer-network/admin-server.ts", "utf8");
+  assert.match(admin, /\.neq\("status", status\)[\s\S]*?\.select\("member_id"\)/);
+  assert.match(
+    admin,
+    /from\("dealer_network_members"\)[\s\S]*?\.select\("member_name,email"\)/,
+  );
+  assert.match(admin, /if \(!suggestion \|\| status === "new"\) return/);
+  const updateSuggestion =
+    admin.match(
+      /export async function updateSuggestionStatus[\s\S]*?\n}/,
+    )?.[0] ?? "";
+  assert.ok(
+    updateSuggestion.indexOf("if (error) throw error") <
+      updateSuggestion.indexOf("await notifySuggestionStatus"),
+  );
+  assert.match(admin, /Suggestion status email failed after status update/);
+  assert.match(admin, /sanitizeEmailFailure\(error\)/);
 });
 
 test("Dealer Network feature adds no payment, checkout, pricing, demo or Aftermarket integration", () => {

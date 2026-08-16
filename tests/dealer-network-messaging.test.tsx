@@ -4,6 +4,7 @@ import test from "node:test";
 import sharp from "sharp";
 import {
   detectMessageImageType,
+  exactStorageArrayBuffer,
   inspectHeicContainer,
   normalizeMessageImage,
 } from "../lib/dealer-network/image-processing";
@@ -198,6 +199,14 @@ test("JPEG orientation is applied and metadata is stripped during normalization"
   assert.equal(metadata.orientation, undefined);
 });
 
+test("normalized uploads use an exact-length storage body", () => {
+  const slab = Buffer.alloc(64, 0x55);
+  const view = slab.subarray(13, 29);
+  const exact = exactStorageArrayBuffer(view);
+  assert.equal(exact.byteLength, view.byteLength);
+  assert.deepEqual([...new Uint8Array(exact)], [...view]);
+});
+
 test("PNG and WebP normalize while MIME spoofing and fake HEIC are rejected", async () => {
   const raw = sharp({
     create: {
@@ -312,6 +321,14 @@ test("message photos use a private bucket, signed participant reads, and report-
   );
   assert.match(memberAttachmentRoute, /requireActiveUnlockedMember/);
   assert.match(memberAttachmentRoute, /signedMemberAttachment\(session\.memberId, id\)/);
+  assert.match(
+    messagingServer,
+    /url: `\/api\/dealer-network\/member\/messages\/attachments\/\$\{attachment\.id\}`/,
+  );
+  assert.match(
+    migration,
+    /insert into public\.dealer_network_message_attachments\([\s\S]*?new_message\.id,attachment->>'storagepath'/,
+  );
   const adminServer = source("lib/dealer-network/admin-server.ts");
   assert.match(adminServer, /eq\("conversation_id", report\.conversation_id\)/);
   assert.match(adminServer, /readReportedConversation/);
@@ -320,6 +337,8 @@ test("message photos use a private bucket, signed participant reads, and report-
 test("storage processing verifies bytes, normalizes originals, and cleans staging and failed finals", () => {
   assert.match(messagingServer, /bytes\.byteLength !== upload\.declared_byte_size/);
   assert.match(messagingServer, /normalizeMessageImage/);
+  assert.match(messagingServer, /exactStorageArrayBuffer\(normalized\.buffer\)/);
+  assert.match(messagingServer, /storedByteSize !== normalized\.buffer\.byteLength/);
   assert.match(messagingServer, /status: "processing"/);
   assert.match(messagingServer, /status: "consumed"/);
   assert.match(messagingServer, /status: "failed"/);
@@ -424,8 +443,9 @@ test("member UI includes responsive friends, message polling, unread, block, rep
   assert.match(portal, /Load Older Messages/);
   assert.match(portal, /Submit Private Report/);
   assert.match(portal, /Unblock/);
-  assert.match(portal, /Loading private photo/);
   assert.match(portal, /Private photo unavailable/);
+  assert.match(portal, /src=\{attachment\.url\}/);
+  assert.doesNotMatch(portal, /loaded \? "opacity-100" : "opacity-0"/);
   assert.match(portal, /3 photos · 15 MB each/);
 });
 

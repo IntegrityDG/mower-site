@@ -1,5 +1,6 @@
 import "server-only";
 
+import { sanitizeEmailFailure } from "@/lib/email-diagnostics";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { createOneTimeToken } from "./security";
 import {
@@ -13,6 +14,7 @@ import {
   notifyDealerDecision,
   notifyNewDealerApplication,
   notifyNewDealerMessage,
+  notifySuggestionStatus,
   sendDealerActivationEmail,
   sendPinResetEmail,
 } from "./notifications";
@@ -704,7 +706,8 @@ export async function updateSuggestionStatus(
   if (!["new", "reviewed", "resolved"].includes(status))
     throw new Error("INVALID_SUGGESTION_STATUS");
   const now = new Date().toISOString();
-  const { error } = await getSupabaseServiceClient()
+  const client = getSupabaseServiceClient();
+  const { data: suggestion, error } = await client
     .from("dealer_network_suggestions")
     .update({
       status,
@@ -712,8 +715,35 @@ export async function updateSuggestionStatus(
       resolved_at: status === "resolved" ? now : null,
       updated_at: now,
     })
-    .eq("id", suggestionId);
+    .eq("id", suggestionId)
+    .neq("status", status)
+    .select("member_id")
+    .maybeSingle();
   if (error) throw error;
+  if (!suggestion || status === "new") return;
+  const { data: member, error: memberError } = await client
+    .from("dealer_network_members")
+    .select("member_name,email")
+    .eq("id", suggestion.member_id)
+    .maybeSingle();
+  if (memberError || !member) {
+    console.warn("Suggestion status email recipient lookup failed", {
+      suggestionId,
+      status,
+    });
+    return;
+  }
+  await notifySuggestionStatus({
+    memberName: String(member.member_name),
+    memberEmail: String(member.email),
+    status,
+  }).catch((error) =>
+    console.warn("Suggestion status email failed after status update", {
+      suggestionId,
+      status,
+      error: sanitizeEmailFailure(error),
+    }),
+  );
 }
 
 export function requireValidAdminId(value: unknown) {

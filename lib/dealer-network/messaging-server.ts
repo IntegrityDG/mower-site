@@ -2,7 +2,10 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { getSupabaseServiceClient, getSupabaseUrl } from "@/lib/supabase";
-import { normalizeMessageImage } from "./image-processing";
+import {
+  exactStorageArrayBuffer,
+  normalizeMessageImage,
+} from "./image-processing";
 import {
   MESSAGE_BATCH_BYTES,
   MESSAGE_PHOTO_BYTES,
@@ -561,13 +564,21 @@ export async function sendDealerMessage(
       const path = `conversations/${parsed.conversationId}/messages/${parsed.clientMessageId}/${randomUUID()}.jpg`;
       const { error: uploadError } = await client.storage
         .from(MESSAGE_BUCKET)
-        .upload(path, normalized.buffer, {
+        .upload(path, exactStorageArrayBuffer(normalized.buffer), {
           contentType: normalized.contentType,
           cacheControl: "3600",
           upsert: false,
         });
       if (uploadError) throw uploadError;
       finalPaths.push(path);
+      const { data: stored, error: storedError } = await client.storage
+        .from(MESSAGE_BUCKET)
+        .info(path);
+      const storedByteSize = Number(
+        stored?.size ?? stored?.metadata?.size ?? Number.NaN,
+      );
+      if (storedError || storedByteSize !== normalized.buffer.byteLength)
+        throw new Error("STORED_IMAGE_SIZE_MISMATCH");
       processed.push({
         storagePath: path,
         contentType: normalized.contentType,

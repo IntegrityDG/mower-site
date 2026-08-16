@@ -4,6 +4,10 @@ import { sendIdsNotification, sendServerEmail } from "@/lib/email";
 import { sanitizeEmailFailure } from "@/lib/email-diagnostics";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { sendNewMessageEmail } from "./new-message-email";
+import {
+  sendSuggestionStatusEmail,
+  type SuggestionStatusEmailInput,
+} from "./suggestion-status-email";
 import type { NotificationEventType } from "./types";
 
 type Claim = { claimed: boolean; eventId: string; claimedAt: string };
@@ -85,6 +89,13 @@ export function notifyNewDealerMessage(
     },
     () => sendNewMessageEmail(input, sender),
   );
+}
+
+export function notifySuggestionStatus(
+  input: SuggestionStatusEmailInput,
+  sender = sendServerEmail,
+) {
+  return sendSuggestionStatusEmail(input, sender);
 }
 
 type ApplicationNotice = {

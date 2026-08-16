@@ -756,7 +756,6 @@ function FriendsPanel({
 }
 
 function PrivateMessagePhoto({ attachment }: { attachment: MessageAttachment }) {
-  const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   if (failed)
     return (
@@ -766,11 +765,6 @@ function PrivateMessagePhoto({ attachment }: { attachment: MessageAttachment }) 
     );
   return (
     <div className="relative min-h-24 overflow-hidden rounded-xl bg-black/10">
-      {!loaded && (
-        <span className="absolute inset-0 flex items-center justify-center p-3 text-sm" role="status">
-          Loading private photo…
-        </span>
-      )}
       <a href={attachment.url} target="_blank" rel="noreferrer" className="block">
         <Image
           src={attachment.url}
@@ -778,9 +772,8 @@ function PrivateMessagePhoto({ attachment }: { attachment: MessageAttachment }) 
           width={attachment.width}
           height={attachment.height}
           unoptimized
-          onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
-          className={`max-h-80 w-full rounded-xl object-contain ${loaded ? "opacity-100" : "opacity-0"}`}
+          className="max-h-80 w-full rounded-xl object-contain"
         />
       </a>
     </div>
