@@ -18,6 +18,7 @@ import {
   type DealerBrand,
   type MemberRole,
   type MemberStatus,
+  type TroubleshootingEntry,
 } from "@/lib/dealer-network/types";
 import { US_STATES } from "@/lib/dealer-network/validation";
 
@@ -26,6 +27,7 @@ type Tab =
   | "members"
   | "brands"
   | "suggestions"
+  | "troubleshooting"
   | "reports"
   | "security";
 type Notice = {
@@ -137,6 +139,7 @@ type Dashboard = {
   members: Member[];
   brands: DealerBrand[];
   suggestions: Suggestion[];
+  troubleshooting: TroubleshootingEntry[];
   reports: Report[];
   notifications: Array<
     Notice & {
@@ -278,6 +281,10 @@ export default function DealerNetworkAdmin() {
               ["members", "Members"],
               ["brands", "Brands"],
               ["suggestions", "Suggestions"],
+              [
+                "troubleshooting",
+                `Troubleshooting (${data.troubleshooting.filter((entry) => entry.status === "pending").length})`,
+              ],
               ["reports", `Reports (${data.reports.filter((report) => report.status === "new").length})`],
               ["security", "Account / Security"],
             ] as const
@@ -319,6 +326,13 @@ export default function DealerNetworkAdmin() {
         {tab === "suggestions" && (
           <SuggestionsTab
             suggestions={data.suggestions}
+            reload={load}
+            notify={setMessage}
+          />
+        )}{" "}
+        {tab === "troubleshooting" && (
+          <TroubleshootingTab
+            entries={data.troubleshooting}
             reload={load}
             notify={setMessage}
           />
@@ -1087,6 +1101,115 @@ function SuggestionsTab({
       ))}
       {!suggestions.length && (
         <p className="rounded-3xl bg-white p-8">No suggestions.</p>
+      )}
+    </section>
+  );
+}
+
+function TroubleshootingTab({
+  entries,
+  reload,
+  notify,
+}: {
+  entries: TroubleshootingEntry[];
+  reload: () => Promise<void>;
+  notify: (value: string) => void;
+}) {
+  async function update(id: string, status: "approved" | "denied") {
+    const response = await fetch(
+      `/api/admin/dealer-network/troubleshooting/${id}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+    notify(
+      response.ok
+        ? `Troubleshooting entry ${status}.`
+        : (payload.error ?? "Troubleshooting entry update failed."),
+    );
+    if (response.ok) await reload();
+  }
+  return (
+    <section className="mt-7 space-y-4">
+      {entries.map((entry) => (
+        <article key={entry.id} className="rounded-3xl bg-white p-6 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-black">{entry.title}</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {entry.memberName} · {entry.companyName} · Submitted{" "}
+                {new Date(entry.createdAt).toLocaleString()}
+              </p>
+            </div>
+            <StatusBadge>{entry.status}</StatusBadge>
+          </div>
+          <dl className="mt-5 grid gap-4 text-sm md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <dt className="font-black">Brand / Model</dt>
+              <dd>{entry.brand} {entry.model}</dd>
+            </div>
+            <div>
+              <dt className="font-black">Issue Date</dt>
+              <dd>{entry.issueDate}</dd>
+            </div>
+            <div>
+              <dt className="font-black">Firmware / Software</dt>
+              <dd>{entry.firmwareSoftwareVersion}</dd>
+            </div>
+            <div>
+              <dt className="font-black">System / Bad Part</dt>
+              <dd>{entry.systemArea}{entry.badPart ? ` · ${entry.badPart}` : ""}</dd>
+            </div>
+          </dl>
+          <div className="mt-5 grid gap-5 lg:grid-cols-2">
+            {(["issue", "fix"] as const).map((kind) => (
+              <section key={kind} className="rounded-2xl bg-slate-50 p-4">
+                <h3 className="text-lg font-black capitalize">{kind}</h3>
+                <p className="mt-2 whitespace-pre-wrap leading-7 text-slate-700">
+                  {kind === "issue" ? entry.issueDescription : entry.fixDescription}
+                </p>
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {entry.photos
+                    .filter((photo) => photo.photoKind === kind)
+                    .map((photo) => (
+                      <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer">
+                        <Image
+                          src={photo.url}
+                          alt={`${kind} photo`}
+                          width={photo.width}
+                          height={photo.height}
+                          unoptimized
+                          className="aspect-square w-full rounded-xl border bg-white object-cover"
+                        />
+                      </a>
+                    ))}
+                </div>
+              </section>
+            ))}
+          </div>
+          {entry.status === "pending" && (
+            <div className="mt-5 flex flex-wrap gap-2">
+              <button
+                onClick={() => void update(entry.id, "approved")}
+                className="rounded-xl bg-emerald-600 px-5 py-3 font-black text-white"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => void update(entry.id, "denied")}
+                className="rounded-xl border border-red-300 px-5 py-3 font-black text-red-700"
+              >
+                Deny
+              </button>
+            </div>
+          )}
+        </article>
+      ))}
+      {!entries.length && (
+        <p className="rounded-3xl bg-white p-8">No troubleshooting submissions.</p>
       )}
     </section>
   );

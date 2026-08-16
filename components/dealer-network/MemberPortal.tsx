@@ -29,8 +29,15 @@ import {
 } from "@/lib/dealer-network/messaging-validation";
 import { uploadMessagePhoto } from "@/lib/dealer-network/message-upload";
 import { US_STATES } from "@/lib/dealer-network/validation";
+import TroubleshootingPanel from "./TroubleshootingPanel";
 
-type Tab = "directory" | "friends" | "messages" | "profile" | "suggestions";
+type Tab =
+  | "directory"
+  | "friends"
+  | "messages"
+  | "profile"
+  | "troubleshooting"
+  | "suggestions";
 type Suggestion = {
   id: string;
   category: string;
@@ -243,6 +250,7 @@ export default function MemberPortal() {
               ["friends", "My Friends"],
               ["messages", `Messages${unreadTotal ? ` (${unreadTotal})` : ""}`],
               ["profile", "My Profile"],
+              ["troubleshooting", "Troubleshooting"],
               ["suggestions", "Contact IDS / Suggest an Improvement"],
             ] as const
           ).map(([value, label]) => (
@@ -308,6 +316,9 @@ export default function MemberPortal() {
             onProfile={setProfile}
             onMessage={setMessage}
           />
+        )}{" "}
+        {tab === "troubleshooting" && (
+          <TroubleshootingPanel onMessage={setMessage} />
         )}{" "}
         {tab === "suggestions" && (
           <SuggestionsPanel

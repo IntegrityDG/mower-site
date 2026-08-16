@@ -50,6 +50,8 @@ export type NotificationEventType =
   | "member_new_message";
 
 export type ReportStatus = "new" | "reviewed" | "resolved";
+export type TroubleshootingStatus = "pending" | "approved" | "denied";
+export type TroubleshootingPhotoKind = "issue" | "fix";
 
 export type AccountState = {
   memberId: string;
@@ -242,6 +244,40 @@ export type MessageUploadTicket = {
   path: string;
   signedUrl: string;
   token: string;
+};
+
+export type TroubleshootingPhoto = {
+  id: string;
+  photoKind: TroubleshootingPhotoKind;
+  url: string;
+  width: number;
+  height: number;
+  position: number;
+};
+
+export type TroubleshootingEntry = {
+  id: string;
+  memberId: string;
+  memberName: string;
+  companyName: string;
+  title: string;
+  brand: string;
+  model: string;
+  issueDate: string;
+  firmwareSoftwareVersion: string;
+  systemArea: string;
+  badPart: string | null;
+  issueDescription: string;
+  fixDescription: string;
+  status: TroubleshootingStatus;
+  photos: TroubleshootingPhoto[];
+  approvedAt: string | null;
+  createdAt: string;
+};
+
+export type TroubleshootingUploadTicket = MessageUploadTicket & {
+  photoKind: TroubleshootingPhotoKind;
+  position: number;
 };
 
 export type DealerReport = {

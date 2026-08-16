@@ -35,6 +35,7 @@ import {
   validateMemberProfile,
   validateUuid,
 } from "./validation";
+import { readAdminTroubleshootingEntries } from "./troubleshooting-server";
 
 const memberColumns =
   "id,application_id,member_name,company_name,phone,email,address_line_1,address_line_2,city,state,zip_code,country,website_url,role,experience,service_region,introduction,logo_path,status,account_locked,messaging_enabled,activated_at,suspended_at,archived_at,last_login_at,created_at,updated_at";
@@ -49,6 +50,7 @@ export async function readDealerNetworkAdminDashboard() {
     { data: suggestions, error: suggestionError },
     { data: notifications, error: notificationError },
     { data: reports, error: reportError },
+    troubleshooting,
   ] = await Promise.all([
     readAdminApplications(),
     client
@@ -87,6 +89,7 @@ export async function readDealerNetworkAdminDashboard() {
         "id,reporter_member_id,reported_member_id,conversation_id,reason,status,admin_note,created_at,reviewed_at,resolved_at,reporter:dealer_network_members!dealer_network_reports_reporter_member_id_fkey(member_name,company_name),reported:dealer_network_members!dealer_network_reports_reported_member_id_fkey(member_name,company_name)",
       )
       .order("created_at", { ascending: false }),
+    readAdminTroubleshootingEntries(),
   ]);
   if (memberError || brandError || suggestionError || notificationError || reportError)
     throw memberError ?? brandError ?? suggestionError ?? notificationError ?? reportError;
@@ -158,6 +161,7 @@ export async function readDealerNetworkAdminDashboard() {
         resolvedAt: row.resolved_at as string | null,
       };
     }),
+    troubleshooting,
     pendingApplicationCount: applications.filter(
       (application) => application.status === "pending",
     ).length,
