@@ -403,6 +403,9 @@ function DirectoryPanel({
       <div className="rounded-3xl bg-white p-6 shadow-sm">
         <h2 className="text-3xl font-black">Directory Search</h2>
         <p className="mt-2 text-slate-600">
+          <strong>
+            Leave all fields blank and click Search to browse up to 100 members.
+          </strong>{" "}
           Search approved, active, unlocked members. Street addresses and raw
           coordinates are never displayed.
         </p>
