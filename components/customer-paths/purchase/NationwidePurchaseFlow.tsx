@@ -1141,41 +1141,6 @@ function EquipmentSelectionReview({
           </p>
         </section>
 
-        {build.priceItems.length > 0 && (
-          <section className="rounded-[2rem] border border-slate-300 bg-white p-6 lg:col-span-2">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-              Visible Equipment Lines
-            </p>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {build.priceItems.map((item) => (
-                <div
-                  key={item.name}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <p className="font-black text-slate-950">
-                      {item.name}
-                      {item.quantity > 1 ? ` x ${item.quantity}` : ""}
-                    </p>
-                    {selectedProductIsYarbo ? (
-                      <YarboPriceDisplay
-                        item={item}
-                        priceClassName="font-black text-emerald-700"
-                      />
-                    ) : (
-                      <p className="font-black text-emerald-700">
-                        {item.priceCents === null
-                          ? "Contact for pricing"
-                          : formatCents(item.priceCents * item.quantity)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
         {build.selectedPackage && build.packageIncludedItems.length > 0 && (
           <section className="rounded-[2rem] border border-slate-300 bg-white p-6 lg:col-span-2">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
