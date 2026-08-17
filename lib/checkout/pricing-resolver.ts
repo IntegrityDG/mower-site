@@ -6,9 +6,14 @@ import { CheckoutRejectionError, type CatalogSourceReference, type CheckoutReque
 import { resolvePaymentAdjustments } from "./payment-pricing";
 import { applyActivePriceSchedule, selectActivePriceSchedule } from "@/lib/catalog/active-price-schedule";
 import { operationalPriceCents } from "./operational-price";
+import { readPricingProgramSettingsFailSafe } from "@/lib/pricing-program/server";
 
-function currentPrice(row: PriceableRow, now: number) {
-  const price = operationalPriceCents(row, now);
+function currentPrice(
+  row: PriceableRow,
+  now: number,
+  everydayLowPriceEnabled: boolean
+) {
+  const price = operationalPriceCents(row, now, everydayLowPriceEnabled);
   if (price === null || !Number.isSafeInteger(price) || price < 0) throw new CheckoutRejectionError("UNPRICED_ITEM", "A selected catalog item does not have a valid current price.");
   return price;
 }
@@ -23,6 +28,8 @@ const ACCESSORY_BLOCKLIST = new Set(["lymow-5a-charger", "lymow-10a-charger", "y
 async function resolveAccessoryOnlyPricing(input: CheckoutRequest): Promise<OrderPriceSnapshot> {
   if (input.selection.variantId || input.selection.packageId || input.selection.includeBaseProduct || input.selection.options.length === 0) throw new CheckoutRejectionError("MISSING_CONFIGURATION", "Choose at least one eligible accessory.");
   const supabase = getSupabaseServiceClient();
+  const { everydayLowPriceEnabled } =
+    await readPricingProgramSettingsFailSafe();
   const optionIds = input.selection.options.map((item) => item.optionId);
   const optionsResult = await supabase.from("catalog_options").select("*").in("id", optionIds);
   const options = ensure(optionsResult, "Options");
@@ -52,7 +59,7 @@ async function resolveAccessoryOnlyPricing(input: CheckoutRequest): Promise<Orde
     const schedule = selectActivePriceSchedule(schedules, "option", option.id, now);
     if (schedule) sources.push({ table: "catalog_price_schedules", id: schedule.id });
     sources.push({ table: "catalog_options", id: option.id });
-    const amount = currentPrice(applyActivePriceSchedule(option, schedule), now);
+    const amount = currentPrice(applyActivePriceSchedule(option, schedule), now, everydayLowPriceEnabled);
     return { itemType: "option", sourceId: option.id, sku: null, name: checkoutDisplayName(option), description: option.description, quantity: selected.quantity, unitAmountCents: amount, extendedAmountCents: amount * selected.quantity, includedInPackagePrice: false, parentSourceId: null };
   });
   const subtotal = chargeable.reduce((sum, item) => sum + item.extendedAmountCents, 0);
@@ -64,6 +71,8 @@ async function resolveAccessoryOnlyPricing(input: CheckoutRequest): Promise<Orde
 export async function resolveAuthoritativeOrderPricing(input: CheckoutRequest): Promise<OrderPriceSnapshot> {
   if (input.selection.purchaseMode === "accessories") return resolveAccessoryOnlyPricing(input);
   const supabase = getSupabaseServiceClient();
+  const { everydayLowPriceEnabled } =
+    await readPricingProgramSettingsFailSafe();
   const productResult = await supabase.from("catalog_products").select("*").eq("id", input.selection.productId).limit(1);
   if (productResult.error) throw new Error(`Product: ${productResult.error.message}`);
   const product = productResult.data?.[0];
@@ -85,9 +94,9 @@ export async function resolveAuthoritativeOrderPricing(input: CheckoutRequest): 
     const schedule = selectActivePriceSchedule(schedules, type, row.id, now);
     if (schedule) {
       sources.push({ table: "catalog_price_schedules", id: schedule.id });
-      return currentPrice(applyActivePriceSchedule(row, schedule), now);
+      return currentPrice(applyActivePriceSchedule(row, schedule), now, everydayLowPriceEnabled);
     }
-    return currentPrice(row, now);
+    return currentPrice(row, now, everydayLowPriceEnabled);
   };
   const chargeable: OrderPriceItem[] = [];
   const included: OrderPriceItem[] = [];

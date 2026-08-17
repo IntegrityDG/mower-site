@@ -1,13 +1,15 @@
-export type OperationalPriceRow = {
-  regular_price_cents: number | null;
-  sale_price_cents: number | null;
-  sale_starts_at: string | null;
-  sale_ends_at: string | null;
-};
+﻿import { sellingPriceCents, type PricingPolicyRow } from "@/lib/pricing-program/policy";
 
-/** Checkout price precedence is active temporary sale, then IDS everyday price. */
-export function operationalPriceCents(row: OperationalPriceRow, now = Date.now()) {
-  const starts = row.sale_starts_at ? new Date(row.sale_starts_at).getTime() : Number.NEGATIVE_INFINITY;
-  const ends = row.sale_ends_at ? new Date(row.sale_ends_at).getTime() : Number.POSITIVE_INFINITY;
-  return row.sale_price_cents !== null && now >= starts && now <= ends ? row.sale_price_cents : row.regular_price_cents;
+export type OperationalPriceRow = PricingPolicyRow;
+
+/**
+ * Checkout price precedence:
+ * active temporary sale, then the currently enabled IDS pricing program.
+ */
+export function operationalPriceCents(
+  row: OperationalPriceRow,
+  now = Date.now(),
+  everydayLowPriceEnabled = true
+) {
+  return sellingPriceCents(row, everydayLowPriceEnabled, now);
 }

@@ -13,6 +13,7 @@ import { customerFacingOptions } from "@/lib/catalog/customer-facing-options";
 import { getSupabaseCatalogClient } from "@/lib/supabase";
 import type { ActivePriceSchedule, PriceScheduleTarget } from "@/lib/catalog/active-price-schedule";
 import { scheduledPublicPrice, type PublicPriceRow } from "@/lib/catalog/public-price";
+import { readPricingProgramSettingsFailSafe } from "@/lib/pricing-program/server";
 import {
   catalogAvailabilityFromPublicStatus,
   PUBLIC_CATALOG_STATUSES,
@@ -73,6 +74,8 @@ export async function loadPublicCatalog(
 
     const productIds = products.map((product) => product.id);
     const now = Date.now();
+    const { everydayLowPriceEnabled } =
+      await readPricingProgramSettingsFailSafe();
     const [
       variantsResult,
       optionGroupsResult,
@@ -271,7 +274,7 @@ export async function loadPublicCatalog(
       accessoryPriceText: option.accessory_price_text ?? null,
       manufacturerName: option.manufacturer_name ?? null,
       ...catalogAvailabilityFromPublicStatus(option.public_status),
-      ...scheduledPublicPrice(option as PublicPriceRow, schedules, "option", option.id, now).price,
+      ...scheduledPublicPrice(option as PublicPriceRow, schedules, "option", option.id, now, everydayLowPriceEnabled).price,
     }));
 
     const normalizedProducts: CatalogProduct[] = products.map((product) => {
@@ -279,7 +282,7 @@ export async function loadPublicCatalog(
       const publicPrice = (row: PublicPriceRow, target: PriceScheduleTarget, targetId: string) =>
         salesMode === "quote_only"
           ? quoteOnlyPublicPrice
-          : scheduledPublicPrice(row, schedules, target, targetId, now).price;
+          : scheduledPublicPrice(row, schedules, target, targetId, now, everydayLowPriceEnabled).price;
       const productMedia = media
         .filter((item) => item.product_id === product.id)
         .map((item) => ({

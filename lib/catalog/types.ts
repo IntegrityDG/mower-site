@@ -4,6 +4,8 @@ export type CatalogPrice = {
   regularPriceCents: number | null;
   salePriceCents: number | null;
   currentPriceCents: number | null;
+  /** Global IDS Everyday Low Price program state used for customer-facing display. */
+  everydayLowPriceEnabled?: boolean;
   showPublicPrice: boolean;
   contactForPricing: boolean;
   promotionLabel: string | null;
