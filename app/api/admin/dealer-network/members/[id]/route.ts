@@ -1,6 +1,7 @@
 import { requireDealerNetworkAdmin } from "@/lib/dealer-network/admin-auth";
 import {
   adminUpdateMemberProfile,
+  deleteDealerMember,
   requireValidAdminId,
   retryMemberGeocode,
   setMemberAccountState,
@@ -31,6 +32,33 @@ export async function PATCH(
       error instanceof Error && error.name === "DealerNetworkAdminError";
     return Response.json(
       { error: unauthorized ? "Unauthorized" : "Member could not be updated." },
+      { status: unauthorized ? 401 : 400 },
+    );
+  }
+}
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    await requireDealerNetworkAdmin();
+    const id = requireValidAdminId((await params).id);
+    const result = await deleteDealerMember(id);
+
+    return Response.json({
+      success: true,
+      storageCleanupWarning: result.storageCleanupWarning,
+    });
+  } catch (error) {
+    const unauthorized =
+      error instanceof Error && error.name === "DealerNetworkAdminError";
+
+    return Response.json(
+      {
+        error: unauthorized
+          ? "Unauthorized"
+          : "Member could not be permanently deleted.",
+      },
       { status: unauthorized ? 401 : 400 },
     );
   }

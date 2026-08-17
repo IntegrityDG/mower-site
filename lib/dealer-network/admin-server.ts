@@ -29,6 +29,7 @@ import {
   MESSAGE_BUCKET,
   MESSAGE_SIGNED_READ_SECONDS,
 } from "./messaging-storage";
+import { TROUBLESHOOTING_BUCKET } from "./troubleshooting-storage";
 import {
   readBoundedText,
   safeHttpUrl,
@@ -56,6 +57,7 @@ export async function readDealerNetworkAdminDashboard() {
     client
       .from("dealer_network_members")
       .select(memberColumns)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false }),
     client
       .from("dealer_network_brands")
@@ -480,6 +482,114 @@ export async function setMemberAccountState(memberId: string, input: unknown) {
     });
 }
 
+async function removeDealerNetworkStorageObjects(
+  bucket: string,
+  paths: Array<string | null | undefined>,
+) {
+  const uniquePaths = [
+    ...new Set(paths.filter((path): path is string => Boolean(path))),
+  ];
+
+  if (!uniquePaths.length) return null;
+
+  const { error } = await getSupabaseServiceClient()
+    .storage.from(bucket)
+    .remove(uniquePaths);
+
+  return error ? `${bucket}: ${error.message}` : null;
+}
+
+export async function deleteDealerMember(memberId: string) {
+  const client = getSupabaseServiceClient();
+
+  const { data: member, error: memberError } = await client
+    .from("dealer_network_members")
+    .select("id,application_id,logo_path")
+    .eq("id", memberId)
+    .maybeSingle();
+
+  if (memberError) throw memberError;
+  if (!member) throw new Error("MEMBER_NOT_FOUND");
+
+  const applicationId = member.application_id as string | null;
+
+  const [
+    certificationsResult,
+    messageUploadsResult,
+    troubleshootingUploadsResult,
+  ] = await Promise.all([
+    applicationId
+      ? client
+          .from("dealer_network_application_certifications")
+          .select("evidence_path")
+          .eq("application_id", applicationId)
+      : Promise.resolve({
+          data: [] as Array<{ evidence_path: string | null }>,
+          error: null,
+        }),
+    client
+      .from("dealer_network_message_uploads")
+      .select("storage_path")
+      .eq("owner_member_id", memberId),
+    client
+      .from("dealer_network_troubleshooting_uploads")
+      .select("storage_path")
+      .eq("owner_member_id", memberId),
+  ]);
+
+  const preflightError =
+    certificationsResult.error ??
+    messageUploadsResult.error ??
+    troubleshootingUploadsResult.error;
+
+  if (preflightError) throw preflightError;
+
+  const certificationPaths = (certificationsResult.data ?? []).map(
+    (row) => row.evidence_path,
+  );
+
+  const messageUploadPaths = (messageUploadsResult.data ?? []).map(
+    (row) => row.storage_path,
+  );
+
+  const troubleshootingUploadPaths = (
+    troubleshootingUploadsResult.data ?? []
+  ).map((row) => row.storage_path);
+
+  const { data, error } = await client.rpc("dealer_network_delete_member", {
+    p_member_id: memberId,
+  });
+
+  if (error) throw error;
+
+  const cleanupResults = await Promise.all([
+    removeDealerNetworkStorageObjects("dealer-network-private", [
+      member.logo_path,
+      ...certificationPaths,
+    ]),
+    removeDealerNetworkStorageObjects(MESSAGE_BUCKET, messageUploadPaths),
+    removeDealerNetworkStorageObjects(
+      TROUBLESHOOTING_BUCKET,
+      troubleshootingUploadPaths,
+    ),
+  ]);
+
+  const cleanupErrors = cleanupResults.filter(
+    (value): value is string => Boolean(value),
+  );
+
+  if (cleanupErrors.length) {
+    console.error("Dealer member storage cleanup incomplete", {
+      memberId,
+      cleanupErrors,
+    });
+  }
+
+  return {
+    deletion: data,
+    storageCleanupWarning: cleanupErrors.length > 0,
+  };
+}
 export async function updateDealerReport(reportId: string, input: unknown) {
   const body = input && typeof input === "object" ? input as Record<string, unknown> : {};
   const status = body.status as ReportStatus;

@@ -211,7 +211,7 @@ export default function DealerNetworkAdmin() {
   if (authed === null)
     return (
       <main className="min-h-screen bg-slate-100 p-8">
-        Loading Dealer Network administration…
+        Loading Dealer Network administrationâ€¦
       </main>
     );
   if (!authed)
@@ -416,7 +416,7 @@ function ApplicationsTab({
               </span>
             </span>
             <span className="mt-1 block text-sm">
-              {application.applicantName} ·{" "}
+              {application.applicantName} Â·{" "}
               {new Date(application.createdAt).toLocaleDateString()}
             </span>
           </button>
@@ -427,7 +427,7 @@ function ApplicationsTab({
           <div>
             <h2 className="text-3xl font-black">{selected.companyName}</h2>
             <p className="font-bold text-emerald-700">
-              {selected.applicantName} · {ROLE_LABELS[selected.role]}
+              {selected.applicantName} Â· {ROLE_LABELS[selected.role]}
             </p>
           </div>
           <StatusBadge>
@@ -446,7 +446,7 @@ function ApplicationsTab({
               selected.country,
             ]
               .filter(Boolean)
-              .join(" · ")}
+              .join(" Â· ")}
           />
           <Detail
             label="Website / Social"
@@ -456,7 +456,7 @@ function ApplicationsTab({
           <Detail label="Service Region" value={selected.serviceRegion} />
           <Detail
             label="Business Type"
-            value={`${BUSINESS_TYPE_LABELS[selected.businessType]}${selected.otherBusinessType ? ` — ${selected.otherBusinessType}` : ""}`}
+            value={`${BUSINESS_TYPE_LABELS[selected.businessType]}${selected.otherBusinessType ? ` â€” ${selected.otherBusinessType}` : ""}`}
           />
           <Detail
             label="Certification / Training Answer"
@@ -484,10 +484,10 @@ function ApplicationsTab({
               <div key={item.id} className="rounded-xl border p-4">
                 <b>{item.certificationName}</b>
                 <p className="text-sm text-slate-600">
-                  {item.brandOrManufacturer} · {item.issuingOrganization}
+                  {item.brandOrManufacturer} Â· {item.issuingOrganization}
                 </p>
                 <p className="text-xs text-slate-500">
-                  Earned: {item.dateEarned ?? "Not supplied"} · Expires:{" "}
+                  Earned: {item.dateEarned ?? "Not supplied"} Â· Expires:{" "}
                   {item.expirationDate ?? "Not supplied"}
                 </p>
                 {item.evidenceUrl && (
@@ -521,7 +521,7 @@ function ApplicationsTab({
                   <b>
                     {duplicate.recordType}: {duplicate.companyName}
                   </b>{" "}
-                  · matched {duplicate.reason}
+                  Â· matched {duplicate.reason}
                 </p>
               ))}
             </div>
@@ -625,6 +625,52 @@ function MembersTab({
     );
     if (response.ok) await reload();
   }
+  async function permanentlyDeleteMember() {
+    if (!selected) return;
+
+    const firstConfirmed = window.confirm(
+      `Permanently delete ${selected.memberName} / ${selected.companyName}?
+
+This will permanently remove their account, login access, application, contact information, profile, brand affiliations, friends, blocks, suggestions, reports, and private account data.
+
+Historical messages and troubleshooting knowledge will remain only as anonymized "Deleted Member" records.
+
+This action cannot be undone.`,
+    );
+
+    if (!firstConfirmed) return;
+
+    const typed = window.prompt(
+      'FINAL CONFIRMATION: Type DELETE exactly to permanently delete this member.',
+    );
+
+    if (typed !== "DELETE") {
+      notify("Permanent deletion canceled.");
+      return;
+    }
+
+    const response = await fetch(
+      `/api/admin/dealer-network/members/${selected.id}`,
+      { method: "DELETE" },
+    );
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      notify(payload.error ?? "Member could not be permanently deleted.");
+      return;
+    }
+
+    setSelectedId("");
+
+    notify(
+      payload.storageCleanupWarning
+        ? "Member permanently deleted. Database deletion completed, but one or more private storage files could not be removed and were logged for follow-up."
+        : "Member permanently deleted and personal account data removed.",
+    );
+
+    await reload();
+  }
   async function decide(id: string, decision: "approve" | "reject") {
     const response = await fetch(
       `/api/admin/dealer-network/member-brands/${id}`,
@@ -665,7 +711,7 @@ function MembersTab({
             >
               <b>{member.companyName}</b>
               <span className="mt-1 block text-sm">
-                {member.memberName} · {MEMBER_STATUS_LABELS[member.status]} ·{" "}
+                {member.memberName} Â· {MEMBER_STATUS_LABELS[member.status]} Â·{" "}
                 {member.accountLocked ? "Locked" : "Unlocked"}
               </span>
             </button>
@@ -675,7 +721,7 @@ function MembersTab({
       <article className="rounded-3xl bg-white p-6 shadow-sm">
         <h2 className="text-3xl font-black">{selected.companyName}</h2>
         <p className="font-bold text-emerald-700">
-          {selected.memberName} · {ROLE_LABELS[selected.role]}
+          {selected.memberName} Â· {ROLE_LABELS[selected.role]}
         </p>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl bg-slate-100 p-4">
@@ -850,7 +896,7 @@ function MembersTab({
                 <span>
                   <b>{brand.brand.name}</b>
                   <span className="block text-sm capitalize text-slate-600">
-                    {brand.relationship_type} · {brand.approval_status}
+                    {brand.relationship_type} Â· {brand.approval_status}
                   </span>
                 </span>
                 {brand.approval_status === "pending" && (
@@ -911,6 +957,36 @@ function MembersTab({
             className="mt-4 rounded-xl border px-4 py-2 font-black"
           >
             Retry Geocoding
+          </button>
+        </section>
+
+        <section className="mt-7 rounded-2xl border-2 border-red-300 bg-red-50 p-5">
+          <p className="text-xs font-black uppercase tracking-[.18em] text-red-700">
+            Danger Zone
+          </p>
+
+          <h3 className="mt-1 text-xl font-black text-red-950">
+            Permanently Delete Member
+          </h3>
+
+          <p className="mt-2 text-sm leading-6 text-red-900">
+            Permanently removes this member&apos;s account, login credentials,
+            application, contact information, profile data, relationships,
+            suggestions, reports, and other private account records.
+            Historical messages and troubleshooting knowledge are retained only
+            under the anonymous name &quot;Deleted Member&quot;.
+          </p>
+
+          <p className="mt-2 text-sm font-black text-red-950">
+            This cannot be undone.
+          </p>
+
+          <button
+            type="button"
+            onClick={() => void permanentlyDeleteMember()}
+            className="mt-4 rounded-xl bg-red-800 px-5 py-3 font-black text-white hover:bg-red-900"
+          >
+            Permanently Delete Member
           </button>
         </section>
       </article>
@@ -1023,7 +1099,7 @@ function BrandsTab({
             <div>
               <h3 className="text-xl font-black">{brand.name}</h3>
               <p className="text-sm capitalize text-slate-600">
-                {brand.status} · order {brand.sortOrder}
+                {brand.status} Â· order {brand.sortOrder}
               </p>
               <p className="mt-1 text-sm text-slate-500">{brand.description}</p>
             </div>
@@ -1075,8 +1151,8 @@ function SuggestionsTab({
               </p>
               <h2 className="mt-1 text-2xl font-black">{suggestion.subject}</h2>
               <p className="text-sm text-slate-500">
-                {suggestion.member?.member_name} ·{" "}
-                {suggestion.company_name_snapshot} · {suggestion.member?.email}
+                {suggestion.member?.member_name} Â·{" "}
+                {suggestion.company_name_snapshot} Â· {suggestion.member?.email}
               </p>
             </div>
             <StatusBadge>{suggestion.status}</StatusBadge>
@@ -1184,7 +1260,7 @@ function TroubleshootingTab({
             <div>
               <h2 className="text-2xl font-black">{entry.title}</h2>
               <p className="mt-1 text-sm text-slate-500">
-                {entry.memberName} · {entry.companyName} · Submitted{" "}
+                {entry.memberName} Â· {entry.companyName} Â· Submitted{" "}
                 {new Date(entry.createdAt).toLocaleString()}
               </p>
             </div>
@@ -1205,7 +1281,7 @@ function TroubleshootingTab({
             </div>
             <div>
               <dt className="font-black">System / Bad Part</dt>
-              <dd>{entry.systemArea}{entry.badPart ? ` · ${entry.badPart}` : ""}</dd>
+              <dd>{entry.systemArea}{entry.badPart ? ` Â· ${entry.badPart}` : ""}</dd>
             </div>
           </dl>
           <div className="mt-5 grid gap-4 lg:grid-cols-2">
@@ -1436,7 +1512,7 @@ function ReportsTab({
             {messages?.map((message) => (
               <div key={message.id} className="rounded-xl bg-slate-100 p-3">
                 <p className="text-xs font-black text-slate-500">
-                  {message.senderMemberId === selected.reporterMemberId ? selected.reporterName : selected.reportedName} · {new Date(message.createdAt).toLocaleString()}
+                  {message.senderMemberId === selected.reporterMemberId ? selected.reporterName : selected.reportedName} Â· {new Date(message.createdAt).toLocaleString()}
                 </p>
                 {message.body && <p className="mt-2 whitespace-pre-wrap break-words">{message.body}</p>}
                 {message.attachments.length > 0 && (
@@ -1450,7 +1526,7 @@ function ReportsTab({
                 )}
               </div>
             ))}
-            {messages === null && <p>Loading reported conversation…</p>}
+            {messages === null && <p>Loading reported conversationâ€¦</p>}
             {messages?.length === 0 && <p>No messages are available.</p>}
           </div>
           <label className="mt-5 block font-bold">
@@ -1543,8 +1619,8 @@ function SecurityTab({
                 </span>
               </div>
               <p className="mt-1 text-sm text-slate-600">
-                {MEMBER_STATUS_LABELS[member.status]} ·{" "}
-                {member.security?.activeSessionCount ?? 0} active session(s) ·
+                {MEMBER_STATUS_LABELS[member.status]} Â·{" "}
+                {member.security?.activeSessionCount ?? 0} active session(s) Â·
                 Geocode {member.security?.geocodeStatus ?? "unknown"}
               </p>
             </div>
@@ -1574,7 +1650,7 @@ function NotificationList({ notices }: { notices: Notice[] }) {
               )}
             </span>
             <b className="uppercase">
-              {notice.status} · {notice.attempt_count} attempt(s)
+              {notice.status} Â· {notice.attempt_count} attempt(s)
             </b>
           </div>
         ))}
