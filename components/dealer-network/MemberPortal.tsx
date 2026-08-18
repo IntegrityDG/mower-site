@@ -30,11 +30,17 @@ import {
 import { uploadMessagePhoto } from "@/lib/dealer-network/message-upload";
 import { US_STATES } from "@/lib/dealer-network/validation";
 import TroubleshootingPanel from "./TroubleshootingPanel";
+import AnnouncementsPanel, {
+  type MemberBroadcast,
+} from "./AnnouncementsPanel";
+import MemberInvitationPanel from "./MemberInvitationPanel";
 
 type Tab =
   | "directory"
   | "friends"
   | "messages"
+  | "announcements"
+  | "invite"
   | "profile"
   | "troubleshooting"
   | "suggestions";
@@ -64,6 +70,12 @@ export default function MemberPortal() {
     [conversations, setConversations] = useState<ConversationSummary[]>([]),
     [unreadTotal, setUnreadTotal] = useState(0),
     [openConversationId, setOpenConversationId] = useState<string | null>(null);
+  const [broadcasts, setBroadcasts] =
+    useState<MemberBroadcast[]>([]);
+
+  const [unreadBroadcastTotal, setUnreadBroadcastTotal] =
+    useState(0);
+
   const searchForm = useRef<HTMLFormElement>(null);
   const load = useCallback(async () => {
     const response = await fetch("/api/dealer-network/auth/session");
@@ -75,7 +87,7 @@ export default function MemberPortal() {
     setAccount(payload.account);
     setLoading(false);
     if (!payload.account.effectiveLocked) {
-      const [profileResponse, brandResponse, suggestionResponse, friendResponse, blockResponse, conversationResponse] =
+      const [profileResponse, brandResponse, suggestionResponse, friendResponse, blockResponse, conversationResponse, broadcastResponse] =
         await Promise.all([
           fetch("/api/dealer-network/member/profile"),
           fetch("/api/dealer-network/brands"),
@@ -83,6 +95,7 @@ export default function MemberPortal() {
           fetch("/api/dealer-network/member/friends"),
           fetch("/api/dealer-network/member/blocks"),
           fetch("/api/dealer-network/member/messages/conversations"),
+          fetch("/api/dealer-network/member/broadcasts"),
         ]);
       if (profileResponse.ok)
         setProfile((await profileResponse.json()).profile);
@@ -98,6 +111,19 @@ export default function MemberPortal() {
         const communication = await conversationResponse.json();
         setConversations(communication.conversations ?? []);
         setUnreadTotal(communication.unreadTotal ?? 0);
+      }
+
+      if (broadcastResponse.ok) {
+        const announcements =
+          await broadcastResponse.json();
+
+        setBroadcasts(
+          announcements.broadcasts ?? [],
+        );
+
+        setUnreadBroadcastTotal(
+          announcements.unreadTotal ?? 0,
+        );
       }
     }
   }, []);
@@ -115,11 +141,43 @@ export default function MemberPortal() {
     const nextAccount = (await sessionResponse.json()).account as AccountState;
     setAccount(nextAccount);
     if (nextAccount.effectiveLocked) return;
-    const response = await fetch("/api/dealer-network/member/messages/conversations");
-    if (!response.ok) return;
-    const payload = await response.json();
-    setConversations(payload.conversations ?? []);
-    setUnreadTotal(payload.unreadTotal ?? 0);
+    const [
+      conversationResponse,
+      broadcastResponse,
+    ] = await Promise.all([
+      fetch(
+        "/api/dealer-network/member/messages/conversations",
+      ),
+      fetch(
+        "/api/dealer-network/member/broadcasts",
+      ),
+    ]);
+
+    if (conversationResponse.ok) {
+      const communication =
+        await conversationResponse.json();
+
+      setConversations(
+        communication.conversations ?? [],
+      );
+
+      setUnreadTotal(
+        communication.unreadTotal ?? 0,
+      );
+    }
+
+    if (broadcastResponse.ok) {
+      const announcements =
+        await broadcastResponse.json();
+
+      setBroadcasts(
+        announcements.broadcasts ?? [],
+      );
+
+      setUnreadBroadcastTotal(
+        announcements.unreadTotal ?? 0,
+      );
+    }
   }, []);
   useEffect(() => {
     if (!account || account.effectiveLocked) return;
@@ -249,6 +307,11 @@ export default function MemberPortal() {
               ["directory", "Directory Search"],
               ["friends", "My Friends"],
               ["messages", `Messages${unreadTotal ? ` (${unreadTotal})` : ""}`],
+              [
+                "announcements",
+                `IDS Announcements${unreadBroadcastTotal ? ` (${unreadBroadcastTotal})` : ""}`,
+              ],
+              ["invite", "Invite Someone"],
               ["profile", "My Profile"],
               ["troubleshooting", "Troubleshooting"],
               ["suggestions", "Contact IDS / Suggest an Improvement"],
@@ -307,6 +370,18 @@ export default function MemberPortal() {
             onRefresh={refreshCommunication}
             onMessage={setMessage}
             onBlock={setBlock}
+          />
+        )}{" "}
+        {tab === "announcements" && (
+          <AnnouncementsPanel
+            broadcasts={broadcasts}
+            onRefresh={refreshCommunication}
+            onMessage={setMessage}
+          />
+        )}{" "}
+        {tab === "invite" && (
+          <MemberInvitationPanel
+            onMessage={setMessage}
           />
         )}{" "}
         {tab === "profile" && profile && (

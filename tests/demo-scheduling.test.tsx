@@ -506,7 +506,19 @@ test("duration migration changes only the demo setting to 240 minutes", () => {
 
 const areaId = "10000000-0000-4000-8000-000000000010";
 const cityId = "10000000-0000-4000-8000-000000000011";
-const assignmentInput = { serviceDate: "2026-08-18", regionId: areaId, cityId: null, customCity: null, internalNote: null };
+const assignmentInput: {
+  serviceDate: string;
+  regionId: string;
+  cityId: string | null;
+  customCity: string | null;
+  internalNote: string | null;
+} = {
+  serviceDate: "2026-08-18",
+  regionId: areaId,
+  cityId: null,
+  customCity: null,
+  internalNote: null,
+};
 const areaAssignment: DemoAreaAssignment = { id: "10000000-0000-4000-8000-000000000012", ...assignmentInput, createdAt: "2026-08-14T00:00:00Z", updatedAt: "2026-08-14T00:00:00Z" };
 const southernIllinois: DemoServiceArea = { id: areaId, name: "Southern Illinois", description: null, active: true, sortOrder: 130, createdAt: "2026-08-14T00:00:00Z", updatedAt: "2026-08-14T00:00:00Z" };
 const marion: DemoServiceAreaCity = { id: cityId, regionId: areaId, name: "Marion", stateAbbreviation: "IL", active: true, sortOrder: 80, createdAt: "2026-08-14T00:00:00Z", updatedAt: "2026-08-14T00:00:00Z" };

@@ -21,8 +21,9 @@ export function mapBrand(row: Record<string, unknown>): DealerBrand {
   return {
     id: String(row.id),
     name: String(row.name),
-    description: row.description as string | null,
-    websiteUrl: row.website_url as string | null,
+    models: Array.isArray(row.models)
+      ? row.models.map((model) => String(model))
+      : [],
     status: row.status as DealerBrand["status"],
     sortOrder: Number(row.sort_order),
   };
@@ -65,7 +66,7 @@ export function mapApplication(row: Record<string, unknown>) {
 export async function readActiveDealerBrands() {
   const { data, error } = await getSupabaseServiceClient()
     .from("dealer_network_brands")
-    .select("id,name,description,website_url,status,sort_order")
+    .select("id,name,models,status,sort_order")
     .eq("status", "active")
     .order("sort_order")
     .order("name");

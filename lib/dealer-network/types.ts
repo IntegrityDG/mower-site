@@ -47,7 +47,9 @@ export type NotificationEventType =
   | "applicant_denied"
   | "applicant_more_information"
   | "member_pin_reset"
-  | "member_new_message";
+  | "member_new_message"
+  | "member_broadcast"
+  | "member_invitation";
 
 export type ReportStatus = "new" | "reviewed" | "resolved";
 export type TroubleshootingStatus = "pending" | "approved" | "denied";
@@ -67,8 +69,7 @@ export type AccountState = {
 export type DealerBrand = {
   id: string;
   name: string;
-  description: string | null;
-  websiteUrl: string | null;
+  models: string[];
   status: BrandStatus;
   sortOrder: number;
 };

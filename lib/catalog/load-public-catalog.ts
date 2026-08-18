@@ -10,9 +10,20 @@ import type {
 } from "@/lib/catalog/types";
 import { salesModeForProductSlug } from "@/lib/catalog/sales-mode";
 import { customerFacingOptions } from "@/lib/catalog/customer-facing-options";
-import { getSupabaseCatalogClient } from "@/lib/supabase";
-import type { ActivePriceSchedule, PriceScheduleTarget } from "@/lib/catalog/active-price-schedule";
+import {
+  getSupabaseCatalogClient,
+} from "@/lib/supabase";
+import type { ActivePriceSchedule } from "@/lib/catalog/active-price-schedule";
 import { scheduledPublicPrice, type PublicPriceRow } from "@/lib/catalog/public-price";
+import {
+  buildPublicPromotionMap,
+  publicPromotionForPrice,
+  type PublicPromotionTargetKind,
+} from "@/lib/catalog/public-price-promotion";
+
+import {
+  readPublicPromotionRecordsFailSafe,
+} from "@/lib/catalog/public-price-promotion-server";
 import { readPricingProgramSettingsFailSafe } from "@/lib/pricing-program/server";
 import {
   catalogAvailabilityFromPublicStatus,
@@ -34,6 +45,7 @@ const quoteOnlyPublicPrice: CatalogPrice = {
   contactForPricing: true,
   promotionLabel: null,
   saleIsActive: false,
+  publicPromotion: null,
 };
 
 function ensureData<T>(
@@ -84,6 +96,7 @@ export async function loadPublicCatalog(
       pagesResult,
       mediaResult,
       schedulesResult,
+      promotionRows,
     ] = await Promise.all([
       supabase
         .from("catalog_product_variants")
@@ -127,6 +140,7 @@ export async function loadPublicCatalog(
         .from("catalog_price_schedules")
         .select("id, schedule_name, product_id, variant_id, option_id, package_id, service_id, product_service_id, starts_at, ends_at, regular_price_cents, sale_price_cents, promotion_label, show_public_price, contact_for_pricing, public_status")
         .eq("public_status", "active"),
+      readPublicPromotionRecordsFailSafe(),
     ]);
 
     const variants = ensureData("Variants", variantsResult);
@@ -136,6 +150,35 @@ export async function loadPublicCatalog(
     const pages = ensureData("Product pages", pagesResult);
     const media = ensureData("Product media", mediaResult);
     const schedules = ensureData("Price schedules", schedulesResult) as ActivePriceSchedule[];
+
+    const promotionMap =
+      buildPublicPromotionMap(promotionRows);
+
+    const publicPriceFor = (
+      row: PublicPriceRow,
+      target: PublicPromotionTargetKind,
+      targetId: string,
+    ): CatalogPrice => {
+      const scheduled = scheduledPublicPrice(
+        row,
+        schedules,
+        target,
+        targetId,
+        now,
+        everydayLowPriceEnabled,
+      );
+
+      return {
+        ...scheduled.price,
+        publicPromotion: publicPromotionForPrice({
+          price: scheduled.price,
+          kind: target,
+          id: targetId,
+          scheduleId: scheduled.schedule?.id ?? null,
+          promotionMap,
+        }),
+      };
+    };
 
     const variantIds = variants.map((variant) => variant.id);
     const packageIds = packages.map((catalogPackage) => catalogPackage.id);
@@ -274,15 +317,23 @@ export async function loadPublicCatalog(
       accessoryPriceText: option.accessory_price_text ?? null,
       manufacturerName: option.manufacturer_name ?? null,
       ...catalogAvailabilityFromPublicStatus(option.public_status),
-      ...scheduledPublicPrice(option as PublicPriceRow, schedules, "option", option.id, now, everydayLowPriceEnabled).price,
+      ...publicPriceFor(
+        option as PublicPriceRow,
+        "option",
+        option.id,
+      ),
     }));
 
     const normalizedProducts: CatalogProduct[] = products.map((product) => {
       const salesMode = salesModeForProductSlug(product.slug);
-      const publicPrice = (row: PublicPriceRow, target: PriceScheduleTarget, targetId: string) =>
+      const publicPrice = (
+        row: PublicPriceRow,
+        target: PublicPromotionTargetKind,
+        targetId: string,
+      ) =>
         salesMode === "quote_only"
           ? quoteOnlyPublicPrice
-          : scheduledPublicPrice(row, schedules, target, targetId, now, everydayLowPriceEnabled).price;
+          : publicPriceFor(row, target, targetId);
       const productMedia = media
         .filter((item) => item.product_id === product.id)
         .map((item) => ({

@@ -1,3 +1,9 @@
+export type CatalogPricePromotion = {
+  context: "ids" | "sale";
+  message: string | null;
+  imageUrl: string | null;
+};
+
 export type CatalogPrice = {
   /** Informational MSRP only. Never use for selection, checkout, or totals. */
   displayMsrpPriceCents?: number | null;
@@ -11,6 +17,8 @@ export type CatalogPrice = {
   promotionLabel: string | null;
   saleIsActive: boolean;
   saleEndsAt?: string | null;
+  /** Public promotional content for the price that is actually active. */
+  publicPromotion?: CatalogPricePromotion | null;
 };
 
 export type CatalogPublicStatus = "active" | "unavailable";

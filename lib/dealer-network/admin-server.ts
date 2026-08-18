@@ -11,6 +11,8 @@ import {
 import {
   deliverDealerNotification,
   notifyDealerActivation,
+  notifyDealerBroadcast,
+  notifyDealerMemberInvitation,
   notifyDealerDecision,
   notifyNewDealerApplication,
   notifyNewDealerMessage,
@@ -32,7 +34,6 @@ import {
 import { TROUBLESHOOTING_BUCKET } from "./troubleshooting-storage";
 import {
   readBoundedText,
-  safeHttpUrl,
   validateMemberProfile,
   validateUuid,
 } from "./validation";
@@ -62,7 +63,7 @@ export async function readDealerNetworkAdminDashboard() {
     client
       .from("dealer_network_brands")
       .select(
-        "id,name,description,website_url,status,sort_order,created_at,updated_at",
+        "id,name,models,status,sort_order,created_at,updated_at",
       )
       .order("sort_order")
       .order("name"),
@@ -228,7 +229,7 @@ export async function retryDealerNotification(eventId: string, origin: string) {
   const client = getSupabaseServiceClient();
   const { data: event, error } = await client
     .from("dealer_network_notification_events")
-    .select("id,event_key,event_type,application_id,member_id,conversation_id,message_id,status")
+    .select("id,event_key,event_type,application_id,member_id,conversation_id,message_id,broadcast_id,invitation_id,status")
     .eq("id", eventId)
     .single();
   if (error) throw error;
@@ -344,7 +345,133 @@ export async function retryDealerNotification(eventId: string, origin: string) {
       senderName: sender.member_name,
       origin,
     });
-  } else throw new Error("NOTIFICATION_CONTEXT_UNAVAILABLE");
+  } else if (
+    event.event_type === "member_broadcast" &&
+    event.member_id &&
+    event.broadcast_id
+  ) {
+    const [
+      memberResult,
+      broadcastResult,
+    ] = await Promise.all([
+      client
+        .from("dealer_network_members")
+        .select("member_name,email")
+        .eq("id", event.member_id)
+        .single(),
+
+      client
+        .from("dealer_network_broadcasts")
+        .select("subject")
+        .eq("id", event.broadcast_id)
+        .single(),
+    ]);
+
+    const member =
+      memberResult.data;
+
+    const broadcast =
+      broadcastResult.data;
+
+    if (
+      !member ||
+      !broadcast
+    ) {
+      throw new Error(
+        "NOTIFICATION_CONTEXT_UNAVAILABLE",
+      );
+    }
+
+    await notifyDealerBroadcast({
+      broadcastId:
+        event.broadcast_id,
+
+      recipientMemberId:
+        event.member_id,
+
+      recipientName:
+        member.member_name,
+
+      recipientEmail:
+        member.email,
+
+      subject:
+        broadcast.subject,
+
+      origin,
+    });
+  } else if (
+    event.event_type === "member_invitation" &&
+    event.member_id &&
+    event.invitation_id
+  ) {
+    const [
+      inviterResult,
+      invitationResult,
+    ] = await Promise.all([
+      client
+        .from("dealer_network_members")
+        .select("member_name,company_name")
+        .eq("id", event.member_id)
+        .single(),
+
+      client
+        .from("dealer_network_member_invitations")
+        .select(
+          "id,inviter_member_id,invitee_name,invitee_email,personal_message",
+        )
+        .eq("id", event.invitation_id)
+        .eq(
+          "inviter_member_id",
+          event.member_id,
+        )
+        .single(),
+    ]);
+
+    const inviter =
+      inviterResult.data;
+
+    const invitation =
+      invitationResult.data;
+
+    if (
+      !inviter ||
+      !invitation
+    ) {
+      throw new Error(
+        "NOTIFICATION_CONTEXT_UNAVAILABLE",
+      );
+    }
+
+    await notifyDealerMemberInvitation({
+      invitationId:
+        invitation.id,
+
+      inviterMemberId:
+        event.member_id,
+
+      inviterName:
+        inviter.member_name,
+
+      inviterCompanyName:
+        inviter.company_name,
+
+      inviteeName:
+        invitation.invitee_name,
+
+      inviteeEmail:
+        invitation.invitee_email,
+
+      personalMessage:
+        invitation.personal_message,
+
+      origin,
+    });
+  } else {
+    throw new Error(
+      "NOTIFICATION_CONTEXT_UNAVAILABLE",
+    );
+  }
   return { retried: true };
 }
 
@@ -353,39 +480,83 @@ export async function saveDealerBrand(input: unknown, brandId?: string) {
     input && typeof input === "object"
       ? (input as Record<string, unknown>)
       : {};
+
   const name = readBoundedText(body.name, 120);
-  const description = readBoundedText(body.description, 1000) || null;
-  const websiteUrl = safeHttpUrl(body.websiteUrl);
+
+  const rawModels =
+    Array.isArray(body.models)
+      ? body.models
+      : [];
+
+  const modelsAreValid =
+    rawModels.length <= 50 &&
+    rawModels.every(
+      (value) =>
+        typeof value === "string" &&
+        value.trim().length <= 30,
+    );
+
+  const models = [
+    ...new Map(
+      rawModels
+        .map((value) =>
+          readBoundedText(value, 30),
+        )
+        .filter(Boolean)
+        .map((model) => [
+          model.toLowerCase(),
+          model,
+        ]),
+    ).values(),
+  ];
+
   const status = body.status as BrandStatus;
   const sortOrder = Number(body.sortOrder);
+
   if (
     !name ||
     name.length > 120 ||
-    (description && description.length > 1000) ||
-    !["active", "inactive", "archived"].includes(status) ||
+    !modelsAreValid ||
+    !["active", "inactive", "archived"].includes(
+      status,
+    ) ||
     !Number.isInteger(sortOrder) ||
     sortOrder < 0 ||
-    sortOrder > 100000 ||
-    (body.websiteUrl && !websiteUrl)
-  )
+    sortOrder > 100000
+  ) {
     throw new Error("INVALID_BRAND");
+  }
+
   const client = getSupabaseServiceClient();
+
   const values = {
     name,
-    description,
-    website_url: websiteUrl,
+    models,
     status,
     sort_order: sortOrder,
     updated_at: new Date().toISOString(),
   };
+
   const query = brandId
-    ? client.from("dealer_network_brands").update(values).eq("id", brandId)
-    : client.from("dealer_network_brands").insert(values);
+    ? client
+        .from("dealer_network_brands")
+        .update(values)
+        .eq("id", brandId)
+    : client
+        .from("dealer_network_brands")
+        .insert(values);
+
   const { data, error } = await query
-    .select("id,name,description,website_url,status,sort_order")
+    .select(
+      "id,name,models,status,sort_order",
+    )
     .single();
+
   if (error) throw error;
-  return mapBrand(data as Record<string, unknown>);
+
+  return mapBrand(
+    data as Record<string, unknown>,
+  );
 }
 
 export async function decideMemberBrand(

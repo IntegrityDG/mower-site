@@ -451,7 +451,7 @@ test("member UI includes responsive friends, message polling, unread, block, rep
 
 test("admin can disable messaging and sees content only through report workflow", () => {
   const admin = source("components/dealer-network/DealerNetworkAdmin.tsx");
-  assert.match(admin, /Disable.*Enable.*Messaging/s);
+  assert.match(admin, /Disable[\s\S]*Enable[\s\S]*Messaging/);
   assert.match(admin, /Reports \(/);
   assert.match(admin, /report-scoped conversation view/);
   assert.match(

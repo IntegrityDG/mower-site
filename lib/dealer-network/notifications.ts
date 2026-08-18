@@ -4,6 +4,11 @@ import { sendIdsNotification, sendServerEmail } from "@/lib/email";
 import { sanitizeEmailFailure } from "@/lib/email-diagnostics";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { sendNewMessageEmail } from "./new-message-email";
+import { sendDealerBroadcastEmail } from "./broadcast-email";
+import {
+  sendDealerMemberInvitationEmail,
+  type DealerMemberInvitationEmailInput,
+} from "./member-invitation-email";
 import {
   sendSuggestionStatusEmail,
   type SuggestionStatusEmailInput,
@@ -18,6 +23,8 @@ type EventContext = {
   memberId?: string | null;
   conversationId?: string | null;
   messageId?: string | null;
+  broadcastId?: string | null;
+  invitationId?: string | null;
 };
 
 export async function deliverDealerNotification(
@@ -37,12 +44,19 @@ export async function deliverDealerNotification(
   if (error || !data) throw new Error("Notification claim failed.");
   const claim = data as Claim;
   if (!claim.claimed) return "skipped" as const;
-  if (context.conversationId || context.messageId) {
+  if (
+    context.conversationId ||
+    context.messageId ||
+    context.broadcastId ||
+    context.invitationId
+  ) {
     const { error: contextError } = await client
       .from("dealer_network_notification_events")
       .update({
         conversation_id: context.conversationId ?? null,
         message_id: context.messageId ?? null,
+        broadcast_id: context.broadcastId ?? null,
+        invitation_id: context.invitationId ?? null,
       })
       .eq("id", claim.eventId);
     if (contextError) throw new Error("Notification context failed.");
@@ -88,6 +102,56 @@ export function notifyNewDealerMessage(
       messageId: input.messageId,
     },
     () => sendNewMessageEmail(input, sender),
+  );
+}
+
+export function notifyDealerBroadcast(
+  input: {
+    broadcastId: string;
+    recipientMemberId: string;
+    recipientName: string;
+    recipientEmail: string;
+    subject: string;
+    origin: string;
+  },
+  sender = sendServerEmail,
+) {
+  return deliverDealerNotification(
+    {
+      eventKey:
+        `dealer-broadcast:${input.broadcastId}:${input.recipientMemberId}`,
+      eventType: "member_broadcast",
+      memberId:
+        input.recipientMemberId,
+      broadcastId:
+        input.broadcastId,
+    },
+    () =>
+      sendDealerBroadcastEmail(
+        input,
+        sender,
+      ),
+  );
+}
+
+
+export function notifyDealerMemberInvitation(
+  input: DealerMemberInvitationEmailInput,
+  sender = sendServerEmail,
+) {
+  return deliverDealerNotification(
+    {
+      eventKey:
+        `dealer-member-invitation:${input.invitationId}`,
+      eventType: "member_invitation",
+      memberId: input.inviterMemberId,
+      invitationId: input.invitationId,
+    },
+    () =>
+      sendDealerMemberInvitationEmail(
+        input,
+        sender,
+      ),
   );
 }
 

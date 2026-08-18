@@ -1004,26 +1004,103 @@ function BrandsTab({
   reload: () => Promise<void>;
   notify: (value: string) => void;
 }) {
-  const [editing, setEditing] = useState<DealerBrand | null>(null);
-  async function save(event: FormEvent<HTMLFormElement>) {
+  const [editing, setEditing] =
+    useState<DealerBrand | null>(null);
+
+  const [models, setModels] =
+    useState<string[]>([""]);
+
+  function beginEdit(brand: DealerBrand) {
+    setEditing(brand);
+    setModels(
+      brand.models.length
+        ? [...brand.models]
+        : [""],
+    );
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+    setModels([""]);
+  }
+
+  function updateModel(
+    index: number,
+    value: string,
+  ) {
+    setModels((current) =>
+      current.map((model, position) =>
+        position === index ? value : model,
+      ),
+    );
+  }
+
+  function addModel() {
+    setModels((current) => [
+      ...current,
+      "",
+    ]);
+  }
+
+  function removeModel(index: number) {
+    setModels((current) => {
+      const next = current.filter(
+        (_, position) =>
+          position !== index,
+      );
+
+      return next.length ? next : [""];
+    });
+  }
+
+  async function save(
+    event: FormEvent<HTMLFormElement>,
+  ) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget),
-      body = Object.fromEntries(form.entries()),
-      endpoint = editing
-        ? `/api/admin/dealer-network/brands/${editing.id}`
-        : "/api/admin/dealer-network/brands";
+
+    const form =
+      new FormData(event.currentTarget);
+
+    const body = {
+      name: form.get("name"),
+      models: models
+        .map((model) => model.trim())
+        .filter(Boolean),
+      status: form.get("status"),
+      sortOrder: form.get("sortOrder"),
+    };
+
+    const endpoint = editing
+      ? `/api/admin/dealer-network/brands/${editing.id}`
+      : "/api/admin/dealer-network/brands";
+
     const response = await fetch(endpoint, {
       method: editing ? "PATCH" : "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+      },
       body: JSON.stringify(body),
     });
-    notify(response.ok ? "Brand saved." : "Brand could not be saved.");
+
+    const payload =
+      await response.json().catch(() => ({}));
+
+    notify(
+      response.ok
+        ? "Brand saved."
+        : (
+            payload.error ??
+            "Brand could not be saved."
+          ),
+    );
+
     if (response.ok) {
-      setEditing(null);
+      cancelEdit();
       event.currentTarget.reset();
       await reload();
     }
   }
+
   return (
     <section className="mt-7 grid gap-6 lg:grid-cols-[minmax(18rem,.7fr)_minmax(0,1.3fr)]">
       <form
@@ -1032,41 +1109,94 @@ function BrandsTab({
         className="rounded-3xl bg-white p-6 shadow-sm"
       >
         <h2 className="text-2xl font-black">
-          {editing ? "Edit Brand" : "Add Brand"}
+          {editing
+            ? "Edit Brand"
+            : "Add Brand"}
         </h2>
+
         <AdminField
           label="Brand Name"
           name="name"
           value={editing?.name ?? ""}
         />
-        <label className="mt-4 block font-bold">
-          Description
-          <textarea
-            name="description"
-            defaultValue={editing?.description ?? ""}
-            rows={4}
-            maxLength={1000}
-            className={inputClass}
-          />
-        </label>
-        <AdminField
-          label="Website"
-          name="websiteUrl"
-          value={editing?.websiteUrl ?? ""}
-          required={false}
-        />
+
+        <div className="mt-4">
+          <div className="flex items-center justify-between gap-3">
+            <label className="font-bold">
+              Model
+            </label>
+
+            <button
+              type="button"
+              onClick={addModel}
+              className="rounded-lg border border-emerald-700 px-3 py-2 text-sm font-black text-emerald-800"
+            >
+              + Add Model
+            </button>
+          </div>
+
+          <p className="mt-1 text-xs text-slate-500">
+            Up to 30 characters per model.
+          </p>
+
+          <div className="mt-2 space-y-2">
+            {models.map((model, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-2"
+              >
+                <input
+                  aria-label={`Model ${index + 1}`}
+                  type="text"
+                  maxLength={30}
+                  value={model}
+                  onChange={(event) =>
+                    updateModel(
+                      index,
+                      event.target.value,
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-300 bg-white p-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200"
+                />
+
+                {models.length > 1 && (
+                  <button
+                    type="button"
+                    aria-label={`Remove model ${index + 1}`}
+                    onClick={() =>
+                      removeModel(index)
+                    }
+                    className="rounded-xl border border-red-300 px-3 py-3 font-black text-red-700"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
         <label className="mt-4 block font-bold">
           Status
           <select
             name="status"
-            defaultValue={editing?.status ?? "active"}
+            defaultValue={
+              editing?.status ?? "active"
+            }
             className={inputClass}
           >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="archived">Archived</option>
+            <option value="active">
+              Active
+            </option>
+            <option value="inactive">
+              Inactive
+            </option>
+            <option value="archived">
+              Archived
+            </option>
           </select>
         </label>
+
         <label className="mt-4 block font-bold">
           Display Order
           <input
@@ -1074,23 +1204,28 @@ function BrandsTab({
             type="number"
             min={0}
             max={100000}
-            defaultValue={editing?.sortOrder ?? 100}
+            defaultValue={
+              editing?.sortOrder ?? 100
+            }
             className={inputClass}
           />
         </label>
+
         <button className="mt-5 w-full rounded-xl bg-emerald-600 px-5 py-3 font-black text-white">
           Save Brand
         </button>
+
         {editing && (
           <button
             type="button"
-            onClick={() => setEditing(null)}
+            onClick={cancelEdit}
             className="mt-2 w-full rounded-xl border px-5 py-3 font-black"
           >
             Cancel
           </button>
         )}
       </form>
+
       <div className="space-y-3">
         {brands.map((brand) => (
           <article
@@ -1098,14 +1233,27 @@ function BrandsTab({
             className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-5 shadow-sm"
           >
             <div>
-              <h3 className="text-xl font-black">{brand.name}</h3>
+              <h3 className="text-xl font-black">
+                {brand.name}
+              </h3>
+
               <p className="text-sm capitalize text-slate-600">
-                {brand.status} · order {brand.sortOrder}
+                {brand.status} ? order{" "}
+                {brand.sortOrder}
               </p>
-              <p className="mt-1 text-sm text-slate-500">{brand.description}</p>
+
+              {brand.models.length > 0 && (
+                <p className="mt-1 text-sm text-slate-500">
+                  <b>Models:</b>{" "}
+                  {brand.models.join(", ")}
+                </p>
+              )}
             </div>
+
             <button
-              onClick={() => setEditing(brand)}
+              onClick={() =>
+                beginEdit(brand)
+              }
               className="rounded-xl border px-4 py-2 font-black"
             >
               Edit
