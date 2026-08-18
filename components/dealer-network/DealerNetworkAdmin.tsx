@@ -26,6 +26,7 @@ import { US_STATES } from "@/lib/dealer-network/validation";
 type Tab =
   | "applications"
   | "members"
+  | "broadcasts"
   | "brands"
   | "suggestions"
   | "troubleshooting"
@@ -134,6 +135,21 @@ type Suggestion = {
   status: string;
   created_at: string;
   member: { member_name: string; email: string } | null;
+};
+
+type AdminBroadcast = {
+  id: string;
+  subject: string;
+  body: string;
+  recipientCount: number;
+  currentRecipientCount: number;
+  readCount: number;
+  unreadCount: number;
+  emailSentCount: number;
+  emailFailedCount: number;
+  emailPendingCount: number;
+  sentAt: string;
+  createdAt: string;
 };
 type Dashboard = {
   applications: Application[];
@@ -280,6 +296,7 @@ export default function DealerNetworkAdmin() {
                 `Applications (${data.pendingApplicationCount})`,
               ],
               ["members", "Members"],
+              ["broadcasts", "Broadcasts"],
               ["brands", "Brands"],
               ["suggestions", "Suggestions"],
               [
@@ -321,6 +338,9 @@ export default function DealerNetworkAdmin() {
             notify={setMessage}
           />
         )}{" "}
+        {tab === "broadcasts" && (
+          <BroadcastsTab notify={setMessage} />
+        )}{" "}
         {tab === "brands" && (
           <BrandsTab brands={data.brands} reload={load} notify={setMessage} />
         )}{" "}
@@ -353,6 +373,242 @@ export default function DealerNetworkAdmin() {
     </main>
   );
 }
+
+function BroadcastsTab({
+  notify,
+}: {
+  notify: (value: string) => void;
+}) {
+  const [broadcasts, setBroadcasts] = useState<AdminBroadcast[]>([]);
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const loadBroadcasts = useCallback(async () => {
+    const response = await fetch(
+      "/api/admin/dealer-network/broadcasts",
+      { cache: "no-store" },
+    );
+
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      setLoading(false);
+      notify(payload.error ?? "Broadcast history is unavailable.");
+      return;
+    }
+
+    setBroadcasts(payload.broadcasts ?? []);
+    setLoading(false);
+  }, [notify]);
+
+  useEffect(() => {
+    void loadBroadcasts();
+  }, [loadBroadcasts]);
+
+  async function sendBroadcast(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (busy || !subject.trim() || !body.trim()) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Send this IDS announcement to ALL active Dealer & Tech Network members? This announcement cannot be recalled after it is sent.",
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    notify("");
+
+    try {
+      const response = await fetch(
+        "/api/admin/dealer-network/broadcasts",
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ subject, body }),
+        },
+      );
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        notify(payload.error ?? "The IDS broadcast could not be sent.");
+        return;
+      }
+
+      setSubject("");
+      setBody("");
+
+      await loadBroadcasts();
+
+      notify(
+        `Announcement sent to ${payload.recipientCount ?? 0} member${payload.recipientCount === 1 ? "" : "s"}. Email sent: ${payload.emailSentCount ?? 0}. Email failed: ${payload.emailFailedCount ?? 0}.`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,.9fr)]">
+      <form
+        onSubmit={(event) => void sendBroadcast(event)}
+        className="rounded-3xl bg-white p-6 shadow-sm"
+      >
+        <p className="text-sm font-black uppercase tracking-[.2em] text-emerald-700">
+          Official IDS Communication
+        </p>
+
+        <h2 className="mt-2 text-3xl font-black">
+          Send Announcement
+        </h2>
+
+        <p className="mt-3 text-slate-600">
+          Send a one-way announcement to every active Dealer & Tech Network member.
+          Members receive it in their IDS Announcements tab and cannot reply.
+        </p>
+
+        <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-950">
+          This sends to ALL active members at the time you submit it.
+        </div>
+
+        <label className="mt-5 block font-bold">
+          Subject
+          <input
+            value={subject}
+            onChange={(event) => setSubject(event.target.value)}
+            required
+            maxLength={180}
+            className={inputClass}
+            placeholder="Announcement subject"
+          />
+        </label>
+
+        <p className="mt-1 text-right text-xs text-slate-500">
+          {subject.length}/180
+        </p>
+
+        <label className="mt-4 block font-bold">
+          Message
+          <textarea
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
+            required
+            rows={10}
+            maxLength={5000}
+            className={inputClass}
+            placeholder="Write the announcement members will see."
+          />
+        </label>
+
+        <p className="mt-1 text-right text-xs text-slate-500">
+          {body.length}/5000
+        </p>
+
+        <button
+          disabled={busy || !subject.trim() || !body.trim()}
+          className="mt-5 rounded-xl bg-emerald-600 px-6 py-3 font-black text-white disabled:opacity-50"
+        >
+          {busy ? "Sending..." : "Send to All Members"}
+        </button>
+      </form>
+
+      <section className="rounded-3xl bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-black">
+              Announcement History
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-600">
+              Delivery and member-read status.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void loadBroadcasts()}
+            className="rounded-xl border px-4 py-2 text-sm font-black"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {loading ? (
+          <p className="mt-5 text-slate-500">
+            Loading announcements...
+          </p>
+        ) : (
+          <div className="mt-5 space-y-4">
+            {broadcasts.map((broadcast) => (
+              <article
+                key={broadcast.id}
+                className="rounded-2xl border p-4"
+              >
+                <h3 className="text-lg font-black">
+                  {broadcast.subject}
+                </h3>
+
+                <time className="mt-1 block text-xs text-slate-500">
+                  {new Date(broadcast.sentAt).toLocaleString()}
+                </time>
+
+                <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+                  {broadcast.body}
+                </p>
+
+                <dl className="mt-4 grid grid-cols-2 gap-3 border-t pt-4 text-sm">
+                  <div>
+                    <dt className="font-black">Recipients</dt>
+                    <dd>{broadcast.recipientCount}</dd>
+                  </div>
+
+                  <div>
+                    <dt className="font-black">Read</dt>
+                    <dd>{broadcast.readCount}</dd>
+                  </div>
+
+                  <div>
+                    <dt className="font-black">Unread</dt>
+                    <dd>{broadcast.unreadCount}</dd>
+                  </div>
+
+                  <div>
+                    <dt className="font-black">Email Sent</dt>
+                    <dd>{broadcast.emailSentCount}</dd>
+                  </div>
+
+                  <div>
+                    <dt className="font-black">Email Failed</dt>
+                    <dd>{broadcast.emailFailedCount}</dd>
+                  </div>
+
+                  <div>
+                    <dt className="font-black">Email Pending</dt>
+                    <dd>{broadcast.emailPendingCount}</dd>
+                  </div>
+                </dl>
+              </article>
+            ))}
+
+            {!broadcasts.length && (
+              <p className="text-slate-500">
+                No announcements have been sent yet.
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
 
 function ApplicationsTab({
   applications,
