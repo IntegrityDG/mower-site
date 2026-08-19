@@ -12,7 +12,7 @@ export type CheckoutCatalog = { product: CheckoutProductRow; variants: CheckoutV
 
 const LYMOW_VARIANTS = new Set(["lymow-one-plus-5a", "lymow-one-plus-10a"]);
 const LYMOW_CHARGERS = new Set(["lymow-5a-charger", "lymow-10a-charger"]);
-const YARBO_MODULES = new Set(["yarbo-mower-module", "yarbo-lawn-mower-pro-module", "yarbo-snow-blower-module", "yarbo-leaf-blower-module", "yarbo-trimmer-module"]);
+const YARBO_MODULES = new Set(["yarbo-lawn-mower-pro-module", "yarbo-snow-blower-module", "yarbo-leaf-blower-module", "yarbo-trimmer-module"]);
 const YARBO_HIDDEN = new Set(["yarbo-plow-module"]);
 const active = (row: { public_status: string }) => row.public_status === "active";
 const reject = (code: ConstructorParameters<typeof CheckoutRejectionError>[0], message: string): never => { throw new CheckoutRejectionError(code, message); };

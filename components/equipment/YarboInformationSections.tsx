@@ -249,7 +249,7 @@ function ActiveComponentCards({
             category: "Yarbo component",
             description: moduleDescription(option),
             job: "Expands the work a Yarbo Core-based system can perform.",
-            image: yarboImages.lineup,
+            image: yarboImages.core,
             specs: [],
           };
 

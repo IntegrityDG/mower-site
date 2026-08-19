@@ -31,12 +31,7 @@ export type YarboComponentContent = {
 const brochureBase = "/equipment/yarbo/brochure";
 
 export const yarboImages = {
-  lineup: {
-    src: `${brochureBase}/yarbo-complete-platform-lineup.webp`,
-    alt: "Yarbo Core shown with compatible mower, snow blower, blower, and trimmer modules.",
-    width: 1050,
-    height: 785,
-  },
+
   core: {
     src: `${brochureBase}/yarbo-core.webp`,
     alt: "Yarbo Core tracked base platform.",
@@ -44,12 +39,7 @@ export const yarboImages = {
     height: 260,
     fit: "contain",
   },
-  mower: {
-    src: `${brochureBase}/yarbo-lawn-mower-module.webp`,
-    alt: "Yarbo Standard Lawn Mower Module operating on grass.",
-    width: 1030,
-    height: 600,
-  },
+
   mowerPro: {
     src: `${brochureBase}/yarbo-lawn-mower-pro-module.webp`,
     alt: "Yarbo Lawn Mower Pro Module operating in dense grass.",
@@ -134,8 +124,6 @@ export const YARBO_BROCHURE_IMAGE_PATHS = Object.values(yarboImages).map(
 export const YARBO_OMITTED_BROCHURE_SPECS = [
   "Machine-readable brochure text",
   "Warranty terms",
-  "Standard Lawn Mower Module dimensions",
-  "Standard Lawn Mower Module weight",
   "Lawn Mower Pro Module dimensions",
   "Lawn Mower Pro Module weight",
   "Blower Module dimensions",
@@ -164,7 +152,7 @@ export const yarboPowerSpecs: YarboSpec[] = [
   { label: "Charging time", value: "90 min from 20% to 80%" },
   { label: "Auto-recharge", value: "Yes" },
   { label: "Operating temperature", value: "-13 F to 113 F (-25 C to 45 C)" },
-  { label: "Mower runtime", value: "120 min per charge" },
+  { label: "Mower Pro runtime", value: "120 min per charge" },
   { label: "Snow blower runtime", value: "90 min per charge" },
   { label: "Blower runtime", value: "70 min per charge" },
   { label: "Trimmer runtime", value: "135 min per charge" },
@@ -181,9 +169,9 @@ export const yarboNavigationSpecs: YarboSpec[] = [
 
 export const yarboTerrainSpecs: YarboSpec[] = [
   { label: "Tracked drive", value: "Rubber tracks for traction and weight distribution" },
-  { label: "Mower, Pro, Blower, and Trimmer slope", value: "70% (35 degrees)" },
+  { label: "Mower Pro, Blower, and Trimmer slope", value: "70% (35 degrees)" },
   { label: "Snow blower slope", value: "36% (20 degrees)" },
-  { label: "Vertical obstacle clearance", value: "2 in / 50 mm on mower and trimmer configurations" },
+  { label: "Vertical obstacle clearance", value: "2 in / 50 mm on Mower Pro and trimmer configurations" },
   { label: "Snow surfaces", value: "Paved, concrete, and gravel" },
   { label: "Snow types", value: "Dry, wet, and packed snow" },
 ];
@@ -194,7 +182,7 @@ export const yarboFeatureSections: YarboFeatureSection[] = [
     title: "One Core, Multiple Seasons",
     body:
       "Yarbo is built around a single Core that supplies the shared tracked drive, power, navigation, and control platform. Compatible modules attach to that Core for mowing, snow removal, blowing, and trimming.",
-    image: yarboImages.lineup,
+    image: yarboImages.core,
     facts: [
       "Yarbo Core is the required base platform.",
       "Current active modules are shown as components below.",
@@ -222,7 +210,7 @@ export const yarboFeatureSections: YarboFeatureSection[] = [
     secondaryImage: yarboImages.stereoVision,
     facts: [
       "Spatial AI system: 6 cameras and 2 ultrasonic sensors.",
-      "Mower obstacle avoidance: binocular cameras, ultrasonic sensors, bumper.",
+      "Mower Pro obstacle avoidance: binocular cameras, ultrasonic sensors, bumper.",
       "Snow obstacle detection: binocular cameras and bumper.",
     ],
   },
@@ -230,12 +218,12 @@ export const yarboFeatureSections: YarboFeatureSection[] = [
     eyebrow: "Mobility",
     title: "Tracked Mobility for Challenging Terrain",
     body:
-      "Rubber tracks help distribute weight and support traction on slopes and uneven ground. Mowing, Pro mowing, blower, and trimmer configurations are rated for 70% (35 degree) climbing ability, with a lower snow-blower slope rating.",
+      "Rubber tracks help distribute weight and support traction on slopes and uneven ground. Mower Pro, blower, and trimmer configurations are rated for 70% (35 degree) climbing ability, with a lower snow-blower slope rating.",
     image: yarboImages.trackedTerrain,
     facts: [
-      "Mower, Pro, Blower, and Trimmer slope rating: 70% (35 degrees).",
+      "Mower Pro, Blower, and Trimmer slope rating: 70% (35 degrees).",
       "Snow blower applicable slope: 36% (20 degrees).",
-      "Mower and trimmer vertical obstacle clearance: 2 in / 50 mm.",
+      "Mower Pro and trimmer vertical obstacle clearance: 2 in / 50 mm.",
     ],
   },
   {
@@ -280,21 +268,7 @@ export const yarboComponentContent: Record<string, YarboComponentContent> = {
       { label: "Navigation", value: "RTK-GPS, computer vision, sensors" },
     ],
   },
-  "yarbo-mower-module": {
-    category: "Mowing module",
-    description:
-      "The standard mowing module for autonomous lawn care on mapped grass areas.",
-    job: "Cuts grass with a 20 in deck across configured mowing routes.",
-    image: yarboImages.mower,
-    specs: [
-      { label: "Cutting width", value: "20 in / 500 mm" },
-      { label: "Cutting height", value: "1.2 to 4.0 in / 30 to 102 mm" },
-      { label: "Mowing time", value: "120 min per charge" },
-      { label: "Max mowing area", value: "6.2 acres / 25,000 sq m" },
-      { label: "Slope", value: "70% (35 degrees)" },
-      { label: "IP rating", value: "IPX5" },
-    ],
-  },
+
   "yarbo-lawn-mower-pro-module": {
     category: "Mowing module",
     description:

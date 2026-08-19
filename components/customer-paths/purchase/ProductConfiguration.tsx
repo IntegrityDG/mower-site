@@ -23,7 +23,6 @@ import {
   YARBO_CORE_EQUIPMENT_DESCRIPTION,
   YARBO_INCLUDED_PLATFORM_EQUIPMENT,
   YARBO_MODULE_ONLY_NOTICE,
-  YARBO_PACKAGE_GROUPS,
   groupYarboPackages,
   isYarboProduct,
   selectedYarboIndividualModules,
@@ -157,9 +156,20 @@ function YarboConfiguration({
   onSelectPurchaseMode,
   onToggleBaseProduct,
 }: Omit<ProductConfigurationProps, "onSelectVariant">) {
-  const [activeGroup, setActiveGroup] = useState<YarboPackageGroupKey>("mowing");
+  const [activeGroup, setActiveGroup] = useState<YarboPackageGroupKey>("mower-pro");
   const groupedPackages = groupYarboPackages(product.packages);
-  const visibleGroups = groupedPackages.filter((group) => group.key === activeGroup);
+  const effectiveActiveGroup = groupedPackages.some(
+    (group) => group.key === activeGroup
+  )
+    ? activeGroup
+    : groupedPackages[0]?.key;
+  const visibleGroups = groupedPackages.filter(
+    (group) => group.key === effectiveActiveGroup
+  );
+  const visiblePackageCount = groupedPackages.reduce(
+    (total, group) => total + group.packages.length,
+    0
+  );
   const modules = yarboIndividualModules(product);
   const coreSelected = yarboCoreIsSelected(selection);
   const selectedModules = selectedYarboIndividualModules(product, selection);
@@ -268,18 +278,18 @@ function YarboConfiguration({
               </p>
             </div>
             <span className="w-fit rounded-full bg-slate-950 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white">
-              {product.packages.length} packages
+              {visiblePackageCount} packages
             </span>
           </div>
 
           <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
-            {YARBO_PACKAGE_GROUPS.map((group) => (
+            {groupedPackages.map((group) => (
               <button
                 key={group.key}
                 type="button"
                 onClick={() => setActiveGroup(group.key)}
                 className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold transition ${
-                  activeGroup === group.key
+                  effectiveActiveGroup === group.key
                     ? "bg-slate-950 text-white"
                     : "border border-slate-300 bg-white text-slate-700 hover:border-emerald-500"
                 }`}

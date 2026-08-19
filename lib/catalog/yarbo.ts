@@ -64,6 +64,10 @@ const YARBO_OPTION_DISPLAY_NAMES: Record<string, string> = {
 
 const YARBO_MODULE_SLUGS = new Set(Object.keys(YARBO_OPTION_DISPLAY_NAMES));
 
+const YARBO_DISCONTINUED_MODULE_SLUGS = new Set([
+  "yarbo-mower-module",
+]);
+
 const YARBO_PACKAGE_DISPLAY_NAMES: Record<string, string> = {
   "yarbo-lawn-mower": "Yarbo Lawn Mower System",
   "yarbo-lawn-mower-trimmer": "Yarbo Lawn Mower + Trimmer System",
@@ -157,9 +161,18 @@ export function inferYarboPackageGroup(
 }
 
 export function groupYarboPackages(packages: CatalogPackage[]) {
+  const currentPackages = packages.filter(
+    (catalogPackage) =>
+      !catalogPackage.items.some(
+        (item) =>
+          item.option &&
+          YARBO_DISCONTINUED_MODULE_SLUGS.has(item.option.slug)
+      )
+  );
+
   return YARBO_PACKAGE_GROUPS.map((group) => ({
     ...group,
-    packages: packages.filter(
+    packages: currentPackages.filter(
       (catalogPackage) => inferYarboPackageGroup(catalogPackage) === group.key
     ),
   })).filter((group) => group.packages.length > 0);
@@ -179,7 +192,11 @@ export function yarboPackageBestFit(catalogPackage: CatalogPackage) {
 }
 
 export function yarboIndividualModules(product: CatalogProduct) {
-  return customerFacingProductOptions(product).filter(isYarboModuleOption);
+  return customerFacingProductOptions(product).filter(
+    (option) =>
+      isYarboModuleOption(option) &&
+      !YARBO_DISCONTINUED_MODULE_SLUGS.has(option.slug)
+  );
 }
 
 export function selectedYarboIndividualModules(

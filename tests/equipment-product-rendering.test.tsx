@@ -123,17 +123,17 @@ function yarboProduct(
     ungroupedOptions: [],
     packages: [
       {
-        id: "yarbo-lawn-mower",
-        slug: "yarbo-lawn-mower",
-        name: "Yarbo Lawn Mower",
-        description: "Core plus Lawn Mower Module.",
+        id: "yarbo-lawn-mower-pro",
+        slug: "yarbo-lawn-mower-pro",
+        name: "Yarbo Lawn Mower Pro",
+        description: "Core plus Lawn Mower Pro Module.",
         sortOrder: 1,
         items: [
           {
-            optionId: yarboModules[0].id,
+            optionId: yarboModules[1].id,
             quantity: 1,
             includedInPackagePrice: true,
-            option: yarboModules[0],
+            option: yarboModules[1],
           },
         ],
         ...catalogPrice,
@@ -777,7 +777,6 @@ test("Yarbo detail information replaces package grids with catalog-driven sectio
 
   for (const component of [
     "Yarbo Core",
-    "Standard Lawn Mower Module",
     "Lawn Mower Pro Module",
     "Blower Module",
     "Snow Blower Module",
@@ -814,7 +813,7 @@ test("Yarbo detail information replaces package grids with catalog-driven sectio
   for (const filename of [
     "yarbo-auto-docking.webp",
     "yarbo-obstacle-detection.webp",
-    "yarbo-lawn-mower-module.webp",
+    "yarbo-lawn-mower-pro-module.webp",
     "yarbo-snow-blower-module.webp",
   ]) {
     assert.match(html, new RegExp(filename));
@@ -827,6 +826,8 @@ test("Yarbo detail information replaces package grids with catalog-driven sectio
   assert.doesNotMatch(html, /Request A Yarbo Package/);
   assert.doesNotMatch(html, /Request Yarbo Equipment/);
   assert.doesNotMatch(html, /No payment is collected online/);
+  assert.doesNotMatch(html, /Standard Lawn Mower Module/);
+  assert.doesNotMatch(html, /yarbo-lawn-mower-module\.webp/);
   assert.doesNotMatch(html, /Yarbo Lawn Mower<\/h/);
   assert.doesNotMatch(html, /<h3[^>]*>[^<]*(Snow Plow|Tow Hitch|Sweeper)/);
   assert.doesNotMatch(
@@ -979,7 +980,7 @@ test("equipment catalog detail links remain outside the machine-selection screen
   assert.match(catalogSource, /View Pandag G1/);
 });
 
-test("Yarbo package records remain available after machine selection", () => {
+test("current Yarbo package records remain available after machine selection", () => {
   const product = yarboProduct();
   const selection: ProductBuildSelection = {
     variantId: "",
@@ -1002,7 +1003,8 @@ test("Yarbo package records remain available after machine selection", () => {
 
   assert.equal(product.packages.length, 1);
   assert.match(html, /Complete Yarbo Systems/);
-  assert.match(html, /Yarbo Lawn Mower System/);
+  assert.match(html, /Yarbo Lawn Mower Pro System/);
+  assert.doesNotMatch(html, /Yarbo Lawn Mower System/);
   assert.match(html, /1 packages/);
   assert.match(html, /Individual Yarbo Equipment/);
 });
