@@ -1,4 +1,5 @@
 import { requireDealerNetworkAdmin } from "@/lib/dealer-network/admin-auth";
+import { applyConsistentAdminProfileUpdate } from "@/lib/dealer-network/admin-profile-consistency";
 import {
   adminUpdateMemberProfile,
   deleteDealerMember,
@@ -16,10 +17,20 @@ export async function PATCH(
     const id = requireValidAdminId((await params).id);
     const body = await request.json().catch(() => ({}));
     if (body.action === "profile") {
-      const result = await adminUpdateMemberProfile(id, body.profile);
-      return result.ok
+      const update = await applyConsistentAdminProfileUpdate(
+        id,
+        body.profileSourceMemberId,
+        body.profile,
+        adminUpdateMemberProfile,
+      );
+      if (update.stale)
+        return Response.json(
+          { error: "Member selection changed. Reload the profile before saving." },
+          { status: 409 },
+        );
+      return update.result.ok
         ? Response.json({ success: true })
-        : Response.json({ errors: result.errors }, { status: 400 });
+        : Response.json({ errors: update.result.errors }, { status: 400 });
     }
     if (body.action === "retry_geocode") {
       const result = await retryMemberGeocode(id);

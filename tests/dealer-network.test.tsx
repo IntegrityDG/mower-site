@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import DealerTechResourcesPage from "../app/dealer-tech-resources/page";
+import { applyConsistentAdminProfileUpdate } from "../lib/dealer-network/admin-profile-consistency";
 import {
   filterDirectoryRows,
   haversineMiles,
@@ -672,6 +673,54 @@ test("geocoding is isolated server-side, supports retry/failure, and never retur
     directoryRoute,
     /return[^\n]+latitude|Response\.json\([^\n]+longitude/i,
   );
+});
+
+test("admin member correction remounts by selection and rejects stale source data", async () => {
+  const adminUi = readFileSync(
+    "components/dealer-network/DealerNetworkAdmin.tsx",
+    "utf8",
+  );
+  const profileForm = adminUi.slice(
+    adminUi.indexOf("<form\n          key={selected.id}"),
+    adminUi.indexOf("<h3 className=\"text-xl font-black\">Brand Affiliations"),
+  );
+  assert.match(profileForm, /key=\{selected\.id\}/);
+  assert.match(profileForm, /name="profileSourceMemberId"/);
+  assert.match(profileForm, /value=\{selected\.id\}/);
+
+  let updates = 0;
+  const update = async (memberId: string, profile: unknown) => {
+    updates += 1;
+    return { ok: true as const, memberId, profile };
+  };
+  const stale = await applyConsistentAdminProfileUpdate(
+    "member-b",
+    "member-a",
+    { memberName: "Member A" },
+    update,
+  );
+  assert.deepEqual(stale, { stale: true });
+  assert.equal(updates, 0);
+
+  const current = await applyConsistentAdminProfileUpdate(
+    "member-b",
+    "member-b",
+    { memberName: "Member B" },
+    update,
+  );
+  assert.equal(current.stale, false);
+  assert.equal(updates, 1);
+  if (!current.stale) {
+    assert.equal(current.result.memberId, "member-b");
+    assert.deepEqual(current.result.profile, { memberName: "Member B" });
+  }
+
+  const route = readFileSync(
+    "app/api/admin/dealer-network/members/[id]/route.ts",
+    "utf8",
+  );
+  assert.match(route, /update\.stale[\s\S]*?status: 409/);
+  assert.match(route, /Member selection changed\. Reload the profile before saving\./);
 });
 
 test("business-location search repairs missing coordinates but reuses valid stored points", async () => {

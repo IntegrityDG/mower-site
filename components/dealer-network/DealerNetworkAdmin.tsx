@@ -1105,17 +1105,27 @@ This action cannot be undone.`,
           )}
         </div>
         <form
+          key={selected.id}
           onSubmit={(event) => {
             event.preventDefault();
+            const form = new FormData(event.currentTarget);
+            const profileSourceMemberId = String(
+              form.get("profileSourceMemberId") ?? "",
+            );
+            form.delete("profileSourceMemberId");
             void patch({
               action: "profile",
-              profile: Object.fromEntries(
-                new FormData(event.currentTarget).entries(),
-              ),
+              profileSourceMemberId,
+              profile: Object.fromEntries(form.entries()),
             });
           }}
           className="mt-7 border-t pt-6"
         >
+          <input
+            type="hidden"
+            name="profileSourceMemberId"
+            value={selected.id}
+          />
           <h3 className="text-xl font-black">Correct Professional Profile</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <AdminField
