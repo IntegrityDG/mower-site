@@ -22,6 +22,7 @@ import {
   type TroubleshootingStatus,
 } from "@/lib/dealer-network/types";
 import { US_STATES } from "@/lib/dealer-network/validation";
+import DealerNetworkBoardAdmin from "./DealerNetworkBoardAdmin";
 
 type Tab =
   | "applications"
@@ -135,6 +136,7 @@ type Suggestion = {
   status: string;
   created_at: string;
   member: { member_name: string; email: string } | null;
+  board_topic_id: string | null;
 };
 
 type AdminBroadcast = {
@@ -329,7 +331,7 @@ export default function DealerNetworkAdmin() {
                 `Applications (${data.pendingApplicationCount})`,
               ],
               ["members", "Members"],
-              ["broadcasts", "Broadcasts"],
+              ["broadcasts", "Dealer Network Board"],
               ["brands", "Brands"],
               ["suggestions", "Suggestions"],
               [
@@ -372,7 +374,7 @@ export default function DealerNetworkAdmin() {
           />
         )}{" "}
         {tab === "broadcasts" && (
-          <BroadcastsTab notify={setMessage} />
+          <DealerNetworkBoardAdmin notify={setMessage} />
         )}{" "}
         {tab === "brands" && (
           <BrandsTab brands={data.brands} reload={load} notify={setMessage} />
@@ -382,6 +384,7 @@ export default function DealerNetworkAdmin() {
             suggestions={data.suggestions}
             reload={load}
             notify={setMessage}
+            onOpenBoard={() => setTab("broadcasts")}
           />
         )}{" "}
         {tab === "troubleshooting" && (
@@ -408,7 +411,7 @@ export default function DealerNetworkAdmin() {
   );
 }
 
-function BroadcastsTab({
+export function BroadcastsTab({
   notify,
 }: {
   notify: (value: string) => void;
@@ -1596,10 +1599,12 @@ function SuggestionsTab({
   suggestions,
   reload,
   notify,
+  onOpenBoard,
 }: {
   suggestions: Suggestion[];
   reload: () => Promise<void>;
   notify: (value: string) => void;
+  onOpenBoard: () => void;
 }) {
   async function update(id: string, status: string) {
     const response = await fetch(
@@ -1611,6 +1616,12 @@ function SuggestionsTab({
       },
     );
     notify(response.ok ? "Suggestion updated." : "Suggestion update failed.");
+    if (response.ok) await reload();
+  }
+  async function createBoardTopic(id: string) {
+    const response = await fetch(`/api/admin/dealer-network/suggestions/${id}/board-topic`, { method: "POST" });
+    const payload = await response.json().catch(() => ({}));
+    notify(response.ok ? payload.existing ? "Board Topic Created previously. Open Dealer Network Board to manage it." : "Draft Board Topic created. Review it in Dealer Network Board before activation." : payload.error ?? "Draft Board Topic could not be created.");
     if (response.ok) await reload();
   }
   return (
@@ -1637,6 +1648,11 @@ function SuggestionsTab({
             {suggestion.message}
           </p>
           <div className="mt-5 flex gap-2">
+            {suggestion.board_topic_id ? (
+              <button onClick={onOpenBoard} className="rounded-xl bg-blue-50 px-4 py-2 font-black text-blue-800">Board Topic Created — Manage Topic</button>
+            ) : (
+              <button onClick={() => void createBoardTopic(suggestion.id)} className="rounded-xl border border-blue-500 px-4 py-2 font-black text-blue-800">Create Board Topic</button>
+            )}
             <button
               onClick={() => void update(suggestion.id, "reviewed")}
               className="rounded-xl border px-4 py-2 font-black"

@@ -32,10 +32,10 @@ import {
 import { uploadMessagePhoto } from "@/lib/dealer-network/message-upload";
 import { US_STATES } from "@/lib/dealer-network/validation";
 import TroubleshootingPanel from "./TroubleshootingPanel";
-import AnnouncementsPanel, {
-  type MemberBroadcast,
-} from "./AnnouncementsPanel";
+import DealerNetworkBoardPanel from "./DealerNetworkBoardPanel";
+import DealerNetworkNotificationBell from "./DealerNetworkNotificationBell";
 import MemberInvitationPanel from "./MemberInvitationPanel";
+import { useDealerNetworkNotifications } from "./useDealerNetworkNotifications";
 
 type Tab =
   | "directory"
@@ -72,12 +72,12 @@ export default function MemberPortal() {
     [blockedMembers, setBlockedMembers] = useState<MemberBlock[]>([]),
     [conversations, setConversations] = useState<ConversationSummary[]>([]),
     [unreadTotal, setUnreadTotal] = useState(0),
-    [openConversationId, setOpenConversationId] = useState<string | null>(null);
-  const [broadcasts, setBroadcasts] =
-    useState<MemberBroadcast[]>([]);
-
+    [openConversationId, setOpenConversationId] = useState<string | null>(null),
+    [openBoardTopicId, setOpenBoardTopicId] = useState<string | null>(null);
   const [unreadBroadcastTotal, setUnreadBroadcastTotal] =
     useState(0);
+  const { summary: notificationSummary, unavailable: notificationsUnavailable, refreshNotifications } =
+    useDealerNetworkNotifications(Boolean(account && !account.effectiveLocked));
 
   const searchForm = useRef<HTMLFormElement>(null);
   const load = useCallback(async () => {
@@ -119,10 +119,6 @@ export default function MemberPortal() {
       if (broadcastResponse.ok) {
         const announcements =
           await broadcastResponse.json();
-
-        setBroadcasts(
-          announcements.broadcasts ?? [],
-        );
 
         setUnreadBroadcastTotal(
           announcements.unreadTotal ?? 0,
@@ -173,15 +169,12 @@ export default function MemberPortal() {
       const announcements =
         await broadcastResponse.json();
 
-      setBroadcasts(
-        announcements.broadcasts ?? [],
-      );
-
       setUnreadBroadcastTotal(
         announcements.unreadTotal ?? 0,
       );
     }
-  }, []);
+    await refreshNotifications();
+  }, [refreshNotifications]);
   useEffect(() => {
     if (!account || account.effectiveLocked) return;
     const timer = window.setInterval(() => void refreshCommunication(), 30_000);
@@ -295,12 +288,27 @@ export default function MemberPortal() {
             </h1>
             <p className="text-sm text-slate-300">{account.companyName}</p>
           </div>
-          <button
-            onClick={() => void signOut()}
-            className="rounded-xl border border-white/30 px-4 py-3 font-black"
-          >
-            Sign Out
-          </button>
+          <div className="flex items-center gap-3">
+            <DealerNetworkNotificationBell
+              summary={notificationSummary}
+              unavailable={notificationsUnavailable}
+              onNavigate={(item) => {
+                if (item.conversationId) {
+                  setOpenConversationId(item.conversationId);
+                  setTab("messages");
+                } else if (item.topicId) {
+                  setOpenBoardTopicId(item.topicId);
+                  setTab("announcements");
+                }
+              }}
+            />
+            <button
+              onClick={() => void signOut()}
+              className="rounded-xl border border-white/30 px-4 py-3 font-black"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-4 py-7 md:px-8">
@@ -312,7 +320,7 @@ export default function MemberPortal() {
               ["messages", `Messages${unreadTotal ? ` (${unreadTotal})` : ""}`],
               [
                 "announcements",
-                `IDS Announcements${unreadBroadcastTotal ? ` (${unreadBroadcastTotal})` : ""}`,
+                `Dealer Network Board / IDS Announcements${unreadBroadcastTotal ? ` (${unreadBroadcastTotal})` : ""}`,
               ],
               ["invite", "Invite Someone"],
               ["profile", "My Profile"],
@@ -377,10 +385,11 @@ export default function MemberPortal() {
           />
         )}{" "}
         {tab === "announcements" && (
-          <AnnouncementsPanel
-            broadcasts={broadcasts}
-            onRefresh={refreshCommunication}
+          <DealerNetworkBoardPanel
             onMessage={setMessage}
+            selectedTopicId={openBoardTopicId}
+            onSelectedTopicHandled={() => setOpenBoardTopicId(null)}
+            onAttentionChanged={refreshNotifications}
           />
         )}{" "}
         {tab === "invite" && (

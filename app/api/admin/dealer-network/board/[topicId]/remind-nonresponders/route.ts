@@ -1,0 +1,4 @@
+import { requireDealerNetworkAdmin } from "@/lib/dealer-network/admin-auth";
+import { dealerNetworkOrigin } from "@/lib/dealer-network/api";
+import { remindPollNonResponders } from "@/lib/dealer-network/board-server";
+export async function POST(request: Request, { params }: { params: Promise<{ topicId: string }> }) { try { await requireDealerNetworkAdmin(); return Response.json(await remindPollNonResponders((await params).topicId, dealerNetworkOrigin(request))); } catch (error) { const unauthorized = error instanceof Error && error.name === "DealerNetworkAdminError", limited = error instanceof Error && error.message === "RATE_LIMIT"; return Response.json({ error: unauthorized ? "Unauthorized" : limited ? "A reminder was sent recently. Please wait before sending another." : "Non-responder reminders could not be completed." }, { status: unauthorized ? 401 : limited ? 429 : 400 }); } }

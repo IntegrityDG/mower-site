@@ -1,6 +1,7 @@
 import "server-only";
 
 import { sanitizeEmailFailure } from "@/lib/email-diagnostics";
+import { sendServerEmail } from "@/lib/email";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { createOneTimeToken } from "./security";
 import {
@@ -36,6 +37,7 @@ import {
   MESSAGE_SIGNED_READ_SECONDS,
 } from "./messaging-storage";
 import { TROUBLESHOOTING_BUCKET } from "./troubleshooting-storage";
+import { sendBoardDiscussionEmail, sendBoardPollReminderEmail, sendBoardTopicEmail } from "./board-email";
 import {
   readBoundedText,
   validateMemberProfile,
@@ -54,6 +56,7 @@ export async function readDealerNetworkAdminDashboard() {
     { data: brandRows, error: brandError },
     { data: memberBrands },
     { data: suggestions, error: suggestionError },
+    { data: suggestionTopics, error: suggestionTopicError },
     { data: notifications, error: notificationError },
     { data: reports, error: reportError },
     troubleshooting,
@@ -85,6 +88,10 @@ export async function readDealerNetworkAdminDashboard() {
       )
       .order("created_at", { ascending: false }),
     client
+      .from("dealer_network_board_topics")
+      .select("id,source_suggestion_id")
+      .not("source_suggestion_id", "is", null),
+    client
       .from("dealer_network_notification_events")
       .select(
         "id,event_key,event_type,application_id,member_id,status,attempt_count,last_error,created_at,sent_at,updated_at",
@@ -98,8 +105,8 @@ export async function readDealerNetworkAdminDashboard() {
       .order("created_at", { ascending: false }),
     readAdminTroubleshootingEntries(),
   ]);
-  if (memberError || brandError || suggestionError || notificationError || reportError)
-    throw memberError ?? brandError ?? suggestionError ?? notificationError ?? reportError;
+  if (memberError || brandError || suggestionError || suggestionTopicError || notificationError || reportError)
+    throw memberError ?? brandError ?? suggestionError ?? suggestionTopicError ?? notificationError ?? reportError;
   const members = await Promise.all(
     (memberRows ?? []).map(async (row) => {
       const { data: security } = await client.rpc(
@@ -146,7 +153,10 @@ export async function readDealerNetworkAdminDashboard() {
     brands: (brandRows ?? []).map((row) =>
       mapBrand(row as Record<string, unknown>),
     ),
-    suggestions: suggestions ?? [],
+    suggestions: (suggestions ?? []).map((suggestion) => ({
+      ...suggestion,
+      board_topic_id: (suggestionTopics ?? []).find((topic) => topic.source_suggestion_id === suggestion.id)?.id ?? null,
+    })),
     notifications: notifications ?? [],
     reports: (reports ?? []).map((row) => {
       const reporter = row.reporter as unknown as { member_name?: string; company_name?: string } | null;
@@ -242,7 +252,7 @@ export async function retryDealerNotification(eventId: string, origin: string) {
   const client = getSupabaseServiceClient();
   const { data: event, error } = await client
     .from("dealer_network_notification_events")
-    .select("id,event_key,event_type,application_id,member_id,conversation_id,message_id,broadcast_id,invitation_id,status")
+    .select("id,event_key,event_type,application_id,member_id,conversation_id,message_id,broadcast_id,invitation_id,status,topic_id,poll_id")
     .eq("id", eventId)
     .single();
   if (error) throw error;
@@ -479,6 +489,22 @@ export async function retryDealerNotification(eventId: string, origin: string) {
         invitation.personal_message,
 
       origin,
+    });
+  } else if (
+    (event.event_type === "member_board_topic" || event.event_type === "member_board_poll_reminder" || event.event_type === "member_board_discussion") &&
+    event.member_id && event.topic_id
+  ) {
+    const [memberResult, topicResult, pollResult] = await Promise.all([
+      client.from("dealer_network_members").select("member_name,email").eq("id", event.member_id).single(),
+      client.from("dealer_network_board_topics").select("title").eq("id", event.topic_id).single(),
+      event.poll_id ? client.from("dealer_network_polls").select("question").eq("id", event.poll_id).eq("topic_id", event.topic_id).single() : Promise.resolve({ data: null, error: null }),
+    ]);
+    if (!memberResult.data || !topicResult.data || pollResult.error) throw new Error("NOTIFICATION_CONTEXT_UNAVAILABLE");
+    await deliverDealerNotification({ eventKey: event.event_key, eventType: event.event_type, memberId: event.member_id, topicId: event.topic_id, pollId: event.poll_id }, () => {
+      const shared = { recipientName: memberResult.data.member_name, recipientEmail: memberResult.data.email, topicTitle: topicResult.data.title, origin };
+      if (event.event_type === "member_board_poll_reminder") { if (!pollResult.data) throw new Error("NOTIFICATION_CONTEXT_UNAVAILABLE"); return sendBoardPollReminderEmail({ ...shared, pollQuestion: pollResult.data.question }, sendServerEmail); }
+      if (event.event_type === "member_board_discussion") return sendBoardDiscussionEmail(shared, sendServerEmail);
+      return sendBoardTopicEmail({ ...shared, responseRequested: Boolean(pollResult.data) }, sendServerEmail);
     });
   } else {
     throw new Error(

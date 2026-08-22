@@ -49,7 +49,10 @@ export type NotificationEventType =
   | "member_pin_reset"
   | "member_new_message"
   | "member_broadcast"
-  | "member_invitation";
+  | "member_invitation"
+  | "member_board_topic"
+  | "member_board_poll_reminder"
+  | "member_board_discussion";
 
 export type ReportStatus = "new" | "reviewed" | "resolved";
 export type TroubleshootingStatus = "pending" | "approved" | "denied";
@@ -238,6 +241,28 @@ export type ConversationSummary = {
   unreadCount: number;
   lastMessageAt: string | null;
   lastMessagePreview: string;
+};
+
+export type MemberNotificationKind =
+  | "private_message"
+  | "poll_response"
+  | "discussion"
+  | "board_topic";
+
+export type MemberNotificationItem = {
+  id: string;
+  kind: MemberNotificationKind;
+  title: string;
+  detail: string;
+  occurredAt: string;
+  unreadCount: number;
+  conversationId: string | null;
+  topicId: string | null;
+};
+
+export type MemberNotificationSummary = {
+  total: number;
+  items: MemberNotificationItem[];
 };
 
 export type ConversationDetail = {

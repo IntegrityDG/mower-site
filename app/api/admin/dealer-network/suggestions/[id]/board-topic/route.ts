@@ -1,0 +1,3 @@
+import { requireDealerNetworkAdmin } from "@/lib/dealer-network/admin-auth";
+import { createDraftTopicFromSuggestion } from "@/lib/dealer-network/board-server";
+export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) { try { await requireDealerNetworkAdmin(); return Response.json(await createDraftTopicFromSuggestion((await params).id), { status: 201 }); } catch (error) { const unauthorized = error instanceof Error && error.name === "DealerNetworkAdminError"; return Response.json({ error: unauthorized ? "Unauthorized" : "A draft Board topic could not be created." }, { status: unauthorized ? 401 : 400 }); } }

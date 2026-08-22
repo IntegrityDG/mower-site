@@ -14,6 +14,7 @@ import {
   type SuggestionStatusEmailInput,
 } from "./suggestion-status-email";
 import type { NotificationEventType } from "./types";
+import { sendBoardDiscussionEmail, sendBoardPollReminderEmail, sendBoardTopicEmail } from "./board-email";
 
 type Claim = { claimed: boolean; eventId: string; claimedAt: string };
 type EventContext = {
@@ -25,6 +26,8 @@ type EventContext = {
   messageId?: string | null;
   broadcastId?: string | null;
   invitationId?: string | null;
+  topicId?: string | null;
+  pollId?: string | null;
 };
 
 export async function deliverDealerNotification(
@@ -48,7 +51,9 @@ export async function deliverDealerNotification(
     context.conversationId ||
     context.messageId ||
     context.broadcastId ||
-    context.invitationId
+    context.invitationId ||
+    context.topicId ||
+    context.pollId
   ) {
     const { error: contextError } = await client
       .from("dealer_network_notification_events")
@@ -57,6 +62,8 @@ export async function deliverDealerNotification(
         message_id: context.messageId ?? null,
         broadcast_id: context.broadcastId ?? null,
         invitation_id: context.invitationId ?? null,
+        topic_id: context.topicId ?? null,
+        poll_id: context.pollId ?? null,
       })
       .eq("id", claim.eventId);
     if (contextError) throw new Error("Notification context failed.");
@@ -79,6 +86,18 @@ export async function deliverDealerNotification(
     });
     throw error;
   }
+}
+
+export function notifyBoardTopic(input: { topicId: string; pollId?: string | null; recipientMemberId: string; recipientName: string; recipientEmail: string; topicTitle: string; responseRequested: boolean; origin: string; eventKeyPrefix?: string }, sender = sendServerEmail) {
+  return deliverDealerNotification({ eventKey: `${input.eventKeyPrefix ?? `dealer-board-topic:${input.topicId}`}:${input.recipientMemberId}`, eventType: "member_board_topic", memberId: input.recipientMemberId, topicId: input.topicId, pollId: input.pollId }, () => sendBoardTopicEmail(input, sender));
+}
+
+export function notifyBoardPollReminder(input: { batchId: string; topicId: string; pollId: string; recipientMemberId: string; recipientName: string; recipientEmail: string; topicTitle: string; pollQuestion: string; origin: string }, sender = sendServerEmail) {
+  return deliverDealerNotification({ eventKey: `dealer-board-poll-reminder:${input.pollId}:${input.batchId}:${input.recipientMemberId}`, eventType: "member_board_poll_reminder", memberId: input.recipientMemberId, topicId: input.topicId, pollId: input.pollId }, () => sendBoardPollReminderEmail(input, sender));
+}
+
+export function notifyBoardDiscussion(input: { topicId: string; recipientMemberId: string; recipientName: string; recipientEmail: string; topicTitle: string; origin: string }, sender = sendServerEmail) {
+  return deliverDealerNotification({ eventKey: `dealer-board-discussion:${input.topicId}:${input.recipientMemberId}`, eventType: "member_board_discussion", memberId: input.recipientMemberId, topicId: input.topicId }, () => sendBoardDiscussionEmail(input, sender));
 }
 
 export function notifyNewDealerMessage(
