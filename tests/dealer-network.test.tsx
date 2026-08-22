@@ -6,10 +6,12 @@ import DealerTechResourcesPage from "../app/dealer-tech-resources/page";
 import {
   filterDirectoryRows,
   haversineMiles,
+  resolveBusinessDirectoryOrigin,
   toDirectoryResult,
   type PrivateDirectoryRow,
 } from "../lib/dealer-network/directory";
 import { geocodeUsLocation } from "../lib/dealer-network/geocoding-adapter";
+import { browserGeolocationErrorMessage } from "../lib/dealer-network/browser-geolocation";
 import { hasExpectedFileSignature } from "../lib/dealer-network/uploads";
 import { sendSuggestionStatusEmail } from "../lib/dealer-network/suggestion-status-email";
 import {
@@ -670,6 +672,51 @@ test("geocoding is isolated server-side, supports retry/failure, and never retur
     directoryRoute,
     /return[^\n]+latitude|Response\.json\([^\n]+longitude/i,
   );
+});
+
+test("business-location search repairs missing coordinates but reuses valid stored points", async () => {
+  let repairs = 0;
+  const stored = await resolveBusinessDirectoryOrigin(
+    { latitude: 38.2, longitude: -90 },
+    async () => {
+      repairs += 1;
+      return { latitude: 1, longitude: 2 };
+    },
+  );
+  assert.deepEqual(stored, { latitude: 38.2, longitude: -90 });
+  assert.equal(repairs, 0);
+  const repaired = await resolveBusinessDirectoryOrigin(undefined, async () => {
+    repairs += 1;
+    return { latitude: 38.3, longitude: -89.9 };
+  });
+  assert.deepEqual(repaired, { latitude: 38.3, longitude: -89.9 });
+  assert.equal(repairs, 1);
+});
+
+test("browser geolocation failures have distinct actionable messages", () => {
+  const denied = browserGeolocationErrorMessage(1);
+  const unavailable = browserGeolocationErrorMessage(2);
+  const timeout = browserGeolocationErrorMessage(3);
+  assert.match(denied, /blocked or denied.*Enable location permission/i);
+  assert.match(unavailable, /could not determine.*ZIP or business/i);
+  assert.match(timeout, /timed out.*Try again/i);
+  assert.equal(new Set([denied, unavailable, timeout]).size, 3);
+});
+
+test("approval and directory UI keep geocoding best-effort and clear busy state", () => {
+  const admin = readFileSync("lib/dealer-network/admin-server.ts", "utf8");
+  const memberServer = readFileSync("lib/dealer-network/member-server.ts", "utf8");
+  const memberUi = readFileSync("components/dealer-network/MemberPortal.tsx", "utf8");
+  const approval = admin.slice(
+    admin.indexOf("export async function approveDealerApplication"),
+    admin.indexOf("export async function transitionDealerApplication"),
+  );
+  assert.match(approval, /refreshStoredMemberGeocode\(outcome\.memberId\)\.catch/);
+  assert.match(memberServer, /resolveBusinessDirectoryOrigin[\s\S]*?refreshStoredMemberGeocode/);
+  assert.match(memberUi, /params\.set\("latitude", String\(coordinates\.latitude\)\)/);
+  assert.match(memberUi, /params\.set\("longitude", String\(coordinates\.longitude\)\)/);
+  assert.match(memberUi, /finally\s*\{[\s\S]*?setSearching\(false\)/);
+  assert.match(memberUi, /browserGeolocationErrorMessage\(error\.code\)[\s\S]*?setSearching\(false\)/);
 });
 
 test("geocoding adapter uses mocked provider responses and fails safely without real network calls", async () => {

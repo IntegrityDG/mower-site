@@ -84,3 +84,20 @@ export async function refreshMemberGeocode(
   if (error) throw error;
   return point;
 }
+
+export async function refreshStoredMemberGeocode(memberId: string) {
+  const { data, error } = await getSupabaseServiceClient()
+    .from("dealer_network_members")
+    .select("id,address_line_1,address_line_2,city,state,zip_code")
+    .eq("id", memberId)
+    .single();
+  if (error) throw error;
+  return refreshMemberGeocode({
+    id: String(data.id),
+    addressLine1: String(data.address_line_1),
+    addressLine2: data.address_line_2 as string | null,
+    city: String(data.city),
+    state: String(data.state),
+    zipCode: String(data.zip_code),
+  });
+}

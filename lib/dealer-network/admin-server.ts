@@ -20,7 +20,11 @@ import {
   sendDealerActivationEmail,
   sendPinResetEmail,
 } from "./notifications";
-import { markMemberGeocodeStale, refreshMemberGeocode } from "./geocoding";
+import {
+  markMemberGeocodeStale,
+  refreshMemberGeocode,
+  refreshStoredMemberGeocode,
+} from "./geocoding";
 import type {
   BrandStatus,
   MemberStatus,
@@ -189,6 +193,12 @@ export async function approveDealerApplication(
   if (error) throw error;
   const outcome = data as { memberId: string; changed: boolean };
   if (outcome.changed) {
+    await refreshStoredMemberGeocode(outcome.memberId).catch(() =>
+      console.error("Dealer member geocoding failed after approval", {
+        applicationId,
+        memberId: outcome.memberId,
+      }),
+    );
     const application = await readApplicationNotice(applicationId);
     await notifyDealerActivation(
       application,
@@ -963,20 +973,7 @@ export async function adminUpdateMemberProfile(
 }
 
 export async function retryMemberGeocode(memberId: string) {
-  const { data, error } = await getSupabaseServiceClient()
-    .from("dealer_network_members")
-    .select("id,address_line_1,address_line_2,city,state,zip_code")
-    .eq("id", memberId)
-    .single();
-  if (error) throw error;
-  return refreshMemberGeocode({
-    id: data.id,
-    addressLine1: data.address_line_1,
-    addressLine2: data.address_line_2,
-    city: data.city,
-    state: data.state,
-    zipCode: data.zip_code,
-  });
+  return refreshStoredMemberGeocode(memberId);
 }
 
 export async function updateSuggestionStatus(

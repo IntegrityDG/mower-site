@@ -138,3 +138,15 @@ export function toDirectoryResult(
       distanceMiles === null ? null : Math.round(distanceMiles * 10) / 10,
   };
 }
+
+export async function resolveBusinessDirectoryOrigin(
+  stored: { latitude: number | null; longitude: number | null } | undefined,
+  repair: () => Promise<{ latitude: number; longitude: number } | null>,
+) {
+  if (
+    typeof stored?.latitude === "number" &&
+    typeof stored.longitude === "number"
+  )
+    return { latitude: stored.latitude, longitude: stored.longitude };
+  return repair();
+}

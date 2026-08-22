@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import {
   filterDirectoryRows,
+  resolveBusinessDirectoryOrigin,
   toDirectoryResult,
   type PrivateDirectoryRow,
 } from "./directory";
@@ -11,6 +12,7 @@ import {
   geocodeUsLocation,
   markMemberGeocodeStale,
   refreshMemberGeocode,
+  refreshStoredMemberGeocode,
 } from "./geocoding";
 import { verifyPin } from "./security";
 import type {
@@ -359,12 +361,9 @@ export async function searchDealerDirectory(
     origin = { latitude: filters.latitude, longitude: filters.longitude };
   if (filters.near === "business") {
     const current = rows.find((row) => row.id === memberId);
-    if (
-      current?.latitude !== null &&
-      current?.latitude !== undefined &&
-      current.longitude !== null
-    )
-      origin = { latitude: current.latitude, longitude: current.longitude };
+    origin = await resolveBusinessDirectoryOrigin(current, () =>
+      refreshStoredMemberGeocode(memberId).catch(() => null),
+    );
   }
   if (filters.near === "zip" && filters.nearZip)
     origin = await geocodeUsLocation(`${filters.nearZip}, United States`).catch(

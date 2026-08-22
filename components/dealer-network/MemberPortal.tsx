@@ -22,6 +22,7 @@ import {
   type MemberProfile,
   type UnavailableFriendResult,
 } from "@/lib/dealer-network/types";
+import { browserGeolocationErrorMessage } from "@/lib/dealer-network/browser-geolocation";
 import {
   MESSAGE_TEXT_LIMIT,
   messageFileType,
@@ -460,27 +461,52 @@ function DirectoryPanel({
       params.set("latitude", String(coordinates.latitude));
       params.set("longitude", String(coordinates.longitude));
     }
-    const response = await fetch(
-      `/api/dealer-network/member/directory?${params}`,
-    );
-    const payload = await response.json().catch(() => ({}));
-    setSearching(false);
-    if (response.ok) onResults(payload.results ?? []);
-    else onMessage(payload.error ?? "Search failed.");
+    try {
+      const response = await fetch(
+        `/api/dealer-network/member/directory?${params}`,
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        onMessage(
+          payload && typeof payload.error === "string"
+            ? payload.error
+            : "Search failed.",
+        );
+        return;
+      }
+      if (!payload || !Array.isArray(payload.results)) {
+        onMessage("Directory search returned an invalid response.");
+        return;
+      }
+      onResults(payload.results);
+    } catch {
+      onMessage("Directory search is unavailable. Check your connection and try again.");
+    } finally {
+      setSearching(false);
+    }
   }
   function useLocation() {
+    if (searching) return;
+    if (!window.isSecureContext) {
+      onMessage(
+        "Browser location requires a secure connection. Use ZIP or business location instead.",
+      );
+      return;
+    }
     if (!navigator.geolocation) {
       onMessage(
         "Browser location is unavailable. Use ZIP or business location instead.",
       );
       return;
     }
+    setSearching(true);
+    onMessage("");
     navigator.geolocation.getCurrentPosition(
       (position) => void search("coordinates", position.coords),
-      () =>
-        onMessage(
-          "Location permission was denied. Use ZIP or business location instead.",
-        ),
+      (error) => {
+        onMessage(browserGeolocationErrorMessage(error.code));
+        setSearching(false);
+      },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
     );
   }
