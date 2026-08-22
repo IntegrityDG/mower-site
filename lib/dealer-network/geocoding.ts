@@ -1,9 +1,18 @@
 import "server-only";
 
 import { getSupabaseServiceClient } from "@/lib/supabase";
-import { geocodeUsLocation } from "./geocoding-adapter";
+import {
+  geocodeUsLocation,
+  GeocodingProviderError,
+  type GeocodeFailureReason,
+  type GeocodePoint,
+} from "./geocoding-adapter";
 
 export { geocodeUsLocation } from "./geocoding-adapter";
+
+export type MemberGeocodeResult =
+  | { success: true; status: "succeeded"; point: GeocodePoint }
+  | { success: false; status: "failed"; reason: GeocodeFailureReason };
 
 export function memberAddressQuery(member: {
   addressLine1: string;
@@ -49,16 +58,14 @@ export async function refreshMemberGeocode(
     zipCode: string;
   },
   geocoder = geocodeUsLocation,
-) {
+): Promise<MemberGeocodeResult> {
   const client = getSupabaseServiceClient();
-  let point;
+  let point: GeocodePoint | null;
   try {
     point = await geocoder(memberAddressQuery(member));
   } catch (error) {
-    const code =
-      error instanceof Error && error.message === "GEOCODER_NOT_CONFIGURED"
-        ? "NOT_CONFIGURED"
-        : "UNAVAILABLE";
+    const reason =
+      error instanceof GeocodingProviderError ? error.reason : "UNAVAILABLE";
     const { error: saveError } = await client.rpc(
       "dealer_network_set_location",
       {
@@ -67,11 +74,11 @@ export async function refreshMemberGeocode(
         p_latitude: null,
         p_longitude: null,
         p_provider: "google-geocoding-v3",
-        p_error: code,
+        p_error: reason,
       },
     );
     if (saveError) throw saveError;
-    return null;
+    return { success: false, status: "failed", reason };
   }
   const { error } = await client.rpc("dealer_network_set_location", {
     p_member_id: member.id,
@@ -82,10 +89,14 @@ export async function refreshMemberGeocode(
     p_error: point ? null : "NO_RESULTS",
   });
   if (error) throw error;
-  return point;
+  return point
+    ? { success: true, status: "succeeded", point }
+    : { success: false, status: "failed", reason: "NO_RESULTS" };
 }
 
-export async function refreshStoredMemberGeocode(memberId: string) {
+export async function refreshStoredMemberGeocode(
+  memberId: string,
+): Promise<MemberGeocodeResult> {
   const { data, error } = await getSupabaseServiceClient()
     .from("dealer_network_members")
     .select("id,address_line_1,address_line_2,city,state,zip_code")

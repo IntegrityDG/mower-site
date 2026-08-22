@@ -172,6 +172,9 @@ export async function readDealerNetworkAdminDashboard() {
     pendingApplicationCount: applications.filter(
       (application) => application.status === "pending",
     ).length,
+    geocodingConfigured: Boolean(
+      process.env.GOOGLE_MAPS_GEOCODING_API_KEY?.trim(),
+    ),
   };
 }
 

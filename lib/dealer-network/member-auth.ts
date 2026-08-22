@@ -152,6 +152,11 @@ export async function readMemberSession(): Promise<AccountState | null> {
   };
 }
 
+export async function readCurrentMemberTokenHash() {
+  const token = (await cookies()).get(MEMBER_SESSION_COOKIE)?.value;
+  return token ? hashToken(token) : null;
+}
+
 export async function requireAuthenticatedMember() {
   const session = await readMemberSession();
   if (!session) throw new MemberAccessError(401, "Authentication required.");

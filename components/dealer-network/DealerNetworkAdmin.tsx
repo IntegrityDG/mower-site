@@ -166,6 +166,7 @@ type Dashboard = {
     }
   >;
   pendingApplicationCount: number;
+  geocodingConfigured: boolean;
 };
 type Report = {
   id: string;
@@ -397,6 +398,7 @@ export default function DealerNetworkAdmin() {
           <SecurityTab
             members={data.members}
             notifications={data.notifications}
+            geocodingConfigured={data.geocodingConfigured}
             reload={load}
             notify={setMessage}
           />
@@ -881,7 +883,8 @@ function MembersTab({
   notify: (value: string) => void;
 }) {
   const [query, setQuery] = useState(""),
-    [selectedId, setSelectedId] = useState(members[0]?.id ?? "");
+    [selectedId, setSelectedId] = useState(members[0]?.id ?? ""),
+    [retryingGeocodeId, setRetryingGeocodeId] = useState<string | null>(null);
   const shown = useMemo(
     () =>
       members.filter((member) =>
@@ -912,6 +915,31 @@ function MembersTab({
             "Member update failed."),
     );
     if (response.ok) await reload();
+  }
+  async function retryGeocoding() {
+    if (!selected || retryingGeocodeId) return;
+    setRetryingGeocodeId(selected.id);
+    try {
+      const response = await fetch(
+        `/api/admin/dealer-network/members/${selected.id}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "retry_geocode" }),
+        },
+      );
+      const payload = await response.json().catch(() => ({}));
+      const resultMessage =
+        response.ok
+          ? (payload.message ?? "Business location geocoded successfully.")
+          : (payload.error ?? "Geocoding retry failed.");
+      await reload();
+      notify(resultMessage);
+    } catch {
+      notify("Geocoding retry could not be completed.");
+    } finally {
+      setRetryingGeocodeId(null);
+    }
   }
   async function permanentlyDeleteMember() {
     if (!selected) return;
@@ -1242,10 +1270,11 @@ This action cannot be undone.`,
           </dl>
           <button
             type="button"
-            onClick={() => void patch({ action: "retry_geocode" })}
+            disabled={retryingGeocodeId !== null}
+            onClick={() => void retryGeocoding()}
             className="mt-4 rounded-xl border px-4 py-2 font-black"
           >
-            Retry Geocoding
+            {retryingGeocodeId === selected.id ? "Retrying…" : "Retry Geocoding"}
           </button>
         </section>
 
@@ -1986,11 +2015,13 @@ function ReportsTab({
 function SecurityTab({
   members,
   notifications,
+  geocodingConfigured,
   reload,
   notify,
 }: {
   members: Member[];
   notifications: Dashboard["notifications"];
+  geocodingConfigured: boolean;
   reload: () => Promise<void>;
   notify: (value: string) => void;
 }) {
@@ -2011,6 +2042,15 @@ function SecurityTab({
   }
   return (
     <section className="mt-7 grid gap-6 lg:grid-cols-2">
+      <div className="rounded-3xl bg-white p-6 shadow-sm lg:col-span-2">
+        <h2 className="text-2xl font-black">Geocoding Service</h2>
+        <p className="mt-2 text-lg font-bold">
+          {geocodingConfigured ? "Configured" : "Not Configured"}
+        </p>
+        <p className="mt-1 text-sm text-slate-600">
+          This reports only whether the server runtime can see the required configuration.
+        </p>
+      </div>
       <div className="rounded-3xl bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-black">Notification Delivery</h2>
         <div className="mt-5 space-y-3">

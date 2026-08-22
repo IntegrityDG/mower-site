@@ -5,9 +5,9 @@ import { useState, type FormEvent } from "react";
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200";
-export default function MemberLogin() {
+export default function MemberLogin({ initialMessage = "" }: { initialMessage?: string }) {
   const [forgot, setForgot] = useState(false),
-    [message, setMessage] = useState(""),
+    [message, setMessage] = useState(initialMessage),
     [busy, setBusy] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

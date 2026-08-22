@@ -362,7 +362,9 @@ export async function searchDealerDirectory(
   if (filters.near === "business") {
     const current = rows.find((row) => row.id === memberId);
     origin = await resolveBusinessDirectoryOrigin(current, () =>
-      refreshStoredMemberGeocode(memberId).catch(() => null),
+      refreshStoredMemberGeocode(memberId)
+        .then((result) => (result.success ? result.point : null))
+        .catch(() => null),
     );
   }
   if (filters.near === "zip" && filters.nearZip)

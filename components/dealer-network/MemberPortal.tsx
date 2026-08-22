@@ -19,6 +19,7 @@ import {
   type FriendResult,
   type MemberBlock,
   type MessageAttachment,
+  type MemberAccountSecuritySummary,
   type MemberProfile,
   type UnavailableFriendResult,
 } from "@/lib/dealer-network/types";
@@ -43,6 +44,7 @@ type Tab =
   | "announcements"
   | "invite"
   | "profile"
+  | "account"
   | "troubleshooting"
   | "suggestions";
 type Suggestion = {
@@ -314,6 +316,7 @@ export default function MemberPortal() {
               ],
               ["invite", "Invite Someone"],
               ["profile", "My Profile"],
+              ["account", "Account / Security"],
               ["troubleshooting", "Troubleshooting"],
               ["suggestions", "Contact IDS / Suggest an Improvement"],
             ] as const
@@ -393,6 +396,7 @@ export default function MemberPortal() {
             onMessage={setMessage}
           />
         )}{" "}
+        {tab === "account" && <AccountSecurityPanel />}{" "}
         {tab === "troubleshooting" && (
           <TroubleshootingPanel onMessage={setMessage} />
         )}{" "}
@@ -405,6 +409,193 @@ export default function MemberPortal() {
         )}
       </div>
     </main>
+  );
+}
+
+function AccountSecurityPanel() {
+  const [summary, setSummary] = useState<MemberAccountSecuritySummary | null>(null),
+    [busy, setBusy] = useState<string | null>(null),
+    [notice, setNotice] = useState("");
+  const refresh = useCallback(async () => {
+    try {
+      const response = await fetch("/api/dealer-network/member/account", {
+        cache: "no-store",
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok) setSummary(payload.summary);
+      else setNotice(payload.error ?? "Account security details are unavailable.");
+    } catch {
+      setNotice("Account security details are unavailable. Check your connection and try again.");
+    }
+  }, []);
+  useEffect(() => {
+    // This panel loads only the authenticated member's safe account summary.
+    void refresh();
+  }, [refresh]);
+
+  async function accountAction(action: string) {
+    if (busy) return;
+    setBusy(action);
+    setNotice("");
+    try {
+      const response = await fetch("/api/dealer-network/member/account", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      setNotice(payload.message ?? payload.error ?? "The request could not be completed.");
+      await refresh();
+    } catch {
+      setNotice("The request could not be completed. Check your connection and try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function changePin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy("change_pin");
+    setNotice("");
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/dealer-network/member/account", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "change_pin",
+          currentPin: form.get("currentPin"),
+          newPin: form.get("newPin"),
+          confirmNewPin: form.get("confirmNewPin"),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setNotice(payload.error ?? "Your PIN could not be changed.");
+        return;
+      }
+      window.location.href = "/dealer-tech-resources/login?notice=pin-changed";
+    } catch {
+      setNotice("Your PIN could not be changed. Check your connection and try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function signOutEverywhere() {
+    if (busy || !window.confirm("Sign out every active session, including this one?"))
+      return;
+    setBusy("sign_out_everywhere");
+    try {
+      const response = await fetch("/api/dealer-network/member/account", {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        setNotice(payload.error ?? "Could not sign out all sessions.");
+        return;
+      }
+      window.location.href = "/dealer-tech-resources/login?notice=signed-out-everywhere";
+    } catch {
+      setNotice("Could not sign out all sessions. Check your connection and try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (!summary)
+    return (
+      <section className="mt-7 rounded-3xl bg-white p-6 shadow-sm">
+        {notice || "Loading account security…"}
+      </section>
+    );
+  return (
+    <section className="mt-7 space-y-6">
+      <div className="rounded-3xl bg-white p-6 shadow-sm">
+        <h2 className="text-3xl font-black">Account &amp; Security</h2>
+        <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <MemberSecurityDetail label="Account Status" value={summary.accountStatus} />
+          <MemberSecurityDetail
+            label="Email Verification"
+            value={summary.emailVerified ? "Verified" : "Needs Attention"}
+          />
+          <MemberSecurityDetail
+            label="Last Login"
+            value={summary.lastLoginAt ? new Date(summary.lastLoginAt).toLocaleString() : "Not available"}
+          />
+          <MemberSecurityDetail label="Active Sessions" value={String(summary.activeSessionCount)} />
+          <MemberSecurityDetail
+            label="Current Session"
+            value={`Expires ${new Date(summary.currentSessionExpiresAt).toLocaleString()}`}
+          />
+        </dl>
+      </div>
+      <div className="rounded-3xl bg-white p-6 shadow-sm">
+        <h3 className="text-2xl font-black">Business Location</h3>
+        <p className="mt-3 font-bold">
+          {summary.businessLocationReady ? "Location Ready" : "Location Needs Attention"}
+        </p>
+        {!summary.businessLocationReady && (
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void accountAction("retry_business_location")}
+            className="mt-4 rounded-xl border px-4 py-3 font-black disabled:opacity-60"
+          >
+            {busy === "retry_business_location" ? "Retrying…" : "Retry Business Location"}
+          </button>
+        )}
+      </div>
+      <div className="rounded-3xl bg-white p-6 shadow-sm">
+        <h3 className="text-2xl font-black">Security Actions</h3>
+        <form onSubmit={changePin} className="mt-5 grid gap-4 sm:grid-cols-3">
+          <label className="font-bold">
+            Current PIN
+            <input name="currentPin" type="password" inputMode="numeric" pattern="[0-9]{6}" required className={inputClass} />
+          </label>
+          <label className="font-bold">
+            New 6-digit PIN
+            <input name="newPin" type="password" inputMode="numeric" pattern="[0-9]{6}" required className={inputClass} />
+          </label>
+          <label className="font-bold">
+            Confirm New PIN
+            <input name="confirmNewPin" type="password" inputMode="numeric" pattern="[0-9]{6}" required className={inputClass} />
+          </label>
+          <button disabled={busy !== null} className="rounded-xl bg-emerald-700 px-5 py-3 font-black text-white disabled:opacity-60 sm:col-span-3 sm:w-fit">
+            {busy === "change_pin" ? "Changing PIN…" : "Change PIN"}
+          </button>
+        </form>
+        <div className="mt-6 flex flex-wrap gap-3 border-t pt-5">
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void accountAction("revoke_other_sessions")}
+            className="rounded-xl border px-4 py-3 font-black disabled:opacity-60"
+          >
+            {busy === "revoke_other_sessions" ? "Signing Out…" : "Sign Out Other Sessions"}
+          </button>
+          <button
+            type="button"
+            disabled={busy !== null}
+            onClick={() => void signOutEverywhere()}
+            className="rounded-xl border border-red-500 px-4 py-3 font-black text-red-800 disabled:opacity-60"
+          >
+            {busy === "sign_out_everywhere" ? "Signing Out…" : "Sign Out Everywhere"}
+          </button>
+        </div>
+        {notice && <p role="status" className="mt-5 rounded-xl bg-slate-100 p-4 font-bold">{notice}</p>}
+      </div>
+    </section>
+  );
+}
+
+function MemberSecurityDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-slate-50 p-4">
+      <dt className="text-xs font-black uppercase tracking-[.12em] text-slate-500">{label}</dt>
+      <dd className="mt-2 text-lg font-black">{value}</dd>
+    </div>
   );
 }
 

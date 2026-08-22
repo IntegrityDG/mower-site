@@ -66,6 +66,15 @@ export type AccountState = {
   expiresAt: string;
 };
 
+export type MemberAccountSecuritySummary = {
+  accountStatus: "Active" | "Needs Attention";
+  emailVerified: boolean;
+  lastLoginAt: string | null;
+  activeSessionCount: number;
+  currentSessionExpiresAt: string;
+  businessLocationReady: boolean;
+};
+
 export type DealerBrand = {
   id: string;
   name: string;
