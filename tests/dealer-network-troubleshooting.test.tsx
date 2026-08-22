@@ -156,6 +156,36 @@ test("photo processing normalizes private uploads and atomically links each reco
   assert.match(server, /cacheControl: "3600"/);
 });
 
+test("read-only troubleshooting paths do not load the image-processing runtime", () => {
+  assert.doesNotMatch(
+    server,
+    /import\s+(?!type\b)[\s\S]*?from\s+["']\.\/image-processing["']/,
+  );
+  const createEntry = server.slice(
+    server.indexOf("export async function createTroubleshootingEntry"),
+    server.indexOf("export async function updateTroubleshootingStatus"),
+  );
+  assert.match(createEntry, /await import\(\s*["']\.\/image-processing["']\s*\)/);
+  assert.doesNotMatch(
+    server.slice(0, server.indexOf("export async function createTroubleshootingEntry")),
+    /import\(\s*["']\.\/image-processing["']\s*\)/,
+  );
+});
+
+test("Dealer Network admin exits loading for errors while preserving 401 login", () => {
+  assert.match(
+    adminUi,
+    /response\.status === 401[\s\S]*?setAuthed\(false\)/,
+  );
+  assert.match(
+    adminUi,
+    /const payload = await response\.json\(\)[\s\S]*?setAuthed\(true\)/,
+  );
+  assert.match(adminUi, /catch\s*\{[\s\S]*?setAuthed\(true\)/);
+  assert.match(adminUi, /Dealer Network administration unavailable/);
+  assert.match(adminUi, />\s*Retry\s*</);
+});
+
 test("member and admin surfaces expose the complete moderated troubleshooting workflow", () => {
   assert.match(memberUi, /Please fill out completely\./);
   for (const name of [

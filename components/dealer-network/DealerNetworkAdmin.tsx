@@ -190,16 +190,22 @@ export default function DealerNetworkAdmin() {
     [tab, setTab] = useState<Tab>("applications"),
     [message, setMessage] = useState("");
   const load = useCallback(async () => {
-    const response = await fetch("/api/admin/dealer-network");
-    if (response.status === 401) {
-      setAuthed(false);
-      return;
-    }
-    const payload = await response.json().catch(() => ({}));
-    if (response.ok) {
-      setData(payload);
+    try {
+      const response = await fetch("/api/admin/dealer-network");
+      if (response.status === 401) {
+        setAuthed(false);
+        return;
+      }
+      const payload = await response.json().catch(() => ({}));
       setAuthed(true);
-    } else setMessage(payload.error ?? "Admin data unavailable.");
+      if (response.ok) {
+        setData(payload);
+        setMessage("");
+      } else setMessage(payload.error ?? "Admin data unavailable.");
+    } catch {
+      setAuthed(true);
+      setMessage("Dealer Network administration could not be loaded.");
+    }
   }, []);
   useEffect(() => {
     // The initial fetch synchronizes this client-only admin surface with its authenticated server state.
@@ -261,7 +267,33 @@ export default function DealerNetworkAdmin() {
         </form>
       </main>
     );
-  if (!data) return null;
+  if (!data)
+    return (
+      <main className="min-h-screen bg-slate-100 p-5">
+        <section className="mx-auto mt-16 max-w-lg rounded-3xl bg-white p-8 shadow-sm">
+          <p className="font-black uppercase tracking-[.2em] text-emerald-700">
+            IDS Admin
+          </p>
+          <h1 className="mt-2 text-3xl font-black">
+            Dealer Network administration unavailable
+          </h1>
+          <p role="alert" className="mt-4 text-red-700">
+            {message || "Admin data unavailable."}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthed(null);
+              setMessage("");
+              void load();
+            }}
+            className="mt-5 rounded-xl bg-emerald-600 px-5 py-3 font-black text-white"
+          >
+            Retry
+          </button>
+        </section>
+      </main>
+    );
   return (
     <main className="min-h-screen bg-slate-100 p-4 text-slate-950 md:p-8">
       <div className="mx-auto max-w-7xl">

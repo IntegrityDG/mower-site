@@ -2,10 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { getSupabaseServiceClient, getSupabaseUrl } from "@/lib/supabase";
-import {
-  exactStorageArrayBuffer,
-  normalizeMessageImage,
-} from "./image-processing";
+import type { MessageImageType } from "./messaging-validation";
 import {
   TROUBLESHOOTING_BATCH_BYTES,
   TROUBLESHOOTING_PHOTO_BYTES,
@@ -371,7 +368,7 @@ export async function createTroubleshootingEntry(
     storage_path: string;
     photo_kind: TroubleshootingPhotoKind;
     position: number;
-    declared_content_type: Parameters<typeof normalizeMessageImage>[1];
+    declared_content_type: MessageImageType;
     declared_byte_size: number;
   }> = [];
   if (parsed.uploadIds.length) {
@@ -422,6 +419,9 @@ export async function createTroubleshootingEntry(
     }
     const actualBytes = { issue: 0, fix: 0 };
     for (const upload of uploads) {
+      const { exactStorageArrayBuffer, normalizeMessageImage } = await import(
+        "./image-processing"
+      );
       const { data, error } = await client.storage
         .from(TROUBLESHOOTING_BUCKET)
         .download(upload.storage_path);
