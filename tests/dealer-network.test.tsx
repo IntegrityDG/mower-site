@@ -545,12 +545,12 @@ test("member ownership comes only from the authenticated session across profile,
   assert.ok(server.includes("members/${memberId}/logo/"));
 });
 
-test("brand additions stay pending, removals are immediate, and only approved brands are searchable", () => {
+test("active brand additions are immediate, removals are immediate, and approved brands are searchable", () => {
   const server = readFileSync("lib/dealer-network/member-server.ts", "utf8");
-  assert.match(server, /approval_status: "pending"/);
+  assert.match(server, /approval_status: "approved"/);
+  assert.match(server, /decided_at: new Date\(\)\.toISOString\(\)/);
   assert.match(server, /approval_status: "removed"/);
   assert.match(migration, /mb\.approval_status='approved'/);
-  assert.match(migration, /where approval_status in \('pending','approved'\)/);
   assert.match(migration, /where b\.status='active'/);
 });
 
@@ -816,7 +816,7 @@ test("suggestions are member-owned and admin workflows reuse existing IDS authen
     "applications/[id]/route.ts",
     "brands/route.ts",
     "brands/[id]/route.ts",
-    "member-brands/[id]/route.ts",
+    "brand-requests/[id]/route.ts",
     "members/[id]/route.ts",
     "notifications/[id]/retry/route.ts",
     "suggestions/[id]/route.ts",

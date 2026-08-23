@@ -4,6 +4,7 @@ import { sanitizeEmailFailure } from "@/lib/email-diagnostics";
 import { sendServerEmail } from "@/lib/email";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { createOneTimeToken } from "./security";
+import { normalizeRequestedBrandName } from "./brand-request-validation";
 import {
   readAdminApplications,
   readApplicationNotice,
@@ -54,6 +55,7 @@ export async function readDealerNetworkAdminDashboard() {
     applications,
     { data: memberRows, error: memberError },
     { data: brandRows, error: brandError },
+    { data: brandRequests, error: brandRequestError },
     { data: memberBrands },
     { data: suggestions, error: suggestionError },
     { data: suggestionTopics, error: suggestionTopicError },
@@ -74,6 +76,10 @@ export async function readDealerNetworkAdminDashboard() {
       )
       .order("sort_order")
       .order("name"),
+    client
+      .from("dealer_network_brand_requests")
+      .select("id,member_id,member_name_snapshot,company_name_snapshot,requested_name,normalized_name,status,created_at,resolved_at")
+      .order("created_at", { ascending: false }),
     client
       .from("dealer_network_member_brands")
       .select(
@@ -105,8 +111,8 @@ export async function readDealerNetworkAdminDashboard() {
       .order("created_at", { ascending: false }),
     readAdminTroubleshootingEntries(),
   ]);
-  if (memberError || brandError || suggestionError || suggestionTopicError || notificationError || reportError)
-    throw memberError ?? brandError ?? suggestionError ?? suggestionTopicError ?? notificationError ?? reportError;
+  if (memberError || brandError || brandRequestError || suggestionError || suggestionTopicError || notificationError || reportError)
+    throw memberError ?? brandError ?? brandRequestError ?? suggestionError ?? suggestionTopicError ?? notificationError ?? reportError;
   const members = await Promise.all(
     (memberRows ?? []).map(async (row) => {
       const { data: security } = await client.rpc(
@@ -153,6 +159,17 @@ export async function readDealerNetworkAdminDashboard() {
     brands: (brandRows ?? []).map((row) =>
       mapBrand(row as Record<string, unknown>),
     ),
+    brandRequests: (brandRequests ?? []).map((request) => ({
+      id: String(request.id),
+      memberId: request.member_id ? String(request.member_id) : null,
+      memberName: String(request.member_name_snapshot),
+      companyName: String(request.company_name_snapshot),
+      requestedName: String(request.requested_name),
+      normalizedName: String(request.normalized_name),
+      status: String(request.status),
+      createdAt: String(request.created_at),
+      resolvedAt: request.resolved_at ? String(request.resolved_at) : null,
+    })),
     suggestions: (suggestions ?? []).map((suggestion) => ({
       ...suggestion,
       board_topic_id: (suggestionTopics ?? []).find((topic) => topic.source_suggestion_id === suggestion.id)?.id ?? null,
@@ -598,26 +615,6 @@ export async function saveDealerBrand(input: unknown, brandId?: string) {
   );
 }
 
-export async function decideMemberBrand(
-  relationshipId: string,
-  decision: "approve" | "reject",
-) {
-  const { data, error } = await getSupabaseServiceClient()
-    .from("dealer_network_member_brands")
-    .update({
-      approval_status: decision === "approve" ? "approved" : "rejected",
-      decided_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", relationshipId)
-    .eq("approval_status", "pending")
-    .select("id,member_id,brand_id,relationship_type,approval_status")
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("PENDING_AFFILIATION_NOT_FOUND");
-  return data;
-}
-
 export async function setMemberAccountState(memberId: string, input: unknown) {
   const body =
     input && typeof input === "object"
@@ -1003,6 +1000,58 @@ export async function adminUpdateMemberProfile(
 
 export async function retryMemberGeocode(memberId: string) {
   return refreshStoredMemberGeocode(memberId);
+}
+
+export async function resolveDealerBrandRequest(
+  requestId: string,
+  action: "add" | "dismiss",
+) {
+  if (!validateUuid(requestId)) throw new Error("BRAND_REQUEST_NOT_FOUND");
+  const client = getSupabaseServiceClient();
+  const { data: request, error } = await client
+    .from("dealer_network_brand_requests")
+    .select("id,requested_name,normalized_name,status")
+    .eq("id", requestId)
+    .eq("status", "pending")
+    .maybeSingle();
+  if (error) throw error;
+  if (!request) throw new Error("BRAND_REQUEST_NOT_FOUND");
+  let brand = null;
+  if (action === "add") {
+    const { data: existing, error: existingError } = await client
+      .from("dealer_network_brands")
+      .select("id,name,models,status,sort_order")
+      .order("sort_order");
+    if (existingError) throw existingError;
+    const existingBrand = (existing ?? []).find(
+      (item) =>
+        normalizeRequestedBrandName(item.name)?.normalizedName ===
+        request.normalized_name,
+    );
+    brand = existingBrand
+      ? mapBrand(existingBrand as Record<string, unknown>)
+      : await saveDealerBrand({
+          name: request.requested_name,
+          models: [],
+          status: "active",
+          sortOrder: 100,
+        });
+  }
+  const resolvedAt = new Date().toISOString();
+  const { data: resolved, error: updateError } = await client
+    .from("dealer_network_brand_requests")
+    .update({
+      status: action === "add" ? "resolved" : "dismissed",
+      resolved_at: resolvedAt,
+      updated_at: resolvedAt,
+    })
+    .eq("id", requestId)
+    .eq("status", "pending")
+    .select("id,status,resolved_at")
+    .maybeSingle();
+  if (updateError) throw updateError;
+  if (!resolved) throw new Error("BRAND_REQUEST_NOT_FOUND");
+  return { request: resolved, brand };
 }
 
 export async function updateSuggestionStatus(

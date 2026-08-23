@@ -15,6 +15,7 @@ import {
   refreshStoredMemberGeocode,
 } from "./geocoding";
 import { verifyPin } from "./security";
+import { normalizeRequestedBrandName } from "./brand-request-validation";
 import type {
   BrandRelationshipType,
   DirectoryFilters,
@@ -74,7 +75,7 @@ export async function readMemberProfile(
           "id,brand_id,relationship_type,approval_status,requested_at,brand:dealer_network_brands(id,name)",
         )
         .eq("member_id", memberId)
-        .in("approval_status", ["pending", "approved"])
+        .eq("approval_status", "approved")
         .order("requested_at"),
     ]);
   if (error || brandError) throw error ?? brandError;
@@ -244,7 +245,8 @@ export async function addMemberBrand(memberId: string, input: unknown) {
       member_id: memberId,
       brand_id: brandId,
       relationship_type: relationshipType,
-      approval_status: "pending",
+      approval_status: "approved",
+      decided_at: new Date().toISOString(),
     })
     .select(
       "id,brand_id,relationship_type,approval_status,requested_at,brand:dealer_network_brands(id,name)",
@@ -252,6 +254,48 @@ export async function addMemberBrand(memberId: string, input: unknown) {
     .single();
   if (error) throw error;
   return mapBrand(data as Record<string, unknown>);
+}
+
+export async function createDealerBrandRequest(memberId: string, input: unknown) {
+  const body =
+    input && typeof input === "object"
+      ? (input as Record<string, unknown>)
+      : {};
+  const normalized = normalizeRequestedBrandName(body.name);
+  if (!normalized) throw new Error("INVALID_BRAND_NAME");
+  const client = getSupabaseServiceClient();
+  const [{ data: member, error: memberError }, { data: brands, error: brandError }] =
+    await Promise.all([
+      client
+        .from("dealer_network_members")
+        .select("member_name,company_name")
+        .eq("id", memberId)
+        .single(),
+      client.from("dealer_network_brands").select("name"),
+    ]);
+  if (memberError || brandError) throw memberError ?? brandError;
+  if (
+    (brands ?? []).some(
+      (brand) =>
+        normalizeRequestedBrandName(brand.name)?.normalizedName ===
+        normalized.normalizedName,
+    )
+  )
+    throw new Error("BRAND_ALREADY_EXISTS");
+  const { data, error } = await client
+    .from("dealer_network_brand_requests")
+    .insert({
+      member_id: memberId,
+      member_name_snapshot: member.member_name,
+      company_name_snapshot: member.company_name,
+      requested_name: normalized.requestedName,
+      normalized_name: normalized.normalizedName,
+    })
+    .select("id,requested_name,status,created_at")
+    .single();
+  if (error?.code === "23505") throw new Error("BRAND_REQUEST_EXISTS");
+  if (error) throw error;
+  return data;
 }
 
 export async function removeMemberBrand(

@@ -243,6 +243,18 @@ export type ConversationSummary = {
   lastMessagePreview: string;
 };
 
+export type DealerBrandRequest = {
+  id: string;
+  memberId: string | null;
+  memberName: string;
+  companyName: string;
+  requestedName: string;
+  normalizedName: string;
+  status: "pending" | "resolved" | "dismissed";
+  createdAt: string;
+  resolvedAt: string | null;
+};
+
 export type MemberNotificationKind =
   | "private_message"
   | "poll_response"

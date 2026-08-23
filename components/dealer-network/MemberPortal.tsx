@@ -1490,7 +1490,9 @@ function ProfilePanel({
 }) {
   const [brandId, setBrandId] = useState(""),
     [relationshipType, setRelationshipType] = useState("serviced"),
-    [busy, setBusy] = useState(false);
+    [requestedBrandName, setRequestedBrandName] = useState(""),
+    [busy, setBusy] = useState(false),
+    [requestBusy, setRequestBusy] = useState(false);
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -1515,7 +1517,7 @@ function ProfilePanel({
     onMessage(
       payload.reauthenticate
         ? "Profile saved. Sign in again because your login or recovery identity changed."
-        : "Profile saved. Role changes take effect immediately; new brand requests remain pending.",
+        : "Profile saved. Changes take effect immediately.",
     );
     if (payload.reauthenticate)
       window.location.href = "/dealer-tech-resources/login";
@@ -1530,9 +1532,27 @@ function ProfilePanel({
     const payload = await response.json().catch(() => ({}));
     if (response.ok) {
       onProfile({ ...profile, brands: [...profile.brands, payload.brand] });
-      onMessage("Brand affiliation submitted for IDS approval.");
+      onMessage("Brand added to your profile.");
       setBrandId("");
-    } else onMessage(payload.error ?? "Brand request failed.");
+    } else onMessage(payload.error ?? "Brand could not be added.");
+  }
+  async function requestNewBrand(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (requestBusy) return;
+    setRequestBusy(true);
+    const response = await fetch("/api/dealer-network/member/brand-requests", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: requestedBrandName }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    setRequestBusy(false);
+    if (response.ok) {
+      setRequestedBrandName("");
+      onMessage(
+        "New brand requested. If IDS adds it to the catalog, you can select it here afterward.",
+      );
+    } else onMessage(payload.error ?? "Brand request could not be submitted.");
   }
   async function removeBrand(id: string) {
     const response = await fetch(`/api/dealer-network/member/brands/${id}`, {
@@ -1714,8 +1734,8 @@ function ProfilePanel({
         <section className="rounded-3xl bg-white p-6 shadow-sm">
           <h2 className="text-xl font-black">Brand Affiliations</h2>
           <p className="mt-2 text-sm text-slate-600">
-            New affiliations remain pending and are not searchable until IDS
-            approves them. Removals take effect immediately.
+            Add active brands you sell or service. Additions and removals take
+            effect immediately.
           </p>
           <div className="mt-4 space-y-2">
             {profile.brands.map((brand) => (
@@ -1726,7 +1746,9 @@ function ProfilePanel({
                 <span>
                   <b>{brand.brandName}</b>
                   <span className="block capitalize text-slate-500">
-                    {brand.relationshipType} · {brand.approvalStatus}
+                    {brand.relationshipType === "sold"
+                      ? "Sold"
+                      : "Serviced / Repaired"}
                   </span>
                 </span>
                 <button
@@ -1765,8 +1787,32 @@ function ProfilePanel({
             onClick={() => void addBrand()}
             className="mt-3 w-full rounded-xl bg-slate-950 px-4 py-3 font-black text-white"
           >
-            Request Brand Affiliation
+            Add Brand
           </button>
+          <form onSubmit={requestNewBrand} className="mt-6 border-t pt-5">
+            <h3 className="font-black">
+              Can&apos;t find your brand? Request New Brand
+            </h3>
+            <p className="mt-1 text-sm text-slate-600">
+              This asks IDS to add it to the master list. It does not add an
+              affiliation to your profile.
+            </p>
+            <input
+              aria-label="New brand name"
+              value={requestedBrandName}
+              onChange={(event) => setRequestedBrandName(event.target.value)}
+              minLength={2}
+              maxLength={120}
+              required
+              className={inputClass}
+            />
+            <button
+              disabled={requestBusy}
+              className="mt-3 w-full rounded-xl border border-slate-950 px-4 py-3 font-black disabled:opacity-60"
+            >
+              {requestBusy ? "Submitting…" : "Request New Brand"}
+            </button>
+          </form>
         </section>
       </aside>
     </section>

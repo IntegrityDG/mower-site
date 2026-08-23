@@ -17,6 +17,7 @@ import {
   type ApplicationStatus,
   type BusinessType,
   type DealerBrand,
+  type DealerBrandRequest,
   type MemberRole,
   type MemberStatus,
   type TroubleshootingStatus,
@@ -157,6 +158,7 @@ type Dashboard = {
   applications: Application[];
   members: Member[];
   brands: DealerBrand[];
+  brandRequests: DealerBrandRequest[];
   suggestions: Suggestion[];
   troubleshooting: AdminTroubleshootingEntry[];
   reports: Report[];
@@ -377,7 +379,12 @@ export default function DealerNetworkAdmin() {
           <DealerNetworkBoardAdmin notify={setMessage} />
         )}{" "}
         {tab === "brands" && (
-          <BrandsTab brands={data.brands} reload={load} notify={setMessage} />
+          <BrandsTab
+            brands={data.brands}
+            brandRequests={data.brandRequests}
+            reload={load}
+            notify={setMessage}
+          />
         )}{" "}
         {tab === "suggestions" && (
           <SuggestionsTab
@@ -991,22 +998,6 @@ This action cannot be undone.`,
     await reload();
   }
 
-  async function decide(id: string, decision: "approve" | "reject") {
-    const response = await fetch(
-      `/api/admin/dealer-network/member-brands/${id}`,
-      {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ decision }),
-      },
-    );
-    notify(
-      response.ok
-        ? `Brand affiliation ${decision}d.`
-        : "Brand decision failed.",
-    );
-    if (response.ok) await reload();
-  }
   if (!selected)
     return (
       <section className="mt-7 rounded-3xl bg-white p-8">No members.</section>
@@ -1229,22 +1220,6 @@ This action cannot be undone.`,
                     {brand.relationship_type} · {brand.approval_status}
                   </span>
                 </span>
-                {brand.approval_status === "pending" && (
-                  <span className="flex gap-2">
-                    <button
-                      onClick={() => void decide(brand.id, "approve")}
-                      className="rounded-lg bg-emerald-600 px-3 py-2 font-black text-white"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => void decide(brand.id, "reject")}
-                      className="rounded-lg border border-red-400 px-3 py-2 font-black text-red-700"
-                    >
-                      Reject
-                    </button>
-                  </span>
-                )}
               </div>
             ))}
           </div>
@@ -1327,10 +1302,12 @@ This action cannot be undone.`,
 
 function BrandsTab({
   brands,
+  brandRequests,
   reload,
   notify,
 }: {
   brands: DealerBrand[];
+  brandRequests: DealerBrandRequest[];
   reload: () => Promise<void>;
   notify: (value: string) => void;
 }) {
@@ -1429,6 +1406,26 @@ function BrandsTab({
       event.currentTarget.reset();
       await reload();
     }
+  }
+
+  async function handleRequest(id: string, action: "add" | "dismiss") {
+    const response = await fetch(
+      `/api/admin/dealer-network/brand-requests/${id}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action }),
+      },
+    );
+    const payload = await response.json().catch(() => ({}));
+    notify(
+      response.ok
+        ? action === "add"
+          ? "Brand added to the master list."
+          : "Brand request dismissed."
+        : payload.error ?? "Brand request could not be updated.",
+    );
+    if (response.ok) await reload();
   }
 
   return (
@@ -1556,7 +1553,36 @@ function BrandsTab({
         )}
       </form>
 
-      <div className="space-y-3">
+      <div className="space-y-6">
+        <section className="rounded-3xl bg-white p-6 shadow-sm">
+          <h2 className="text-2xl font-black">New Brand Requests</h2>
+          <div className="mt-4 space-y-3">
+            {brandRequests
+              .filter((request) => request.status === "pending")
+              .map((request) => (
+                <article key={request.id} className="rounded-2xl bg-slate-50 p-4">
+                  <h3 className="text-lg font-black">{request.requestedName}</h3>
+                  <p className="text-sm text-slate-600">
+                    {request.memberName} · {request.companyName}
+                  </p>
+                  <time className="text-xs text-slate-500">
+                    {new Date(request.createdAt).toLocaleString()}
+                  </time>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => void handleRequest(request.id, "add")} className="rounded-xl bg-emerald-600 px-4 py-2 font-black text-white">
+                      Add Brand
+                    </button>
+                    <button type="button" onClick={() => void handleRequest(request.id, "dismiss")} className="rounded-xl border border-red-300 px-4 py-2 font-black text-red-700">
+                      Dismiss Request
+                    </button>
+                  </div>
+                </article>
+              ))}
+            {!brandRequests.some((request) => request.status === "pending") && (
+              <p className="text-sm text-slate-600">No pending brand requests.</p>
+            )}
+          </div>
+        </section>
         {brands.map((brand) => (
           <article
             key={brand.id}

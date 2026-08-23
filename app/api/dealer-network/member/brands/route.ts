@@ -22,7 +22,7 @@ export async function POST(request: Request) {
         error:
           error instanceof MemberAccessError
             ? error.message
-            : "Brand affiliation could not be requested.",
+            : "Brand affiliation could not be added.",
       },
       { status: error instanceof MemberAccessError ? error.status : 400 },
     );
