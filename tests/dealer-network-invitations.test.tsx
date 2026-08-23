@@ -13,6 +13,73 @@ const migrationPath =
 const migration =
   readFileSync(migrationPath, "utf8");
 
+const ambiguityFixMigration = readFileSync(
+  "supabase/migrations/20260823004600_fix_dealer_network_invitation_email_ambiguity.sql",
+  "utf8",
+);
+
+test("invitation email ambiguity fix uses collision-safe local variables", () => {
+  assert.match(
+    ambiguityFixMigration,
+    /create or replace function public\.dealer_network_create_member_invitation/,
+  );
+  for (const variable of [
+    "v_invitation_id",
+    "v_normalized_name",
+    "v_normalized_email",
+    "v_normalized_message",
+  ])
+    assert.match(ambiguityFixMigration, new RegExp(`\\b${variable}\\b`));
+  assert.match(
+    ambiguityFixMigration,
+    /where lower\(m\.email\) = v_normalized_email/,
+  );
+  assert.match(
+    ambiguityFixMigration,
+    /where lower\(i\.invitee_email\) = v_normalized_email/,
+  );
+  assert.doesNotMatch(
+    ambiguityFixMigration,
+    /\b(?:invitation_id|normalized_name|normalized_email|normalized_message)\s+(?:uuid|text)\s*;/,
+  );
+  assert.doesNotMatch(
+    ambiguityFixMigration,
+    /=\s*normalized_email\b/,
+  );
+});
+
+test("ambiguity fix preserves invitation guards, limits, insert and message", () => {
+  for (const behavior of [
+    "m.status = 'active'",
+    "m.account_locked = false",
+    "m.deleted_at is null",
+    "already_member",
+    "pg_advisory_xact_lock",
+    "invitation_recipient_cooldown",
+    "now() - interval '7 days'",
+    "'member_invitation_24h'",
+    "invitation_daily_limit",
+    "p_personal_message",
+    "insert into public.dealer_network_member_invitations",
+  ])
+    assert.ok(ambiguityFixMigration.includes(behavior), behavior);
+  assert.match(ambiguityFixMigration, /10,\s*86400/);
+});
+
+test("ambiguity fix preserves invoker security, search path and ACLs", () => {
+  assert.match(ambiguityFixMigration, /security invoker/);
+  assert.match(ambiguityFixMigration, /set search_path = pg_catalog, public/);
+  assert.match(
+    ambiguityFixMigration,
+    /revoke all[\s\S]*from public, anon, authenticated/,
+  );
+  assert.match(
+    ambiguityFixMigration,
+    /grant execute[\s\S]*to service_role/,
+  );
+  assert.doesNotMatch(ambiguityFixMigration, /security definer/i);
+});
+
 
 test(
   "member invitation email identifies the inviter, includes the optional message, and sends the recipient to the application",
