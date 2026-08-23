@@ -1003,8 +1003,8 @@ test("current Yarbo package records remain available after machine selection", (
 
   assert.equal(product.packages.length, 1);
   assert.match(html, /Complete Yarbo Systems/);
-  assert.match(html, /Yarbo Lawn Mower Pro System/);
-  assert.doesNotMatch(html, /Yarbo Lawn Mower System/);
+  assert.match(html, />Yarbo Lawn Mower Pro</);
+  assert.doesNotMatch(html, />Yarbo Lawn Mower Pro System</);
   assert.match(html, /1 packages/);
   assert.match(html, /Individual Yarbo Equipment/);
 });

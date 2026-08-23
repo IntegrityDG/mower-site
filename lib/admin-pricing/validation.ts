@@ -4,10 +4,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const common = ["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "sale_starts_at", "sale_ends_at", "promotion_label", "show_public_price", "contact_for_pricing"] as const;
 const statusFields = [...common, "public_status"] as const;
 const fields: Record<PricingKind, readonly string[]> = {
-  products: statusFields,
-  variants: statusFields,
-  packages: statusFields,
-  options: statusFields,
+  products: ["name", ...statusFields],
+  variants: ["name", ...statusFields],
+  packages: ["package_name", ...statusFields],
+  options: ["name", ...statusFields],
   services: statusFields,
   "service-payment-options": ["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "is_available"],
   "product-services": ["override_display_msrp_price_cents", "override_regular_price_cents", "override_sale_price_cents", "override_sale_starts_at", "override_sale_ends_at", "override_promotion_label", "override_show_public_price", "override_contact_for_pricing", "is_available"],
@@ -17,6 +17,7 @@ const priceFields = new Set(["display_msrp_price_cents", "regular_price_cents", 
 const dateFields = new Set(["sale_starts_at", "sale_ends_at", "override_sale_starts_at", "override_sale_ends_at", "starts_at", "ends_at"]);
 const booleanFields = new Set(["show_public_price", "contact_for_pricing", "override_show_public_price", "override_contact_for_pricing", "is_available"]);
 const stringFields = new Set(["promotion_label", "override_promotion_label", "schedule_name"]);
+const catalogNameFields = new Set(["name", "package_name"]);
 const statuses = new Set(["active", "unavailable", "coming_soon", "hidden"]);
 
 export function isPricingKind(value: string): value is PricingKind { return (PRICING_KINDS as readonly string[]).includes(value); }
@@ -55,6 +56,9 @@ export function validatePricingPatch(kind: PricingKind, input: unknown): Pricing
       if (raw === null && key.startsWith("override_")) value[key] = null;
       else if (typeof raw !== "boolean") return { ok: false, error: `${key} must be boolean${key.startsWith("override_") ? " or null" : ""}.` };
       else value[key] = raw;
+    } else if (catalogNameFields.has(key)) {
+      if (typeof raw !== "string" || !raw.trim() || raw.trim().length > 160) return { ok: false, error: `${key} must be 1 to 160 characters.` };
+      value[key] = raw.trim();
     } else if (stringFields.has(key)) {
       if ((raw === null || raw === "") && key !== "schedule_name") value[key] = null;
       else if (typeof raw !== "string" || !raw.trim() || raw.trim().length > 160) return { ok: false, error: `${key} must be 1 to 160 characters.` };

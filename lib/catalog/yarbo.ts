@@ -54,47 +54,17 @@ export const YARBO_PACKAGE_GROUPS: YarboPackageGroup[] = [
   },
 ];
 
-const YARBO_OPTION_DISPLAY_NAMES: Record<string, string> = {
-  "yarbo-mower-module": "Standard Lawn Mower Module",
-  "yarbo-lawn-mower-pro-module": "Lawn Mower Pro Module",
-  "yarbo-snow-blower-module": "Snow Blower Module",
-  "yarbo-leaf-blower-module": "Blower Module",
-  "yarbo-trimmer-module": "Yarbo Trimmer Package",
-};
-
-const YARBO_MODULE_SLUGS = new Set(Object.keys(YARBO_OPTION_DISPLAY_NAMES));
+const YARBO_MODULE_SLUGS = new Set([
+  "yarbo-mower-module",
+  "yarbo-lawn-mower-pro-module",
+  "yarbo-snow-blower-module",
+  "yarbo-leaf-blower-module",
+  "yarbo-trimmer-module",
+]);
 
 const YARBO_DISCONTINUED_MODULE_SLUGS = new Set([
   "yarbo-mower-module",
 ]);
-
-const YARBO_PACKAGE_DISPLAY_NAMES: Record<string, string> = {
-  "yarbo-lawn-mower": "Yarbo Lawn Mower System",
-  "yarbo-lawn-mower-trimmer": "Yarbo Lawn Mower + Trimmer System",
-  "yarbo-lawn-leaf": "Yarbo Lawn Mower + Blower System",
-  "yarbo-lawn-leaf-trimmer": "Yarbo Lawn Mower + Blower + Trimmer System",
-  "yarbo-lawn-mower-pro": "Yarbo Lawn Mower Pro System",
-  "yarbo-lawn-mower-pro-trimmer": "Yarbo Lawn Mower Pro + Trimmer System",
-  "yarbo-pro-leaf": "Yarbo Lawn Mower Pro + Blower System",
-  "yarbo-pro-leaf-trimmer": "Yarbo Lawn Mower Pro + Blower + Trimmer System",
-  "yarbo-snow-blower": "Yarbo Snow Blower System",
-  "yarbo-snow-blower-trimmer": "Yarbo Snow Blower + Trimmer System",
-  "yarbo-snow-leaf": "Yarbo Snow Blower + Blower System",
-  "yarbo-snow-leaf-trimmer": "Yarbo Snow Blower + Blower + Trimmer System",
-  "yarbo-leaf-blower": "Yarbo Blower System",
-  "yarbo-trimmer": "Yarbo Trimmer System",
-  "yarbo-leaf-blower-trimmer": "Yarbo Blower + Trimmer System",
-  "yarbo-snow-lawn": "Yarbo Snow Blower + Lawn Mower System",
-  "yarbo-snow-lawn-trimmer": "Yarbo Snow Blower + Lawn Mower + Trimmer System",
-  "yarbo-pro-snow": "Yarbo Lawn Mower Pro + Snow Blower System",
-  "yarbo-pro-snow-trimmer": "Yarbo Lawn Mower Pro + Snow Blower + Trimmer System",
-  "yarbo-lawn-snow-leaf": "Yarbo Lawn Mower + Snow Blower + Blower System",
-  "yarbo-pro-snow-leaf": "Yarbo Lawn Mower Pro + Snow Blower + Blower System",
-  "yarbo-lawn-snow-leaf-trimmer":
-    "Yarbo Lawn Mower + Snow Blower + Blower + Trimmer System",
-  "yarbo-pro-snow-leaf-trimmer":
-    "Yarbo Lawn Mower Pro + Snow Blower + Blower + Trimmer System",
-};
 
 export function isYarboProduct(product: CatalogProduct) {
   return product.slug === YARBO_PRODUCT_SLUG;
@@ -109,17 +79,11 @@ export function isYarboModuleOption(option: CatalogOption) {
 }
 
 export function yarboOptionDisplayName(option: CatalogOption) {
-  return (
-    YARBO_OPTION_DISPLAY_NAMES[option.slug] ??
-    option.name.replaceAll("Leaf Blower", "Blower")
-  );
+  return option.name;
 }
 
 export function yarboPackageDisplayName(catalogPackage: CatalogPackage) {
-  return (
-    YARBO_PACKAGE_DISPLAY_NAMES[catalogPackage.slug] ??
-    catalogPackage.name.replaceAll("Leaf Blower", "Blower")
-  );
+  return catalogPackage.name;
 }
 
 export function yarboPackageModuleNames(catalogPackage: CatalogPackage) {

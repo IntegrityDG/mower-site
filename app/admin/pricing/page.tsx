@@ -7,7 +7,12 @@ import type { PricingItem } from "@/lib/admin-pricing/types";
 import { grossMarginPercent, grossProfitCents } from "@/lib/admin-pricing/gross-margin";
 const labels: Record<string, string> = { display_msrp_price_cents: "Manufacturer / MSRP", regular_price_cents: "IDS Everyday Low Price", sale_price_cents: "Temporary Sale Price", sale_starts_at: "Sale Start", sale_ends_at: "Sale End", promotion_label: "Promotion Label", show_public_price: "Show Public Price", contact_for_pricing: "Contact for Pricing", override_display_msrp_price_cents: "Manufacturer / MSRP Override", override_regular_price_cents: "IDS Everyday Low Price Override", override_sale_price_cents: "Temporary Sale Price Override", override_sale_starts_at: "Sale Start Override", override_sale_ends_at: "Sale End Override", override_promotion_label: "Promotion Label Override", override_show_public_price: "Show Public Price Override", override_contact_for_pricing: "Contact for Pricing Override", is_available: "Available", schedule_name: "Schedule Name", starts_at: "Starts At", ends_at: "Ends At", public_status: "Public Status" };
 const priceFields = new Set(["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "override_display_msrp_price_cents", "override_regular_price_cents", "override_sale_price_cents"]);
-const fieldLabel = (kind: PricingItem["kind"], field: string) => kind === "schedules" && field === "regular_price_cents" ? "Scheduled IDS Price" : kind === "schedules" && field === "sale_price_cents" ? "Scheduled Sale Price" : labels[field] ?? field;
+const fieldLabel = (kind: PricingItem["kind"], field: string) => {
+    if (field === "name" || field === "package_name") {
+        return <>{field === "name" ? "Catalog Display Name" : "Package Display Name"}<span className="mt-2 block rounded-xl bg-blue-50 p-3 text-sm font-semibold text-blue-950">Changing the display name does not change the item&apos;s ID, slug, pricing, package contents, or checkout relationships.</span></>;
+    }
+    return kind === "schedules" && field === "regular_price_cents" ? "Scheduled IDS Price" : kind === "schedules" && field === "sale_price_cents" ? "Scheduled Sale Price" : labels[field] ?? field;
+};
 const dateFields = new Set(["sale_starts_at", "sale_ends_at", "override_sale_starts_at", "override_sale_ends_at", "starts_at", "ends_at"]);
 const booleanFields = new Set(["show_public_price", "contact_for_pricing", "is_available"]);
 const nullableBooleanFields = new Set(["override_show_public_price", "override_contact_for_pricing"]);
