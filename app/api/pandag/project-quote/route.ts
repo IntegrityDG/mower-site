@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 
 import { sendLeadEmail } from "@/lib/email";
 import { getSupabaseServiceClient } from "@/lib/supabase";
+import { LeadRequestError, readLimitedJson, requireLeadRateLimit } from "@/lib/leads/request-security";
 
-const maximumBodyBytes = 32_000;
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const propertyTypes = {
@@ -79,22 +79,8 @@ function acreageValue(value: unknown) {
 
 export async function POST(request: Request) {
   try {
-    const declaredLength = Number(request.headers.get("content-length") ?? 0);
-    if (declaredLength > maximumBodyBytes) {
-      return NextResponse.json({ error: "Request is too large." }, { status: 413 });
-    }
-
-    const rawBody = await request.text();
-    if (new TextEncoder().encode(rawBody).length > maximumBodyBytes) {
-      return NextResponse.json({ error: "Request is too large." }, { status: 413 });
-    }
-
-    let body: unknown;
-    try {
-      body = JSON.parse(rawBody);
-    } catch {
-      return NextResponse.json({ error: "Invalid request." }, { status: 400 });
-    }
+    await requireLeadRateLimit(request, "pandag_quote_request");
+    const body = await readLimitedJson(request);
 
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return NextResponse.json({ error: "Invalid request." }, { status: 400 });
@@ -209,7 +195,9 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    if (error instanceof LeadRequestError)
+      return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("Pandag project request failed");
     return NextResponse.json({ error: "Unable to process the project request." }, { status: 500 });
   }

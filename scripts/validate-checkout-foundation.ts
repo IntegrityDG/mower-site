@@ -46,8 +46,8 @@ const validLymowCatalog = { product: product("lymow-one-plus", "Lymow"), variant
 assert.doesNotThrow(() => validateCheckoutEligibility(validLymowRequest, { ...validLymowCatalog, options: [lymowCharger, { ...option(ids[9], "inactive-sibling-option"), public_status: "hidden" }] }));
 assert.doesNotThrow(() => validateCheckoutEligibility(validLymowRequest, { ...validLymowCatalog, variants: [lymowVariant, { ...variant(ids[10], "inactive-sibling-variant", 1), public_status: "hidden" }] }));
 assert.doesNotThrow(() => validateCheckoutEligibility(validLymowRequest, { ...validLymowCatalog, packages: [{ ...catalogPackage(ids[11], "inactive-sibling-package"), public_status: "hidden" }] }));
-expectReject(() => validateCheckoutEligibility(validLymowRequest, { ...validLymowCatalog, variants: [{ ...lymowVariant, public_status: "hidden" }] }), /selected variant is not active/i);
-expectReject(() => validateCheckoutEligibility(validLymowRequest, { ...validLymowCatalog, options: [{ ...lymowCharger, public_status: "hidden" }] }), /required Lymow charger is not active/i);
+expectReject(() => validateCheckoutEligibility(validLymowRequest, { ...validLymowCatalog, variants: [{ ...lymowVariant, public_status: "hidden" }] }), /currently unavailable/i);
+expectReject(() => validateCheckoutEligibility(validLymowRequest, { ...validLymowCatalog, options: [{ ...lymowCharger, public_status: "hidden" }] }), /currently unavailable/i);
 expectReject(() => validateCheckoutEligibility(request({ variantId: lymowVariant.id, purchaseMode: "standard", includeBaseProduct: false, packageId: ids[12] }), { ...validLymowCatalog, packages: [catalogPackage(ids[12], "forged-lymow-package")] }), /Lymow package checkout is unavailable/i);
 const crossedVariant = variant(ids[2], "lymow-one-plus-5a", 269900);
 expectReject(() => validateCheckoutEligibility(request({ variantId: crossedVariant.id, purchaseMode: "standard", includeBaseProduct: false }), catalog({ product: product("lymow-one-plus", "Lymow"), variants: [crossedVariant], options: [option(ids[3], "lymow-10a-charger")], variantOptions: [{ id: ids[4], variant_id: crossedVariant.id, option_id: ids[3], relationship_type: "defines_variant" }] })), /relationship/i);
@@ -71,18 +71,18 @@ const pricingSource = fs.readFileSync(path.join(process.cwd(), "lib/checkout/pri
 assert.match(pricingSource, /product\.slug === "lymow-one-plus"[\s\S]*effectivePrice\(eligibility\.variant, "variant"\)/);
 assert.doesNotMatch(pricingSource, /effectivePrice\(definingChargers|chargeable\.push\([^)]*lymow-(?:5a|10a)-charger/i);
 
-const modules = [option(ids[3], "yarbo-mower-module"), option(ids[4], "yarbo-lawn-mower-pro-module"), option(ids[5], "yarbo-leaf-blower-module")];
+const modules = [option(ids[3], "yarbo-snow-blower-module"), option(ids[4], "yarbo-lawn-mower-pro-module"), option(ids[5], "yarbo-leaf-blower-module")];
 const individual = validateCheckoutEligibility(request({ includeBaseProduct: false, options: [{ optionId: ids[3], quantity: 1 }, { optionId: ids[4], quantity: 1 }] }), catalog({ options: modules }));
 assert.match(individual.moduleOnlyWarning ?? "", /Core is not included/); assert.equal(individual.selectedOptions.length, 2);
-expectReject(() => validateCheckoutEligibility(request({ includeBaseProduct: false, options: [{ optionId: ids[3], quantity: 1 }] }), catalog({ options: [{ ...modules[0], public_status: "hidden" }] })), /selected option is not active/i);
+expectReject(() => validateCheckoutEligibility(request({ includeBaseProduct: false, options: [{ optionId: ids[3], quantity: 1 }] }), catalog({ options: [{ ...modules[0], public_status: "hidden" }] })), /currently unavailable/i);
 assert.equal(checkoutDisplayName(modules[2]), "Blower Module");
-for (const hidden of ["yarbo-plow-module", "yarbo-tow-hitch"]) expectReject(() => validateCheckoutEligibility(request({ includeBaseProduct: false, options: [{ optionId: ids[6], quantity: 1 }] }), catalog({ options: [option(ids[6], hidden)] })), /not available/i);
+for (const hidden of ["yarbo-plow-module", "yarbo-tow-hitch"]) expectReject(() => validateCheckoutEligibility(request({ includeBaseProduct: false, options: [{ optionId: ids[6], quantity: 1 }] }), catalog({ options: [option(ids[6], hidden)] })), /not available|approved Yarbo/i);
 const pkg = catalogPackage(ids[7], "yarbo-package");
 const pkgCatalog = catalog({ options: modules, packages: [pkg], packageItems: [{ id: ids[8], package_id: pkg.id, option_id: modules[0].id, quantity: 1, included_in_package_price: true }] });
 const pkgEligible = validateCheckoutEligibility(request({ purchaseMode: "complete-system", packageId: pkg.id, includeBaseProduct: false }), pkgCatalog);
 assert.equal(pkgEligible.packageItems?.length, 1);
-expectReject(() => validateCheckoutEligibility(request({ purchaseMode: "complete-system", packageId: pkg.id, includeBaseProduct: false }), { ...pkgCatalog, packages: [{ ...pkg, public_status: "hidden" }] }), /selected package is not active/i);
-expectReject(() => validateCheckoutEligibility(request({ purchaseMode: "complete-system", packageId: pkg.id, includeBaseProduct: false }), { ...pkgCatalog, options: [{ ...modules[0], public_status: "hidden" }, ...modules.slice(1)] }), /required component.*not active/i);
+expectReject(() => validateCheckoutEligibility(request({ purchaseMode: "complete-system", packageId: pkg.id, includeBaseProduct: false }), { ...pkgCatalog, packages: [{ ...pkg, public_status: "hidden" }] }), /currently unavailable/i);
+expectReject(() => validateCheckoutEligibility(request({ purchaseMode: "complete-system", packageId: pkg.id, includeBaseProduct: false }), { ...pkgCatalog, options: [{ ...modules[0], public_status: "hidden" }, ...modules.slice(1)] }), /currently unavailable/i);
 expectReject(() => validateCheckoutEligibility(request({ purchaseMode: "complete-system", packageId: pkg.id, includeBaseProduct: false, options: [{ optionId: modules[0].id, quantity: 1 }] }), pkgCatalog), /standalone/i);
 
 const state = { orderStatus: "confirmed", paymentStatus: "paid", fulfillmentStatus: "pending", refundedCents: 0, totalCents: 1000 } as const;

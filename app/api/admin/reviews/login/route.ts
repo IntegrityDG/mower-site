@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ADMIN_COOKIE, adminCookieValue, validAdminPassword } from "@/lib/reviews/admin-auth";
+import { consumeDealerRateLimit, requestClientKey } from "@/lib/dealer-network/member-auth";
 export async function POST(request: NextRequest) {
+  try {
+    if (!(await consumeDealerRateLimit("admin_login", requestClientKey(request), 8, 15 * 60)))
+      return NextResponse.json({ error: "Too many attempts. Please wait and try again." }, { status: 429 });
+  } catch {
+    return NextResponse.json({ error: "Admin login is temporarily unavailable." }, { status: 503 });
+  }
   const { password = "" } = await request.json().catch(() => ({}));
   if (!validAdminPassword(password)) return NextResponse.json({ error: "Invalid password." }, { status: 401 });
   const response = NextResponse.json({ success: true });

@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200";
 export default function MemberLogin({ initialMessage = "" }: { initialMessage?: string }) {
+  const router = useRouter();
   const [forgot, setForgot] = useState(false),
     [message, setMessage] = useState(initialMessage),
     [busy, setBusy] = useState(false);
@@ -29,7 +31,7 @@ export default function MemberLogin({ initialMessage = "" }: { initialMessage?: 
     const payload = await response.json().catch(() => ({}));
     setBusy(false);
     if (response.ok && !forgot) {
-      window.location.href = "/dealer-tech-resources/member";
+      router.push("/dealer-tech-resources/member");
       return;
     }
     setMessage(

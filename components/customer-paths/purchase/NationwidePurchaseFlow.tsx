@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import { formatCents } from "@/lib/catalog/pricing";
 import {
   productBuildIsComplete,

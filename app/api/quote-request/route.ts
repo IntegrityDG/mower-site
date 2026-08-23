@@ -2,32 +2,17 @@ import { NextResponse } from "next/server";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { sendLeadEmail } from "@/lib/email";
 import { salesModeForProductSlug } from "@/lib/catalog/sales-mode";
+import { validateGeneralQuoteRequest } from "@/lib/leads/quote-validation";
+import { LeadRequestError, readLimitedJson, requireLeadRateLimit } from "@/lib/leads/request-security";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-
-    const name = body.name?.trim();
-    const phone = body.phone?.trim() || null;
-    const email = body.email?.trim() || null;
-    const preferredContactMethod = body.preferredContactMethod?.trim() || null;
-    const propertyType = body.propertyType?.trim() || null;
-    const propertySize = body.propertySize?.trim() || null;
-    const obstacleLevel = body.obstacleLevel?.trim() || null;
-    const weedEating = body.weedEating?.trim() || null;
-    const purchaseType = body.purchaseType?.trim() || null;
-    const extraNotes = body.extraNotes?.trim() || null;
-    const productSlug = body.productSlug?.trim() || "";
-
-    const interests = Array.isArray(body.interests) ? body.interests : [];
-    const terrain = Array.isArray(body.terrain) ? body.terrain : [];
-    const priorities = Array.isArray(body.priorities) ? body.priorities : [];
-    const productInterest: unknown[] = Array.isArray(body.productInterest)
-      ? body.productInterest
-      : [];
-    const autoSuggestion = Array.isArray(body.autoSuggestion)
-      ? body.autoSuggestion
-      : [];
+    await requireLeadRateLimit(req, "general_quote_request");
+    const {
+      name, phone, email, preferredContactMethod, propertyType, propertySize,
+      obstacleLevel, weedEating, purchaseType, extraNotes, productSlug,
+      interests, terrain, priorities, productInterest, autoSuggestion,
+    } = validateGeneralQuoteRequest(await readLimitedJson(req));
 
     const identifiesPandag = productInterest.some(
       (item) => typeof item === "string" && item.toLowerCase().includes("pandag")
@@ -38,20 +23,6 @@ export async function POST(req: Request) {
     ) {
       return NextResponse.json(
         { error: "Pandag projects must use the commercial project request form." },
-        { status: 400 }
-      );
-    }
-
-    if (!name) {
-      return NextResponse.json(
-        { error: "Name is required." },
-        { status: 400 }
-      );
-    }
-
-    if (!phone && !email) {
-      return NextResponse.json(
-        { error: "Phone or email is required." },
         { status: 400 }
       );
     }
@@ -82,7 +53,7 @@ export async function POST(req: Request) {
       ]);
 
     if (error) {
-      console.error("Supabase error:", error);
+      console.error("Quote request storage failed");
       return NextResponse.json(
         { error: "Failed to save request." },
         { status: 500 }
@@ -115,13 +86,17 @@ export async function POST(req: Request) {
 
     try {
       await sendLeadEmail(summary);
-    } catch (emailError) {
-      console.error("Email error:", emailError);
+    } catch {
+      console.error("Quote request notification failed");
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("API error:", error);
+    if (error instanceof LeadRequestError)
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof Error && /Invalid|Unknown|field|list|contact/i.test(error.message))
+      return NextResponse.json({ error: "Invalid request." }, { status: 400 });
+    console.error("Quote request failed");
     return NextResponse.json(
       { error: "Something went wrong." },
       { status: 500 }

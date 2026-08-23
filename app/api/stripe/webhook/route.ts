@@ -138,7 +138,7 @@ export async function POST(request: Request) {
     await finishWebhook(event.id,"processed"); return ok();
   } catch(error) {
     if(error instanceof WebhookReconciliationError){await finishWebhook(event.id,"ignored","RECONCILIATION_REJECTED").catch(()=>undefined);return ok();}
-    console.error("Stripe webhook processing failed", { eventId: event.id, eventType: event.type, objectId: object.id ?? null, error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack, ...(error instanceof IdsPaymentIntentResolutionError ? { details: error.details } : {}) } : error });
+    console.error("Stripe webhook processing failed", { eventId: event.id, eventType: event.type, objectId: object.id ?? null, errorName: error instanceof Error ? error.name : "UnknownError" });
     await finishWebhook(event.id,"failed","PROCESSING_FAILED").catch(()=>undefined);return NextResponse.json({error:"Webhook processing failed."},{status:503});
   }
 }

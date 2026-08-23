@@ -8,6 +8,7 @@ import {
   type FormEvent,
 } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   LOCKED_MEMBER_MESSAGE,
   ROLE_LABELS,
@@ -59,6 +60,7 @@ const inputClass =
   "mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200";
 
 export default function MemberPortal() {
+  const router = useRouter();
   const [account, setAccount] = useState<AccountState | null>(null),
     [loading, setLoading] = useState(true),
     [tab, setTab] = useState<Tab>("directory"),
@@ -236,7 +238,7 @@ export default function MemberPortal() {
   }
   async function signOut() {
     await fetch("/api/dealer-network/auth/logout", { method: "DELETE" });
-    window.location.href = "/dealer-tech-resources/login";
+    router.push("/dealer-tech-resources/login");
   }
   if (loading)
     return (
@@ -422,6 +424,7 @@ export default function MemberPortal() {
 }
 
 function AccountSecurityPanel() {
+  const router = useRouter();
   const [summary, setSummary] = useState<MemberAccountSecuritySummary | null>(null),
     [busy, setBusy] = useState<string | null>(null),
     [notice, setNotice] = useState("");
@@ -484,7 +487,7 @@ function AccountSecurityPanel() {
         setNotice(payload.error ?? "Your PIN could not be changed.");
         return;
       }
-      window.location.href = "/dealer-tech-resources/login?notice=pin-changed";
+      router.push("/dealer-tech-resources/login?notice=pin-changed");
     } catch {
       setNotice("Your PIN could not be changed. Check your connection and try again.");
     } finally {
@@ -505,7 +508,7 @@ function AccountSecurityPanel() {
         setNotice(payload.error ?? "Could not sign out all sessions.");
         return;
       }
-      window.location.href = "/dealer-tech-resources/login?notice=signed-out-everywhere";
+      router.push("/dealer-tech-resources/login?notice=signed-out-everywhere");
     } catch {
       setNotice("Could not sign out all sessions. Check your connection and try again.");
     } finally {
@@ -1488,6 +1491,7 @@ function ProfilePanel({
   onProfile: (value: MemberProfile) => void;
   onMessage: (value: string) => void;
 }) {
+  const router = useRouter();
   const [brandId, setBrandId] = useState(""),
     [relationshipType, setRelationshipType] = useState("serviced"),
     [requestedBrandName, setRequestedBrandName] = useState(""),
@@ -1520,7 +1524,7 @@ function ProfilePanel({
         : "Profile saved. Changes take effect immediately.",
     );
     if (payload.reauthenticate)
-      window.location.href = "/dealer-tech-resources/login";
+      router.push("/dealer-tech-resources/login");
   }
   async function addBrand() {
     if (!brandId) return;

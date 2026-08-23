@@ -44,7 +44,8 @@ assert.deepEqual(parameters.shipping_address_collection?.allowed_countries, ["US
 assert.match(parameters.success_url!, /\{CHECKOUT_SESSION_ID\}/);
 assert.equal(parameters.line_items?.length, 1);
 assert.equal((parameters.line_items?.[0] as Stripe.Checkout.SessionCreateParams.LineItem).price_data?.unit_amount, 1000);
-assert.equal("payment_intent_data" in parameters, false);
+assert.equal(parameters.payment_intent_data?.metadata?.order_id, "order");
+assert.equal(parameters.payment_intent_data?.metadata?.attempt_id, "attempt");
 assert.equal(build().cancel_url, parameters.cancel_url);
 assert.throws(() => buildCardCheckoutSession({ ...({ snapshot, orderId: "order", attemptId: "attempt", publicReference: "IDS-X", customerEmail: null, appBaseUrl: "https://example.com", signingSecret: "secret", returnPath: "/equipment/yarbo", cancelExpiresAt: 1_800_000 }), snapshot: { ...snapshot, totalCents: 999 } }), /total mismatch/i);
 
@@ -114,13 +115,19 @@ assert.match(sql, /p_kind='paid' and a\.attempt_status in \('expired','failed'\)
 assert.match(sql, /p_refunded is null or p_refunded < 1 or p_refunded > o\.total_cents/i);
 
 const changedRuntime = [sql, ...["lib/checkout/order-repository.ts", "app/api/stripe/webhook/route.ts", "app/api/checkout/session/route.ts"].map((file) => fs.readFileSync(file, "utf8"))].join("\n");
-assert.doesNotMatch(changedRuntime, /last4|payment_method_id|request\.json\(|console\.(log|error)/i);
+assert.doesNotMatch(changedRuntime, /last4|payment_method_id|request\.json\(|console\.log/i);
 const repositorySource = fs.readFileSync("lib/checkout/order-repository.ts", "utf8");
 assert.match(repositorySource, /completed\(await getSupabaseServiceClient\(\)\.rpc\("checkout_link_card_session"/);
 assert.match(repositorySource, /completed\(await getSupabaseServiceClient\(\)\.rpc\("checkout_finish_webhook"/);
 const v2Sql = fs.readFileSync(path.join(process.cwd(), "supabase/migrations/20260731231221_persist_checkout_session_status_v2.sql"), "utf8");
 const webhookSource = fs.readFileSync("app/api/stripe/webhook/route.ts", "utf8");
 const successSource = fs.readFileSync("app/checkout/success/page.tsx", "utf8");
+const webhookFailureLog = webhookSource.match(/console\.error\("Stripe webhook processing failed"[^;]+;/)?.[0] ?? "";
+assert.match(webhookFailureLog, /eventId:\s*event\.id/);
+assert.match(webhookFailureLog, /eventType:\s*event\.type/);
+assert.match(webhookFailureLog, /objectId:\s*object\.id\s*\?\?\s*null/);
+assert.match(webhookFailureLog, /errorName:\s*error instanceof Error \? error\.name : "UnknownError"/);
+assert.doesNotMatch(webhookFailureLog, /error\s*:|\.message|\.stack|\.details|payment_method_id|paymentMethodId|last4|customer|payload|event\.data|\}\s*:\s*error/i);
 assert.match(repositorySource, /export type ApplyCardEventV2Params=\{[\s\S]*p_stripe_session_status:string\|null;[\s\S]*p_stripe_payment_status:string\|null/);
 assert.match(repositorySource, /rpc\("checkout_apply_card_event_v2",p\)/);
 assert.doesNotMatch(repositorySource, /rpc\("checkout_apply_card_event",p\)/);
