@@ -1,10 +1,10 @@
-import type { SalesSpecialsConfig } from "./config";
+import { isSalesSpecialsSlot, type SalesSpecialsConfig, type SalesSpecialsSlot, type SalesSpecialsSlots } from "./config";
 import { validateSalesSpecials } from "./validation";
 
 type Dependencies = {
   isAdmin: () => Promise<boolean>;
-  read: () => Promise<SalesSpecialsConfig | null>;
-  save: (config: SalesSpecialsConfig) => Promise<SalesSpecialsConfig>;
+  read: () => Promise<SalesSpecialsSlots | null>;
+  save: (slot: SalesSpecialsSlot, config: SalesSpecialsConfig) => Promise<SalesSpecialsConfig>;
 };
 
 const json = (body: unknown, status = 200) => Response.json(body, { status });
@@ -14,18 +14,20 @@ export function createSalesSpecialsAdminHandlers(dependencies: Dependencies) {
     async GET() {
       if (!(await dependencies.isAdmin())) return json({ error: "Unauthorized" }, 401);
       try {
-        const promotion = await dependencies.read();
-        return promotion ? json({ promotion }) : json({ error: "Settings are unavailable." }, 503);
+        const promotions = await dependencies.read();
+        return promotions ? json({ promotions }) : json({ error: "Settings are unavailable." }, 503);
       } catch {
         return json({ error: "Settings are unavailable." }, 503);
       }
     },
     async PUT(request: Request) {
       if (!(await dependencies.isAdmin())) return json({ error: "Unauthorized" }, 401);
-      const parsed = validateSalesSpecials(await request.json().catch(() => null));
+      const body = await request.json().catch(() => null);
+      if (!body || !isSalesSpecialsSlot(body.slot)) return json({ error: "Invalid promotion slot." }, 400);
+      const parsed = validateSalesSpecials(body.promotion);
       if (!parsed.ok) return json({ errors: parsed.errors }, 400);
       try {
-        return json({ promotion: await dependencies.save(parsed.value), success: true });
+        return json({ slot: body.slot, promotion: await dependencies.save(body.slot, parsed.value), success: true });
       } catch {
         return json({ error: "Sales & Specials settings could not be saved." }, 500);
       }

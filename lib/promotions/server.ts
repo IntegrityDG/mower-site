@@ -2,25 +2,36 @@ import "server-only";
 
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { SALES_SPECIALS_COLUMNS, toPublicSalesSpecials } from "./public";
-import type { SalesSpecialsConfig } from "./config";
+import {
+  DEFAULT_SALES_SPECIALS,
+  type SalesSpecialsConfig,
+  type SalesSpecialsSlot,
+  type SalesSpecialsSlots,
+} from "./config";
 
-const SINGLETON_ID = "homepage";
+export const SALES_SPECIALS_SLOT_IDS: Record<SalesSpecialsSlot, string> = {
+  primary: "homepage",
+  secondary: "homepage-secondary",
+};
 
-export async function readSalesSpecials(): Promise<SalesSpecialsConfig | null> {
+export async function readSalesSpecialsSlots(): Promise<SalesSpecialsSlots | null> {
   const { data, error } = await getSupabaseServiceClient()
     .from("homepage_sales_specials")
-    .select(SALES_SPECIALS_COLUMNS)
-    .eq("id", SINGLETON_ID)
-    .maybeSingle();
+    .select(`id,${SALES_SPECIALS_COLUMNS}`)
+    .in("id", [SALES_SPECIALS_SLOT_IDS.primary, SALES_SPECIALS_SLOT_IDS.secondary]);
   if (error || !data) return null;
-  return toPublicSalesSpecials(data);
+  const byId = new Map(data.map((row) => [row.id, toPublicSalesSpecials(row)]));
+  return {
+    primary: byId.get(SALES_SPECIALS_SLOT_IDS.primary) ?? { ...DEFAULT_SALES_SPECIALS },
+    secondary: byId.get(SALES_SPECIALS_SLOT_IDS.secondary) ?? { ...DEFAULT_SALES_SPECIALS },
+  };
 }
 
-export async function saveSalesSpecials(config: SalesSpecialsConfig) {
+export async function saveSalesSpecial(slot: SalesSpecialsSlot, config: SalesSpecialsConfig) {
   const { error } = await getSupabaseServiceClient()
     .from("homepage_sales_specials")
     .upsert({
-      id: SINGLETON_ID,
+      id: SALES_SPECIALS_SLOT_IDS[slot],
       enabled: config.enabled,
       cartoon_key: config.cartoonKey,
       headline: config.headline,

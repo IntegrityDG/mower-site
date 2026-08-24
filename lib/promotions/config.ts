@@ -34,11 +34,29 @@ export type SalesSpecialsConfig = {
   description: string;
 };
 
+export type SalesSpecialsSlot = "primary" | "secondary";
+
+export type SalesSpecialsSlots = {
+  primary: SalesSpecialsConfig;
+  secondary: SalesSpecialsConfig;
+};
+
+export const SALES_SPECIALS_SLOTS: readonly SalesSpecialsSlot[] = ["primary", "secondary"];
+
+export function isSalesSpecialsSlot(value: unknown): value is SalesSpecialsSlot {
+  return value === "primary" || value === "secondary";
+}
+
 export const DEFAULT_SALES_SPECIALS: SalesSpecialsConfig = {
   enabled: false,
   cartoonKey: "none",
   headline: "Promotion headline",
   description: "Promotion details will appear here when this feature is enabled.",
+};
+
+export const DEFAULT_SALES_SPECIALS_SLOTS: SalesSpecialsSlots = {
+  primary: { ...DEFAULT_SALES_SPECIALS },
+  secondary: { ...DEFAULT_SALES_SPECIALS },
 };
 
 export function isSalesSpecialsCartoonKey(

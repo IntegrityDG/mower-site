@@ -5,66 +5,148 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import { SalesSpecialsBanner } from "../components/promotions/SalesSpecialsBanner";
 import { createSalesSpecialsAdminHandlers } from "../lib/promotions/admin-handlers";
-import { SALES_SPECIALS_CARTOONS, type SalesSpecialsConfig } from "../lib/promotions/config";
+import { DEFAULT_SALES_SPECIALS, SALES_SPECIALS_CARTOONS, type SalesSpecialsConfig, type SalesSpecialsSlots } from "../lib/promotions/config";
 import { toPublicSalesSpecials } from "../lib/promotions/public";
 import { validateSalesSpecials } from "../lib/promotions/validation";
 
-const valid: SalesSpecialsConfig = { enabled: true, cartoonKey: "yarbo", headline: "Summer Event", description: "Save while promotional inventory lasts." };
+const primary: SalesSpecialsConfig = { enabled: true, cartoonKey: "yarbo", headline: "Summer Event", description: "Save while promotional inventory lasts." };
+const secondary: SalesSpecialsConfig = { enabled: true, cartoonKey: "lymow", headline: "Second Event", description: "A separate second promotion." };
+const slots: SalesSpecialsSlots = { primary, secondary };
 
-test("enabled promotion renders approved artwork and copy", () => { const html = renderToStaticMarkup(<SalesSpecialsBanner promotion={valid} />); assert.match(html, /Summer Event/); assert.match(html, /promotional inventory lasts/); assert.match(html, new RegExp(SALES_SPECIALS_CARTOONS.yarbo!.src)); });
-test("enabled Sales & Specials card contains the referral announcement and program link", () => { const html = renderToStaticMarkup(<SalesSpecialsBanner promotion={valid} />); assert.match(html, /HELP A FRIEND\. HELP YOURSELF\. GET PAID\./); assert.match(html, /Refer friends, family, or neighbors to Integrity Distribution Systems and make yourself some money with the IDS Referral Program!/); assert.match(html, /Explore Our Referral Program/); assert.match(html, /href="\/referral-program"/); assert.ok(html.indexOf("promotional inventory lasts") < html.indexOf("HELP A FRIEND")); });
-test("disabled promotion renders nothing", () => assert.equal(renderToStaticMarkup(<SalesSpecialsBanner promotion={{ ...valid, enabled: false }} />), ""));
-test("None uses the full text layout without an image or image container", () => { const html = renderToStaticMarkup(<SalesSpecialsBanner promotion={{ ...valid, cartoonKey: "none" }} />); assert.doesNotMatch(html, /<img/); assert.doesNotMatch(html, /Local, server-allowlisted/); assert.match(html, /max-w-5xl/); });
-test("every cartoon key maps to its intended local asset and fixed alt text", () => {
+test("one enabled promotion renders one full-width card with existing design", () => {
+  const html = renderToStaticMarkup(<SalesSpecialsBanner promotions={[primary]} />);
+  assert.match(html, /Summer Event/);
+  assert.match(html, /grid-cols-1/);
+  assert.doesNotMatch(html, /lg:grid-cols-2/);
+  assert.match(html, new RegExp(SALES_SPECIALS_CARTOONS.yarbo!.src));
+});
+
+test("two promotions render ordered equal desktop columns and stack by default", () => {
+  const html = renderToStaticMarkup(<SalesSpecialsBanner promotions={[primary, secondary]} />);
+  assert.ok(html.indexOf("Summer Event") < html.indexOf("Second Event"));
+  assert.match(html, /grid max-w-7xl gap-7 lg:grid-cols-2/);
+  assert.doesNotMatch(html, /grid-cols-2 lg:/);
+  assert.equal((html.match(/<article/g) ?? []).length, 2);
+});
+
+test("two cards have unique accessible headings, distinct artwork, and referral content", () => {
+  const html = renderToStaticMarkup(<SalesSpecialsBanner promotions={[primary, secondary]} />);
+  assert.match(html, /id="sales-specials-heading-primary"/);
+  assert.match(html, /id="sales-specials-heading-secondary"/);
+  assert.equal((html.match(/HELP A FRIEND\. HELP YOURSELF\. GET PAID\./g) ?? []).length, 2);
+  assert.equal((html.match(/href="\/referral-program"/g) ?? []).length, 2);
+  assert.match(html, new RegExp(SALES_SPECIALS_CARTOONS.yarbo!.src));
+  assert.match(html, new RegExp(SALES_SPECIALS_CARTOONS.lymow!.src));
+});
+
+test("disabled or empty promotions render nothing", () => {
+  assert.equal(renderToStaticMarkup(<SalesSpecialsBanner promotions={[]} />), "");
+  assert.equal(renderToStaticMarkup(<SalesSpecialsBanner promotions={[{ ...primary, enabled: false }]} />), "");
+});
+
+test("None retains full text layout without an image", () => {
+  const html = renderToStaticMarkup(<SalesSpecialsBanner promotions={[{ ...primary, cartoonKey: "none" }]} />);
+  assert.doesNotMatch(html, /<img/);
+  assert.match(html, /max-w-5xl/);
+});
+
+test("the complete artwork allowlist retains local assets and accessible alt text", () => {
   const expected = {
-    lymow: { src: "/products/lymow-one-plus-thumb.PNG", alt: "Lymow autonomous mower" },
-    yarbo: { src: "/products/yarbo-thumb.png", alt: "Yarbo autonomous mower" },
-    pandag: { src: "/products/pandag-thumb.png", alt: "Pandag commercial autonomous mower" },
-    all: { src: "/images/cartoon-mowers.png", alt: "Integrity Distribution Systems autonomous mower lineup" },
+    lymow: ["/products/lymow-one-plus-thumb.PNG", "Lymow autonomous mower"],
+    yarbo: ["/products/yarbo-thumb.png", "Yarbo autonomous mower"],
+    pandag: ["/products/pandag-thumb.png", "Pandag commercial autonomous mower"],
+    all: ["/images/cartoon-mowers.png", "Integrity Distribution Systems autonomous mower lineup"],
   } as const;
-  for (const [key, intended] of Object.entries(expected)) {
-    const cartoon = SALES_SPECIALS_CARTOONS[key as keyof typeof expected];
-    assert.equal(cartoon.src, intended.src);
-    assert.equal(cartoon.alt, intended.alt);
-    const html = renderToStaticMarkup(<SalesSpecialsBanner promotion={{ ...valid, cartoonKey: key as keyof typeof expected }} />);
-    assert.match(html, new RegExp(`src="${intended.src}"`));
-    assert.match(html, new RegExp(`alt="${intended.alt}"`));
+  assert.equal(SALES_SPECIALS_CARTOONS.none, null);
+  for (const [key, [src, alt]] of Object.entries(expected)) {
+    const html = renderToStaticMarkup(<SalesSpecialsBanner promotions={[{ ...primary, cartoonKey: key as keyof typeof expected }]} />);
+    assert.match(html, new RegExp(`src="${src}"`));
+    assert.match(html, new RegExp(`alt="${alt}"`));
   }
-  assert.match(expected.lymow.src, /^\/products\//);
-  assert.match(expected.yarbo.src, /^\/products\//);
-  assert.match(expected.pandag.src, /^\/products\//);
-  assert.match(expected.all.src, /^\/images\//);
-});
-test("All Three Machines receives a wider image layout", () => { const html = renderToStaticMarkup(<SalesSpecialsBanner promotion={{ ...valid, cartoonKey: "all" }} />); assert.match(html, /max-w-2xl/); assert.match(html, /lg:grid-cols-\[minmax\(0,1\.2fr\)_minmax\(0,1fr\)\]/); });
-
-test("validation rejects invalid cartoon and blank or oversized copy", () => {
-  for (const input of [
-    { ...valid, cartoonKey: "https://example.com/image.png" },
-    { ...valid, headline: "   " },
-    { ...valid, description: "   " },
-    { ...valid, headline: "x".repeat(121) },
-    { ...valid, description: "x".repeat(501) },
-  ]) assert.equal(validateSalesSpecials(input).ok, false);
 });
 
-test("public projection exposes only rendering fields", () => { const result = toPublicSalesSpecials({ enabled: true, cartoon_key: "pandag", headline: "Event", description: "Details", id: "homepage", created_at: "private", admin_note: "private" }); assert.deepEqual(result, { enabled: true, cartoonKey: "pandag", headline: "Event", description: "Details" }); });
+test("promotions validate independently", () => {
+  assert.equal(validateSalesSpecials(primary).ok, true);
+  assert.equal(validateSalesSpecials({ ...secondary, headline: " " }).ok, false);
+  assert.equal(validateSalesSpecials(secondary).ok, true);
+  for (const input of [{ ...primary, cartoonKey: "https://example.com/x" }, { ...primary, headline: "x".repeat(121) }, { ...primary, description: "x".repeat(501) }]) assert.equal(validateSalesSpecials(input).ok, false);
+});
 
-test("admin handlers reject unauthenticated requests", async () => { const handlers = createSalesSpecialsAdminHandlers({ isAdmin: async () => false, read: async () => valid, save: async (value) => value }); assert.equal((await handlers.GET()).status, 401); assert.equal((await handlers.PUT(new Request("http://local", { method: "PUT", body: JSON.stringify(valid) }))).status, 401); });
-test("authenticated admin can read and update settings", async () => { let stored = valid; const handlers = createSalesSpecialsAdminHandlers({ isAdmin: async () => true, read: async () => stored, save: async (value) => (stored = value) }); assert.equal((await handlers.GET()).status, 200); const changed = { ...valid, headline: "New event" }; const response = await handlers.PUT(new Request("http://local", { method: "PUT", body: JSON.stringify(changed) })); assert.equal(response.status, 200); assert.equal(stored.headline, "New event"); });
+test("public projection exposes only rendering fields", () => {
+  assert.deepEqual(toPublicSalesSpecials({ enabled: true, cartoon_key: "pandag", headline: "Event", description: "Details", id: "homepage", created_at: "private", admin_note: "private" }), { enabled: true, cartoonKey: "pandag", headline: "Event", description: "Details" });
+});
 
-test("homepage placement follows the optimized sales-flow order", () => {
-  const source = readFileSync(new URL("../components/home/DesktopHomepage.tsx", import.meta.url), "utf8");
-  const hero = source.indexOf("<DesktopHero />");
-  const build = source.indexOf("BUILD YOUR SYSTEM", hero);
-  const promotion = source.indexOf("<HomeSalesSpecial />");
-  const priceMatch = source.indexOf("<HomePriceMatch />");
-  const spotlight = source.indexOf("<HomeBusinessSpotlight />");
+test("admin authentication protects both reads and writes", async () => {
+  const handlers = createSalesSpecialsAdminHandlers({ isAdmin: async () => false, read: async () => slots, save: async (_slot, value) => value });
+  assert.equal((await handlers.GET()).status, 401);
+  assert.equal((await handlers.PUT(new Request("http://local", { method: "PUT", body: JSON.stringify({ slot: "primary", promotion: primary }) }))).status, 401);
+});
 
-  assert.ok(
-    hero >= 0 &&
-      hero < build &&
-      build < promotion &&
-      promotion < priceMatch &&
-      priceMatch < spotlight,
-  );
+test("authenticated saves update only the allowlisted requested slot", async () => {
+  let stored = structuredClone(slots);
+  const handlers = createSalesSpecialsAdminHandlers({ isAdmin: async () => true, read: async () => stored, save: async (slot, value) => { stored = { ...stored, [slot]: value }; return value; } });
+  const response = await handlers.PUT(new Request("http://local", { method: "PUT", body: JSON.stringify({ slot: "primary", promotion: { ...primary, headline: "Changed primary" } }) }));
+  assert.equal(response.status, 200);
+  assert.equal(stored.primary.headline, "Changed primary");
+  assert.equal(stored.secondary.headline, "Second Event");
+  await handlers.PUT(new Request("http://local", { method: "PUT", body: JSON.stringify({ slot: "secondary", promotion: { ...secondary, headline: "Changed secondary" } }) }));
+  assert.equal(stored.primary.headline, "Changed primary");
+  assert.equal(stored.secondary.headline, "Changed secondary");
+  const payload = await (await handlers.GET()).json();
+  assert.deepEqual(payload.promotions, stored);
+});
+
+test("arbitrary slots and raw database IDs are rejected", async () => {
+  const handlers = createSalesSpecialsAdminHandlers({ isAdmin: async () => true, read: async () => slots, save: async (_slot, value) => value });
+  for (const slot of ["homepage", "homepage-secondary", "other", null]) {
+    const response = await handlers.PUT(new Request("http://local", { method: "PUT", body: JSON.stringify({ slot, promotion: primary }) }));
+    assert.equal(response.status, 400);
+  }
+});
+
+test("fixed server mapping and public API preserve primary then secondary order", () => {
+  const server = readFileSync(new URL("../lib/promotions/server.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../app/api/sales-specials/route.ts", import.meta.url), "utf8");
+  assert.match(server, /primary: "homepage"/);
+  assert.match(server, /secondary: "homepage-secondary"/);
+  assert.match(server, /\.in\("id", \[SALES_SPECIALS_SLOT_IDS\.primary, SALES_SPECIALS_SLOT_IDS\.secondary\]\)/);
+  assert.match(route, /SALES_SPECIALS_SLOTS\.map/);
+  assert.match(route, /filter\(\(promotion\) => promotion\.enabled\)/);
+  assert.match(route, /Response\.json\(\{ promotions/);
+});
+
+test("admin has independent editors, state, and per-slot request bodies", () => {
+  const source = readFileSync(new URL("../app/admin/sales-specials/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /lg:grid-cols-2/);
+  assert.match(source, /Promotion \{number\}/);
+  assert.match(source, /JSON\.stringify\(\{ slot, promotion: promotions\[slot\] \}\)/);
+  assert.match(source, /setPromotions\(\(current\) => \(\{ \.\.\.current, \[slot\]/);
+});
+
+test("migration safely adds only a disabled idempotent secondary row", () => {
+  const sql = readFileSync(new URL("../supabase/migrations/20260824005623_add_secondary_homepage_sales_special.sql", import.meta.url), "utf8").toLowerCase();
+  assert.match(sql, /check \(id in \('homepage', 'homepage-secondary'\)\)/);
+  assert.match(sql, /values \([\s\S]*'homepage-secondary',[\s\S]*false/);
+  assert.match(sql, /on conflict \(id\) do nothing/);
+  assert.doesNotMatch(sql, /update[\s\S]*homepage/);
+  assert.doesNotMatch(sql, /delete[\s\S]*homepage/);
+});
+
+test("a missing or malformed row falls back independently without suppressing the other slot", () => {
+  const server = readFileSync(new URL("../lib/promotions/server.ts", import.meta.url), "utf8");
+  assert.match(server, /primary: byId\.get\(SALES_SPECIALS_SLOT_IDS\.primary\) \?\? \{ \.\.\.DEFAULT_SALES_SPECIALS \}/);
+  assert.match(server, /secondary: byId\.get\(SALES_SPECIALS_SLOT_IDS\.secondary\) \?\? \{ \.\.\.DEFAULT_SALES_SPECIALS \}/);
+  assert.equal(DEFAULT_SALES_SPECIALS.enabled, false);
+});
+
+test("homepage placement remains Hero, Build, Sales & Specials, Price Match, Spotlight", () => {
+  for (const file of ["../components/home/DesktopHomepage.tsx", "../components/mobile/MobileHomepage.tsx"]) {
+    const source = readFileSync(new URL(file, import.meta.url), "utf8");
+    const hero = source.search(/<(?:Desktop|Mobile)Hero \/>/);
+    const build = source.indexOf("BUILD YOUR SYSTEM", hero);
+    const promotion = source.indexOf("<HomeSalesSpecial />");
+    const priceMatch = source.indexOf("<HomePriceMatch />");
+    const spotlight = source.indexOf("<HomeBusinessSpotlight />");
+    assert.ok(hero >= 0 && hero < build && build < promotion && promotion < priceMatch && priceMatch < spotlight);
+  }
 });
