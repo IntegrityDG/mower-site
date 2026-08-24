@@ -13,28 +13,36 @@ const primary: SalesSpecialsConfig = { enabled: true, cartoonKey: "yarbo", headl
 const secondary: SalesSpecialsConfig = { enabled: true, cartoonKey: "lymow", headline: "Second Event", description: "A separate second promotion." };
 const slots: SalesSpecialsSlots = { primary, secondary };
 
-test("one enabled promotion renders one full-width card with existing design", () => {
+test("one enabled promotion renders one full-width shared shell with one referral section", () => {
   const html = renderToStaticMarkup(<SalesSpecialsBanner promotions={[primary]} />);
   assert.match(html, /Summer Event/);
   assert.match(html, /grid-cols-1/);
   assert.doesNotMatch(html, /lg:grid-cols-2/);
   assert.match(html, new RegExp(SALES_SPECIALS_CARTOONS.yarbo!.src));
+  assert.equal((html.match(/data-sales-specials-shell/g) ?? []).length, 1);
+  assert.equal((html.match(/bg-gradient-to-br/g) ?? []).length, 1);
+  assert.equal((html.match(/HELP A FRIEND\. HELP YOURSELF\. GET PAID\./g) ?? []).length, 1);
+  assert.equal((html.match(/href="\/referral-program"/g) ?? []).length, 1);
 });
 
-test("two promotions render ordered equal desktop columns and stack by default", () => {
+test("two promotions share one shell and use ordered desktop columns that stack by default", () => {
   const html = renderToStaticMarkup(<SalesSpecialsBanner promotions={[primary, secondary]} />);
   assert.ok(html.indexOf("Summer Event") < html.indexOf("Second Event"));
-  assert.match(html, /grid max-w-7xl gap-7 lg:grid-cols-2/);
-  assert.doesNotMatch(html, /grid-cols-2 lg:/);
-  assert.equal((html.match(/<article/g) ?? []).length, 2);
+  assert.match(html, /relative grid gap-9 lg:grid-cols-2/);
+  assert.doesNotMatch(html, /(?:^|\s)grid-cols-2(?:\s|")/);
+  assert.equal((html.match(/data-sales-specials-shell/g) ?? []).length, 1);
+  assert.equal((html.match(/bg-gradient-to-br/g) ?? []).length, 1);
+  assert.equal((html.match(/rounded-\[2rem\]/g) ?? []).length, 1);
+  assert.equal((html.match(/(?:^|\s)shadow-2xl(?:\s|")/g) ?? []).length, 1);
 });
 
-test("two cards have unique accessible headings, distinct artwork, and referral content", () => {
+test("two promotion columns have unique headings and artwork with one shared referral section", () => {
   const html = renderToStaticMarkup(<SalesSpecialsBanner promotions={[primary, secondary]} />);
   assert.match(html, /id="sales-specials-heading-primary"/);
   assert.match(html, /id="sales-specials-heading-secondary"/);
-  assert.equal((html.match(/HELP A FRIEND\. HELP YOURSELF\. GET PAID\./g) ?? []).length, 2);
-  assert.equal((html.match(/href="\/referral-program"/g) ?? []).length, 2);
+  assert.equal((html.match(/HELP A FRIEND\. HELP YOURSELF\. GET PAID\./g) ?? []).length, 1);
+  assert.equal((html.match(/href="\/referral-program"/g) ?? []).length, 1);
+  assert.equal((html.match(/Explore Our Referral Program/g) ?? []).length, 1);
   assert.match(html, new RegExp(SALES_SPECIALS_CARTOONS.yarbo!.src));
   assert.match(html, new RegExp(SALES_SPECIALS_CARTOONS.lymow!.src));
 });
