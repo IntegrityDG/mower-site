@@ -2,6 +2,7 @@ import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { addDays, centralLocalToUtc, endAtForDuration } from "./time";
 import { generateAvailableSlots } from "./availability";
+import { CUSTOM_DEMO_AREA_ID, toPublicDemoAreaPlanning } from "./public-area-planning";
 import type {
   AvailabilityException,
   AvailabilityRule,
@@ -14,6 +15,7 @@ import type {
   DemoServiceAreaCityInput,
   DemoServiceAreaInput,
   DemoSource,
+  PublicDemoAreaPlan,
 } from "./types";
 
 const requestColumns="id,customer_name,customer_email,customer_phone,property_address,requested_start_at,requested_end_at,status,source,equipment_interest,admin_message,created_at,approved_at,denied_at,cancelled_at";
@@ -25,11 +27,26 @@ const mapServiceArea=(r:Record<string,unknown>):DemoServiceArea=>({id:String(r.i
 const mapServiceAreaCity=(r:Record<string,unknown>):DemoServiceAreaCity=>({id:String(r.id),regionId:String(r.region_id),name:String(r.name),stateAbbreviation:r.state_abbreviation as string|null,active:Boolean(r.active),sortOrder:Number(r.sort_order),createdAt:String(r.created_at),updatedAt:String(r.updated_at)});
 const mapAreaAssignment=(r:Record<string,unknown>):DemoAreaAssignment=>({id:String(r.id),serviceDate:String(r.service_date),regionId:String(r.region_id),cityId:r.city_id as string|null,customCity:r.custom_city as string|null,internalNote:r.internal_note as string|null,createdAt:String(r.created_at),updatedAt:String(r.updated_at)});
 
-export type DemoAreaPlanningServerErrorCode="region_not_found"|"inactive_region"|"city_not_found"|"inactive_city"|"city_region_mismatch";
+export type DemoAreaPlanningServerErrorCode="region_not_found"|"inactive_region"|"city_not_found"|"inactive_city"|"city_region_mismatch"|"reserved_area";
 export class DemoAreaPlanningServerError extends Error {
   constructor(public readonly code:DemoAreaPlanningServerErrorCode){super(code);this.name="DemoAreaPlanningServerError";}
 }
 export async function getAvailableSlots(start:string,end:string,now=new Date()){const c=getSupabaseServiceClient();const rangeStart=centralLocalToUtc(start,"00:00")?.toISOString(),rangeEnd=centralLocalToUtc(addDays(end,1),"00:00")?.toISOString();if(!rangeStart||!rangeEnd)return[];const [{data:rules,error:rErr},{data:exceptions,error:eErr},{data:requests,error:qErr},{data:settings,error:sErr}]=await Promise.all([c.from("demo_availability_rules").select("id,weekday,enabled,start_time,end_time"),c.from("demo_availability_exceptions").select("id,starts_at,ends_at,all_day,reason").lt("starts_at",rangeEnd).gt("ends_at",rangeStart),c.from("demo_requests").select("requested_start_at,requested_end_at,status").in("status",["pending","approved"]).lt("requested_start_at",rangeEnd).gt("requested_end_at",rangeStart),c.from("demo_settings").select("duration_minutes,scheduling_horizon_days").eq("id",true).single()]);if(rErr||eErr||qErr||sErr)throw rErr??eErr??qErr??sErr;return generateAvailableSlots({start,end,now,rules:rules??[],exceptions:exceptions??[],requests:requests??[],duration:Number(settings.duration_minutes),horizon:Number(settings.scheduling_horizon_days)});}
+
+export async function getPublicDemoAreaPlanning(start:string,end:string):Promise<PublicDemoAreaPlan[]>{
+ const c=getSupabaseServiceClient();
+ const{data:assignments,error:assignmentError}=await c.from("demo_area_assignments").select("service_date,region_id,city_id,custom_city").gte("service_date",start).lte("service_date",end).order("service_date");
+ if(assignmentError)throw assignmentError;
+ if(!assignments?.length)return[];
+ const regionIds=[...new Set(assignments.map((assignment)=>assignment.region_id))];
+ const cityIds=[...new Set(assignments.flatMap((assignment)=>assignment.city_id?[assignment.city_id]:[]))];
+ const[{data:areas,error:areaError},{data:cities,error:cityError}]=await Promise.all([
+  c.from("demo_service_areas").select("id,name").in("id",regionIds),
+  cityIds.length?c.from("demo_service_area_cities").select("id,name,state_abbreviation").in("id",cityIds):Promise.resolve({data:[],error:null}),
+ ]);
+ if(areaError||cityError)throw areaError??cityError;
+ return toPublicDemoAreaPlanning(assignments,areas??[],cities??[]);
+}
 export async function createDemoRequest(value:{name:string;email:string;phone:string;address:string;startAt:string;source:DemoSource;equipmentInterest:DemoEquipmentInterest;idempotencyKey:string}){const c=getSupabaseServiceClient(),start=new Date(value.startAt);const{data:settings,error:settingsError}=await c.from("demo_settings").select("duration_minutes").eq("id",true).single();if(settingsError)throw settingsError;const end=endAtForDuration(start,Number(settings.duration_minutes));const{data,error}=await c.rpc("demo_create_request",{p_name:value.name,p_email:value.email,p_phone:value.phone,p_address:value.address,p_start_at:start.toISOString(),p_end_at:end.toISOString(),p_source:value.source,p_equipment_interest:value.equipmentInterest,p_idempotency_key:value.idempotencyKey});if(error)throw error;return String(data);}
 export async function readDemoRequest(id:string){const{data,error}=await getSupabaseServiceClient().from("demo_requests").select(requestColumns).eq("id",id).single();if(error)throw error;return mapRequest(data as Record<string,unknown>);}
 export async function readDemoNotificationEvents(id:string){const{data,error}=await getSupabaseServiceClient().from("demo_notification_events").select("event_type,status,last_error").eq("request_id",id);if(error)throw error;return data??[];}
@@ -71,20 +88,22 @@ export async function transitionRequest(id:string,action:string,message:string|n
 
 export async function saveDemoAreaAssignment(value:DemoAreaAssignmentInput){
  const c=getSupabaseServiceClient();
- const{data:existing,error:existingError}=await c.from("demo_area_assignments").select("region_id,city_id").eq("service_date",value.serviceDate).maybeSingle();
+ const normalizedValue=value.regionId===CUSTOM_DEMO_AREA_ID?{...value,cityId:null,customCity:value.customCity?.trim()||null}:value;
+ if(normalizedValue.regionId===CUSTOM_DEMO_AREA_ID&&!normalizedValue.customCity)throw new DemoAreaPlanningServerError("reserved_area");
+ const{data:existing,error:existingError}=await c.from("demo_area_assignments").select("region_id,city_id").eq("service_date",normalizedValue.serviceDate).maybeSingle();
  if(existingError)throw existingError;
- const{data:region,error:regionError}=await c.from("demo_service_areas").select("id,active").eq("id",value.regionId).maybeSingle();
+ const{data:region,error:regionError}=await c.from("demo_service_areas").select("id,active").eq("id",normalizedValue.regionId).maybeSingle();
  if(regionError)throw regionError;
  if(!region)throw new DemoAreaPlanningServerError("region_not_found");
- if(!region.active&&existing?.region_id!==value.regionId)throw new DemoAreaPlanningServerError("inactive_region");
- if(value.cityId){
-  const{data:city,error:cityError}=await c.from("demo_service_area_cities").select("id,region_id,active").eq("id",value.cityId).maybeSingle();
+ if(!region.active&&existing?.region_id!==normalizedValue.regionId)throw new DemoAreaPlanningServerError("inactive_region");
+ if(normalizedValue.cityId){
+  const{data:city,error:cityError}=await c.from("demo_service_area_cities").select("id,region_id,active").eq("id",normalizedValue.cityId).maybeSingle();
   if(cityError)throw cityError;
   if(!city)throw new DemoAreaPlanningServerError("city_not_found");
-  if(city.region_id!==value.regionId)throw new DemoAreaPlanningServerError("city_region_mismatch");
-  if(!city.active&&existing?.city_id!==value.cityId)throw new DemoAreaPlanningServerError("inactive_city");
+  if(city.region_id!==normalizedValue.regionId)throw new DemoAreaPlanningServerError("city_region_mismatch");
+  if(!city.active&&existing?.city_id!==normalizedValue.cityId)throw new DemoAreaPlanningServerError("inactive_city");
  }
- const{data,error}=await c.from("demo_area_assignments").upsert({service_date:value.serviceDate,region_id:value.regionId,city_id:value.cityId,custom_city:value.customCity,internal_note:value.internalNote,updated_at:new Date().toISOString()},{onConflict:"service_date"}).select(areaAssignmentColumns).single();
+ const{data,error}=await c.from("demo_area_assignments").upsert({service_date:normalizedValue.serviceDate,region_id:normalizedValue.regionId,city_id:normalizedValue.cityId,custom_city:normalizedValue.customCity,internal_note:normalizedValue.internalNote,updated_at:new Date().toISOString()},{onConflict:"service_date"}).select(areaAssignmentColumns).single();
  if(error)throw error;
  return mapAreaAssignment(data as Record<string,unknown>);
 }
@@ -95,6 +114,7 @@ export async function clearDemoAreaAssignment(serviceDate:string){
 }
 
 export async function saveDemoServiceArea(value:DemoServiceAreaInput,id?:string){
+ if(id===CUSTOM_DEMO_AREA_ID)throw new DemoAreaPlanningServerError("reserved_area");
  const c=getSupabaseServiceClient();
  const payload={name:value.name,description:value.description,active:value.active,sort_order:value.sortOrder,updated_at:new Date().toISOString()};
  const query=id?c.from("demo_service_areas").update(payload).eq("id",id):c.from("demo_service_areas").insert(payload);
@@ -105,6 +125,7 @@ export async function saveDemoServiceArea(value:DemoServiceAreaInput,id?:string)
 }
 
 export async function saveDemoServiceAreaCity(regionId:string,value:DemoServiceAreaCityInput,id?:string){
+ if(regionId===CUSTOM_DEMO_AREA_ID)throw new DemoAreaPlanningServerError("reserved_area");
  const c=getSupabaseServiceClient();
  const{data:region,error:regionError}=await c.from("demo_service_areas").select("id").eq("id",regionId).maybeSingle();
  if(regionError)throw regionError;

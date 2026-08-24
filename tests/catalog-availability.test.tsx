@@ -97,6 +97,8 @@ test("admin availability patches map every pricing kind to its existing field", 
   for (const kind of ["products", "variants", "packages", "options", "services", "schedules"] as const) {
     assert.deepEqual(validatePricingPatch(kind, { public_status: "active" }), { ok: true, value: { public_status: "active" } });
     assert.deepEqual(validatePricingPatch(kind, { public_status: "unavailable" }), { ok: true, value: { public_status: "unavailable" } });
+    assert.deepEqual(validatePricingPatch(kind, { public_status: "hidden" }), { ok: true, value: { public_status: "hidden" } });
+    assert.deepEqual(validatePricingPatch(kind, { public_status: "coming_soon" }), { ok: true, value: { public_status: "coming_soon" } });
   }
   for (const kind of ["product-services", "service-payment-options"] as const) {
     assert.deepEqual(validatePricingPatch(kind, { is_available: true }), { ok: true, value: { is_available: true } });
@@ -111,11 +113,18 @@ test("invalid availability payloads are rejected without weakening special statu
   assert.equal(validatePricingPatch("products", { public_status: "coming_soon" }).ok, true);
 });
 
-test("Pricing Management exposes card-level ON and OFF controls with protected optimistic rollback", () => {
+test("Pricing Management exposes distinct ON, OFF, and HIDDEN public-status controls", () => {
   const admin = source("app/admin/pricing/page.tsx");
   assert.match(admin, />Available</);
   assert.match(admin, />ON</);
   assert.match(admin, />OFF</);
+  assert.match(admin, />HIDDEN</);
+  assert.match(admin, /setAvailability\(item, "active"\)/);
+  assert.match(admin, /setAvailability\(item, "unavailable"\)/);
+  assert.match(admin, /setAvailability\(item, "hidden"\)/);
+  assert.match(admin, /item\.availabilityField === "public_status"/);
+  assert.match(admin, /aria-pressed=\{item\.availabilityStatus === "hidden"\}/);
+  assert.match(admin, /item\.availabilityStatus === "hidden" \? "bg-red-700 text-white"/);
   assert.match(admin, /public_status: nextStatus/);
   assert.match(admin, /is_available: available/);
   assert.match(admin, /setItems\(previousItems\)/);

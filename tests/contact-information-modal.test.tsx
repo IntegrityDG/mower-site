@@ -18,19 +18,17 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-test("the homepage contact section appears after the request flow and before the footer", () => {
+test("the homepage contact section remains an isolated desktop view before the shared footer", () => {
   const html = renderToStaticMarkup(<HomepageContactSection />);
   const homepageSource = readFileSync(
-    join(process.cwd(), "app", "page.tsx"),
+    join(process.cwd(), "components", "home", "DesktopHomepage.tsx"),
     "utf8"
   );
-  const requestFlowStart = homepageSource.indexOf(
-    'id="location-and-customer-path"'
-  );
+  const requestFlowStart = homepageSource.indexOf('view === "build"');
   const contactSectionStart = homepageSource.indexOf(
     "<HomepageContactSection />"
   );
-  const footerStart = homepageSource.indexOf("{/* FOOTER */}");
+  const footerStart = homepageSource.indexOf("<DesktopFooter />");
 
   assert.match(html, /Contact Integrity Distribution Systems/);
   assert.match(html, /Have Questions\? We’re Here to Help\./);
@@ -43,21 +41,19 @@ test("the homepage contact section appears after the request flow and before the
   assert.ok(requestFlowStart >= 0);
   assert.ok(contactSectionStart > requestFlowStart);
   assert.ok(footerStart > contactSectionStart);
-  assert.match(
-    homepageSource,
-    /<NationwidePurchaseFlow \/>\s*<\/div>\s*<\/section>\s*<HomepageContactSection \/>/
-  );
+  assert.match(homepageSource, /view === "contact" && <HomepageContactSection \/>/);
+  const homeBranch = homepageSource.slice(homepageSource.indexOf('view === "home"'), homepageSource.indexOf('view !== "home"'));
+  assert.doesNotMatch(homeBranch, /HomepageContactSection|NationwidePurchaseFlow/);
 });
 
 test("the homepage price-match section uses the database-backed Meet or Beat component", () => {
   const homepageSource = readFileSync(
-    join(process.cwd(), "app", "page.tsx"),
+    join(process.cwd(), "components", "home", "DesktopHomepage.tsx"),
     "utf8"
   ) + readFileSync(join(process.cwd(), "components", "promotions", "HomePriceMatch.tsx"), "utf8") + readFileSync(join(process.cwd(), "lib", "price-match", "config.ts"), "utf8");
-  const featuredEquipmentEnd = homepageSource.indexOf(
-    "{/* PRICE MATCH */}"
-  );
-  const financingStart = homepageSource.indexOf("{/* HEARTH FINANCING */}");
+  const salesSpecialStart = homepageSource.indexOf("<HomeSalesSpecial />");
+  const priceMatchStart = homepageSource.indexOf("<HomePriceMatch />");
+  const spotlightStart = homepageSource.indexOf("<HomeBusinessSpotlight />");
 
   assert.match(
     homepageSource,
@@ -72,8 +68,9 @@ test("the homepage price-match section uses the database-backed Meet or Beat com
     homepageSource,
     /Equipment Request Process|Build and review an equipment-only request|Browse public equipment without entering a ZIP/
   );
-  assert.ok(featuredEquipmentEnd >= 0);
-  assert.ok(financingStart > featuredEquipmentEnd);
+  assert.ok(salesSpecialStart >= 0);
+  assert.ok(priceMatchStart > salesSpecialStart);
+  assert.ok(spotlightStart > priceMatchStart);
 });
 
 test("the equipment build banner keeps only its existing Build Your System action", () => {

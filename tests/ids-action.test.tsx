@@ -97,7 +97,7 @@ const migration = readFileSync(
     new URL("../components/ids-action/IdsActionCarousel.tsx", import.meta.url),
     "utf8",
   ),
-  homepage = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8"),
+  homepage = readFileSync(new URL("../components/home/DesktopHomepage.tsx", import.meta.url), "utf8"),
   mobile = readFileSync(
     new URL("../components/mobile/MobileHomeNavigation.tsx", import.meta.url),
     "utf8",
@@ -414,11 +414,10 @@ test("homepage carousel supports both viewports, one image at a time, reduced mo
   assert.doesNotMatch(carousel, /matchMedia\("\(min-width: 768px\)"\)/);
   assert.match(carousel, /ScheduleDemoModal source="ids_in_action"/);
 });
-test("desktop placement is reviews then IDS in Action then financing", () => {
-  const reviews = homepage.indexOf("<HomeReviews />"),
-    action = homepage.indexOf("<IdsActionCarousel />"),
-    financing = homepage.indexOf("<HomeFinancing />");
-  assert.ok(reviews < action && action < financing);
+test("desktop IDS in Action is an isolated selectable view", () => {
+  assert.match(homepage, /view === "ids-action" && <IdsActionCarousel \/>/);
+  const home = homepage.slice(homepage.indexOf('view === "home"'), homepage.indexOf('view !== "home"'));
+  assert.doesNotMatch(home, /IdsActionCarousel|HomeReviews|HomeFinancing/);
 });
 test("mobile menu selects the featured IDS IN ACTION view before contact without mounting the gallery", () => {
   const reviews = mobile.indexOf('label: "CUSTOMER REVIEWS"'),

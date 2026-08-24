@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
+import type { HomeView } from "@/lib/homepage-navigation";
 
-export type MobileView = "home" | "build" | "machines" | "financing" | "reviews" | "ids-action" | "contact";
+export type MobileView = HomeView;
 
 const viewItems: Array<{ label: string; view: MobileView; primary?: boolean }> = [
   { label: "HOME", view: "home" },
@@ -55,6 +56,7 @@ export default function MobileHomeNavigation({ open, activeView, onClose, onSele
           <Link href="/equipment/accessories" className="min-h-12 rounded-xl px-4 py-3 text-sm font-black tracking-wide text-slate-800 hover:bg-slate-100">ACCESSORIES &amp; PARTS</Link>
           {viewItems.slice(3, 5).map((item) => <button key={item.view} type="button" aria-current={activeView === item.view ? "page" : undefined} onClick={() => choose(item.view)} className={`min-h-12 rounded-xl px-4 py-3 text-left text-sm font-black tracking-wide ${activeView === item.view ? "bg-emerald-50 text-emerald-800" : "text-slate-800 hover:bg-slate-100"}`}>{item.label}</button>)}
           {viewItems.slice(5).map((item) => <button key={item.view} type="button" aria-current={activeView === item.view ? "page" : undefined} onClick={() => choose(item.view)} className={`min-h-12 rounded-xl px-4 py-3 text-left text-sm font-black tracking-wide ${activeView === item.view ? "bg-emerald-50 text-emerald-800" : "text-slate-800 hover:bg-slate-100"}`}>{item.label}</button>)}
+          <Link href="/dealer-tech-resources" className="mt-2 min-h-12 rounded-xl border-2 border-emerald-600 px-4 py-3 text-center text-sm font-black tracking-wide text-emerald-800 hover:bg-emerald-50">DEALER PORTAL</Link>
           <Link href="/referral-program" className="min-h-12 rounded-xl px-4 py-3 text-sm font-black tracking-wide text-slate-800 hover:bg-slate-100">REFERRAL PROGRAM</Link>
         </nav>
       </aside>

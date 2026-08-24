@@ -33,7 +33,7 @@ const newMigration = source("supabase/migrations/20260813000000_expand_demo_sche
 const durationMigration = source("supabase/migrations/20260814031110_change_demo_scheduling_to_four_hour_blocks.sql");
 const areaPlanningMigration = source("supabase/migrations/20260815011728_add_demo_area_planning.sql");
 const equipment = source("components/equipment/EquipmentCatalog.tsx");
-const homepage = source("app/page.tsx");
+const homepage = source("components/home/DesktopHomepage.tsx");
 const mobileHome = source("components/mobile/MobileHomepage.tsx");
 const mobileNavigation = source("components/mobile/MobileHomeNavigation.tsx");
 const contact = source("components/contact/HomepageContactSection.tsx");
@@ -610,8 +610,8 @@ test("authenticated admin can clear an assignment by stable service date", async
 
 test("server rejects missing, inactive, and mismatched region or city records", () => {
   for (const code of ["region_not_found", "inactive_region", "city_not_found", "inactive_city", "city_region_mismatch"]) assert.match(areaPlanningServer, new RegExp(code));
-  assert.match(areaPlanningServer, /city\.region_id!==value\.regionId/);
-  assert.match(areaPlanningServer, /!region\.active&&existing\?\.region_id!==value\.regionId/);
+  assert.match(areaPlanningServer, /city\.region_id!==normalizedValue\.regionId/);
+  assert.match(areaPlanningServer, /!region\.active&&existing\?\.region_id!==normalizedValue\.regionId/);
 });
 
 test("migration creates private normalized planning tables with optional city columns", () => {
@@ -675,11 +675,10 @@ test("starter cities are seeded without making city selection required", () => {
   assert.doesNotMatch(areaPlanningMigration, /city_id uuid not null/);
 });
 
-test("public scheduling APIs never expose area assignments or internal notes", () => {
-  for (const route of [publicAvailabilityRoute, publicRequestRoute]) {
-    assert.doesNotMatch(route, /demo_area_assignments|serviceAreas|areaAssignments|internal_note|internalNote/);
-  }
-  assert.match(publicAvailabilityRoute, /slots:await getAvailableSlots/);
+test("public scheduling APIs expose only sanitized area planning and never internal notes", () => {
+  assert.match(publicAvailabilityRoute, /getPublicDemoAreaPlanning/);
+  for (const route of [publicAvailabilityRoute, publicRequestRoute]) assert.doesNotMatch(route, /internal_note|internalNote/);
+  assert.doesNotMatch(publicRequestRoute, /areaPlanning|demo_area_assignments/);
 });
 
 test("admin calendar keeps occupancy separate from region and optional city labels", () => {
@@ -700,7 +699,7 @@ test("calendar date selection keeps Day Plan and customer request access togethe
 
 test("Day Plan UI supports save, update, optional city and note, and clear", () => {
   for (const copy of ["Day Plan / Area Planning", "Area / Region", "Specific City", "(optional)", "Internal Note", "Save Day Plan", "Update Day Plan", "Clear Area Assignment"]) assert.match(admin, new RegExp(copy.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-  assert.match(admin, /cityId: dayPlanDraft\.cityId \|\| null/);
+  assert.match(admin, /cityId: customAreaSelected \? null : dayPlanDraft\.cityId \|\| null/);
   assert.match(admin, /internalNote: dayPlanDraft\.internalNote \|\| null/);
   assert.match(admin, /serviceAreas\.filter\(\(area\) => area\.active \|\| area\.id === selectedAssignment\?\.regionId\)/);
 });
@@ -733,7 +732,7 @@ test("service dates preserve YYYY-MM-DD semantics without timezone conversion", 
 });
 
 test("area assignments do not participate in availability or mutate demo requests", () => {
-  assert.doesNotMatch(areaPlanningServer.slice(areaPlanningServer.indexOf("export async function getAvailableSlots"), areaPlanningServer.indexOf("export async function createDemoRequest")), /demo_area_assignments|demo_service_areas/);
+  assert.doesNotMatch(areaPlanningServer.slice(areaPlanningServer.indexOf("export async function getAvailableSlots"), areaPlanningServer.indexOf("export async function getPublicDemoAreaPlanning")), /demo_area_assignments|demo_service_areas/);
   const requestRecord = adminRequest("pending", "planning-isolated");
   const before = structuredClone(requestRecord);
   validateDemoAreaAssignment(assignmentInput);
@@ -747,10 +746,10 @@ test("the public availability contract reports the unchanged four-hour duration"
   assert.doesNotMatch(publicAvailabilityRoute, /durationMinutes:60/);
 });
 
-test("PII tables keep RLS and public availability remains slots-only", () => {
+test("PII tables keep RLS and public availability remains free of customer data", () => {
   for (const table of ["demo_requests", "demo_availability_rules", "demo_availability_exceptions", "demo_settings", "demo_notification_events"]) assert.match(oldMigration, new RegExp(`alter table public\\.${table} enable row level security`));
   const availabilityRoute = source("app/api/demo-scheduling/availability/route.ts");
-  assert.match(availabilityRoute, /slots:await getAvailableSlots/);
+  assert.match(availabilityRoute, /getAvailableSlots/);
   assert.doesNotMatch(availabilityRoute, /customer_name|customer_email|property_address/);
 });
 

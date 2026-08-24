@@ -6,6 +6,7 @@ import type {
   DemoServiceAreaCityInput,
   DemoServiceAreaInput,
 } from "./types";
+import { CUSTOM_DEMO_AREA_ID } from "./public-area-planning";
 
 export const DEMO_AREA_NAME_MAX_LENGTH = 120;
 export const DEMO_AREA_DESCRIPTION_MAX_LENGTH = 500;
@@ -52,6 +53,8 @@ export function validateDemoAreaAssignment(input: unknown): { ok: true; value: D
   if (!isDemoAreaIdentifier(regionId)) return { ok: false, error: "Choose a valid Area / Region." };
   if (cityId === undefined || cityId !== null && !isDemoAreaIdentifier(cityId)) return { ok: false, error: "Choose a valid Specific City or leave it blank." };
   if (customCity === undefined || customCity !== null && customCity.length > DEMO_AREA_CITY_MAX_LENGTH) return { ok: false, error: `Specific City must be ${DEMO_AREA_CITY_MAX_LENGTH} characters or fewer.` };
+  if (regionId === CUSTOM_DEMO_AREA_ID && !customCity) return { ok: false, error: "Custom Location is required for Custom / Out-of-Area." };
+  if (regionId === CUSTOM_DEMO_AREA_ID && cityId) return { ok: false, error: "Custom / Out-of-Area cannot use a saved city." };
   if (cityId && customCity) return { ok: false, error: "Choose a saved city or enter a custom city, not both." };
   if (internalNote === undefined || internalNote !== null && internalNote.length > DEMO_AREA_NOTE_MAX_LENGTH) return { ok: false, error: `Internal Note must be ${DEMO_AREA_NOTE_MAX_LENGTH} characters or fewer.` };
   return { ok: true, value: { serviceDate, regionId, cityId, customCity, internalNote } };

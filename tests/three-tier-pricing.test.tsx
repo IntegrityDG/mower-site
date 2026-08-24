@@ -41,6 +41,40 @@ test("public display renders comparison, IDS everyday, and active temporary sale
   assert.match(html, /Sale ends August 20, 2026/);
 });
 
+test("public display renders the selected public sale promotion message", () => {
+  const price = scheduledPublicPrice(operational({ sale_price_cents: 269800, sale_starts_at: "2026-08-01T00:00:00Z", sale_ends_at: "2026-08-20T00:00:00Z" }), [], "product", "p", now).price;
+  price.publicPromotion = {
+    context: "sale",
+    message: "Also receive a LYMOW branded Backpack, Hat, Tote Bag, and a random Vinyl Skin for your new LYMOW!!",
+    imageUrl: null,
+  };
+  const html = renderToStaticMarkup(React.createElement(EverydayPriceDisplay, { item: price, comparisonLabel: "Lymow Everyday Price" }));
+  assert.match(html, /Also receive a LYMOW branded Backpack/);
+  assert.ok(html.indexOf("Sale ends August 20, 2026") < html.indexOf("Also receive a LYMOW branded Backpack"));
+});
+
+test("public display renders a responsive public promotion image with accessible alt text", () => {
+  const price = scheduledPublicPrice(operational(), [], "product", "p", now).price;
+  price.publicPromotion = {
+    context: "ids",
+    message: "Current offer",
+    imageUrl: "https://example.com/promotion.jpg",
+  };
+  const html = renderToStaticMarkup(React.createElement(EverydayPriceDisplay, { item: price, comparisonLabel: "Lymow Everyday Price" }));
+  assert.match(html, /src="https:\/\/example\.com\/promotion\.jpg"/);
+  assert.match(html, /alt="Current pricing promotion"/);
+  assert.match(html, /max-w-full/);
+});
+
+test("public display omits the promotion block when publicPromotion is null", () => {
+  const price = scheduledPublicPrice(operational(), [], "product", "p", now).price;
+  price.publicPromotion = null;
+  const html = renderToStaticMarkup(React.createElement(EverydayPriceDisplay, { item: price, comparisonLabel: "Lymow Everyday Price" }));
+  assert.doesNotMatch(html, /data-testid="public-price-promotion"/);
+  assert.match(html, /Manufacturer MSRP/);
+  assert.match(html, /IDS Everyday Low Price/);
+});
+
 test("expired public sale returns to IDS everyday display", () => {
   const price = scheduledPublicPrice(operational({ sale_price_cents: 269800, sale_starts_at: "2026-07-01T00:00:00Z", sale_ends_at: "2026-08-09T00:00:00Z" }), [], "product", "p", now).price;
   const html = renderToStaticMarkup(React.createElement(EverydayPriceDisplay, { item: price, comparisonLabel: "Lymow Everyday Price" }));

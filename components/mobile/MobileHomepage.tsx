@@ -13,6 +13,7 @@ import MobileHomeNavigation, { type MobileView } from "./MobileHomeNavigation";
 import HomeBusinessSpotlight from "@/components/featured-businesses/HomeBusinessSpotlight";
 import IdsActionCarousel from "@/components/ids-action/IdsActionCarousel";
 import ScheduleDemoModal from "@/components/demo-scheduling/ScheduleDemoModal";
+import { homeUrlForView, homeViewFromLocation } from "@/lib/homepage-navigation";
 
 function MobileHeader({ menuOpen, onOpen }: { menuOpen: boolean; onOpen: () => void }) {
   return (
@@ -39,12 +40,12 @@ function MobileHero() {
     <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-5 py-10 text-white">
       <div className="pointer-events-none absolute inset-0 opacity-20"><div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-emerald-400 blur-3xl" /><div className="absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-cyan-400 blur-3xl" /></div>
       <div className="relative z-10 mx-auto text-center">
-        <p className="text-xl font-bold uppercase leading-tight tracking-[0.02em] text-emerald-400"><span className="block">A SMALL BUSINESS</span><span className="block">WITH A SIMPLE PURPOSE</span></p>
+        <Image src="/images/cartoon-mowers.png" alt="Autonomous mower lineup" width={1536} height={1024} className="mx-auto h-auto w-full max-w-[360px] object-contain drop-shadow-2xl" priority />
+        <p className="mt-3 text-xl font-bold uppercase leading-tight tracking-[0.02em] text-emerald-400"><span className="block">A SMALL BUSINESS</span><span className="block">WITH A SIMPLE PURPOSE</span></p>
         <h1 className="mx-auto mt-4 text-3xl font-black leading-[1.08] tracking-tight">Helping people get more time back for what matters most.</h1>
         <p className="mx-auto mt-5 text-base leading-7 text-slate-200">Integrity Distribution Systems is a small, Southeast Missouri&ndash;based business built around honesty, practical guidance, and doing right by the people we serve. We are not here to push the most expensive machine or chase the biggest sale. Our goal is to help each customer find a system that genuinely fits their property, needs, and budget.</p>
         <p className="mx-auto mt-4 text-base leading-7 text-slate-200">After spending a great deal of my own life working away from home, I understand how valuable time can be. Autonomous lawn care can reduce the hours and expense tied up in routine property maintenance, giving people more time with family, more room in their budget, and a little more opportunity to slow down and enjoy life.</p>
         <div className="mt-5 inline-flex rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-xs font-semibold text-slate-100 backdrop-blur">Southeast Missouri Based &bull; Nationwide Equipment Sales &bull; Regional Hands-On Support</div>
-        <Image src="/images/cartoon-mowers.png" alt="Autonomous mower lineup" width={1536} height={1024} className="mx-auto mt-5 h-auto w-full max-w-[400px] object-contain drop-shadow-2xl" priority />
       </div>
     </section>
   );
@@ -61,12 +62,13 @@ export default function MobileHomepage() {
   const selectView = useCallback((next: MobileView, push = true) => {
     setView(next);
     window.scrollTo({ top: 0, behavior: "auto" });
-    if (push) window.history.pushState({ idsMobileView: next }, "", next === "home" ? window.location.pathname : `#${next}`);
+    if (push) window.history.pushState({ idsHomeView: next }, "", homeUrlForView(window.location, next));
   }, []);
   useEffect(() => {
-    const onPopState = (event: PopStateEvent) => { setView((event.state?.idsMobileView as MobileView) || "home"); window.scrollTo(0, 0); };
+    const initialViewTimer = window.setTimeout(() => setView(homeViewFromLocation(window.location)), 0);
+    const onPopState = () => { setView(homeViewFromLocation(window.location)); window.scrollTo(0, 0); };
     window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    return () => { window.clearTimeout(initialViewTimer); window.removeEventListener("popstate", onPopState); };
   }, []);
 
   return (

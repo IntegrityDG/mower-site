@@ -67,10 +67,10 @@ test("four-hour scheduling is unchanged by the Kansas City migration", () => {
   assert.doesNotMatch(migration, /demo_settings|duration_minutes|demo_requests|demo_availability/i);
 });
 
-test("Kansas City planning remains absent from public scheduling APIs", () => {
-  for (const route of [publicAvailability, publicRequests]) {
-    assert.doesNotMatch(route, /demo_service_areas|demo_service_area_cities|demo_area_assignments|internal_note|areaAssignments/);
-  }
+test("Kansas City planning uses the sanitized availability helper only", () => {
+  assert.match(publicAvailability, /getPublicDemoAreaPlanning/);
+  assert.doesNotMatch(publicAvailability, /internal_note|internalNote|readAdminScheduling/);
+  assert.doesNotMatch(publicRequests, /demo_service_areas|demo_service_area_cities|demo_area_assignments|internal_note|areaPlanning/);
   assert.doesNotMatch(migration, /grant|create policy/i);
 });
 

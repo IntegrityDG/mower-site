@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 const mobile = readFileSync(new URL("../components/mobile/MobileHomepage.tsx", import.meta.url), "utf8");
 const navigation = readFileSync(new URL("../components/mobile/MobileHomeNavigation.tsx", import.meta.url), "utf8");
 const desktop = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const desktopHome = readFileSync(new URL("../components/home/DesktopHomepage.tsx", import.meta.url), "utf8");
+const desktopNavigation = readFileSync(new URL("../components/home/DesktopHomeNavigation.tsx", import.meta.url), "utf8");
 const financing = readFileSync(new URL("../components/home/HomeFinancing.tsx", import.meta.url), "utf8");
 
 test("mobile header exposes an accessible hamburger and mobile-only sticky layout", () => {
@@ -27,9 +29,10 @@ test("drawer supports open, close, backdrop, Escape, focus containment, and scro
   assert.match(navigation, /absolute inset-0 bg-slate-950\/70/);
 });
 
-test("drawer contains every requested destination and correct route links", () => {
-  for (const label of ["HOME", "BUILD YOUR SYSTEM", "OUR MACHINES", "ACCESSORIES &amp; PARTS", "FINANCING OPTIONS", "CUSTOMER REVIEWS", "CONTACT IDS", "REFERRAL PROGRAM"]) assert.match(navigation, new RegExp(label));
+test("mobile drawer contains every requested destination and correct route links", () => {
+  for (const label of ["HOME", "BUILD YOUR SYSTEM", "OUR MACHINES", "ACCESSORIES &amp; PARTS", "FINANCING OPTIONS", "CUSTOMER REVIEWS", "IDS IN ACTION", "CONTACT IDS", "DEALER PORTAL", "REFERRAL PROGRAM"]) assert.match(navigation, new RegExp(label));
   assert.match(navigation, /href="\/equipment\/accessories"/);
+  assert.match(navigation, /href="\/dealer-tech-resources"/);
   assert.match(navigation, /href="\/referral-program"/);
 });
 
@@ -64,9 +67,49 @@ test("shared financing preserves Hearth content, link, artwork, and disclaimer",
   assert.match(financing, /participating third-party lenders/);
 });
 
-test("responsive boundary selects mobile below 768 and preserves desktop order", () => {
+test("responsive boundary selects one homepage below or above 768", () => {
   assert.match(desktop, /max-width: 767px/);
-  const markers = ["{/* HERO */}", "{/* FEATURED EQUIPMENT */}", "<HomeSalesSpecial />", "{/* PRICE MATCH */}", "<HomeReviews />", "{/* HEARTH FINANCING */}", 'id="location-and-customer-path"', "<HomepageContactSection />", "{/* FOOTER */}"];
-  let previous = -1;
-  for (const marker of markers) { const position = desktop.indexOf(marker); assert.ok(position > previous, `${marker} remains in desktop order`); previous = position; }
+  assert.match(desktop, /isMobile \? <MobileHomepage \/> : <DesktopHomepage \/>/);
+  assert.match(mobile, /md:hidden/);
+  assert.match(desktopHome, /hidden min-h-screen[\s\S]*md:block/);
+});
+
+test("desktop default home is compact and ordered without mounting long-form views", () => {
+  const home = desktopHome.slice(desktopHome.indexOf('view === "home"'), desktopHome.indexOf('view !== "home"'));
+  for (const expected of ["DesktopHero", "BUILD YOUR SYSTEM", "HomeSalesSpecial", "HomePriceMatch", "HomeBusinessSpotlight"]) assert.match(home, new RegExp(expected));
+  assert.match(home, /DesktopHero \/><section[\s\S]*HomeSalesSpecial \/><HomePriceMatch \/><HomeBusinessSpotlight \/>/);
+  assert.doesNotMatch(home, /EquipmentCatalog|NationwidePurchaseFlow|HomeFinancing|HomeReviews|IdsActionCarousel|HomepageContactSection/);
+});
+
+test("desktop drawer contains all destinations and distinct Dealer Portal link", () => {
+  for (const label of ["HOME", "BUILD YOUR SYSTEM", "OUR MACHINES", "ACCESSORIES &amp; PARTS", "FINANCING OPTIONS", "CUSTOMER REVIEWS", "IDS IN ACTION", "CONTACT IDS", "DEALER PORTAL", "REFERRAL PROGRAM"]) assert.match(desktopNavigation, new RegExp(label));
+  assert.match(desktopNavigation, /href="\/equipment\/accessories"/);
+  assert.match(desktopNavigation, /href="\/dealer-tech-resources"[\s\S]*border-2 border-emerald-600/);
+  assert.match(desktopNavigation, /href="\/referral-program"/);
+});
+
+test("desktop internal selections mount only their requested existing component", () => {
+  for (const expected of ['view === "build".*NationwidePurchaseFlow', 'view === "machines".*EquipmentCatalog', 'view === "financing".*HomeFinancing', 'view === "reviews".*HomeReviews', 'view === "ids-action".*IdsActionCarousel', 'view === "contact".*HomepageContactSection']) assert.match(desktopHome, new RegExp(expected));
+  assert.match(desktopHome, /view === "machines"[\s\S]*ScheduleDemoModal source="featured_machines"[\s\S]*EquipmentCatalog/);
+});
+
+test("desktop drawer preserves dialog, focus, keyboard, backdrop, and scroll accessibility", () => {
+  assert.match(desktopHome, /aria-label="Open desktop navigation"/);
+  assert.match(desktopHome, /aria-expanded=\{menuOpen\}/);
+  assert.match(desktopHome, /aria-controls="desktop-navigation"/);
+  for (const token of [/role="dialog"/, /aria-modal="true"/, /aria-label="Desktop navigation"/, /event\.key === "Escape"/, /event\.key !== "Tab"/, /document\.body\.style\.overflow = "hidden"/, /previousFocus\.current\?\.focus/, /absolute inset-0 bg-slate-950\/70/]) assert.match(desktopNavigation, token);
+});
+
+test("desktop history and hash navigation support Back through homepage views", () => {
+  assert.match(desktopHome, /history\.pushState\(\{ idsHomeView: next \}/);
+  assert.match(desktopHome, /homeUrlForView\(window\.location, next\)/);
+  assert.match(desktopHome, /homeViewFromLocation\(window\.location\)/);
+  assert.match(desktopHome, /addEventListener\("popstate"/);
+  assert.match(desktopHome, /window\.scrollTo/);
+});
+
+test("Intro mower image appears before Intro copy on desktop and mobile", () => {
+  const desktopHero = desktopHome.slice(desktopHome.indexOf("function DesktopHero"), desktopHome.indexOf("function DesktopFooter"));
+  const mobileHero = mobile.slice(mobile.indexOf("function MobileHero"), mobile.indexOf("function MobileFooter"));
+  for (const hero of [desktopHero, mobileHero]) assert.ok(hero.indexOf("/images/cartoon-mowers.png") < hero.indexOf("A SMALL BUSINESS"));
 });

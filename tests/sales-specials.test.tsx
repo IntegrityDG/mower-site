@@ -53,22 +53,18 @@ test("admin handlers reject unauthenticated requests", async () => { const handl
 test("authenticated admin can read and update settings", async () => { let stored = valid; const handlers = createSalesSpecialsAdminHandlers({ isAdmin: async () => true, read: async () => stored, save: async (value) => (stored = value) }); assert.equal((await handlers.GET()).status, 200); const changed = { ...valid, headline: "New event" }; const response = await handlers.PUT(new Request("http://local", { method: "PUT", body: JSON.stringify(changed) })); assert.equal(response.status, 200); assert.equal(stored.headline, "New event"); });
 
 test("homepage placement follows the optimized sales-flow order", () => {
-  const source = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
-  const featured = source.indexOf("{/* FEATURED EQUIPMENT */}");
+  const source = readFileSync(new URL("../components/home/DesktopHomepage.tsx", import.meta.url), "utf8");
+  const hero = source.indexOf("<DesktopHero />");
+  const build = source.indexOf("BUILD YOUR SYSTEM", hero);
   const promotion = source.indexOf("<HomeSalesSpecial />");
-  const priceMatch = source.indexOf("{/* PRICE MATCH */}");
-  const reviews = source.indexOf("<HomeReviews />");
-  const financing = source.indexOf("{/* HEARTH FINANCING */}");
-  const purchaseFlow = source.indexOf('id="location-and-customer-path"');
-  const contact = source.indexOf("<HomepageContactSection />");
+  const priceMatch = source.indexOf("<HomePriceMatch />");
+  const spotlight = source.indexOf("<HomeBusinessSpotlight />");
 
   assert.ok(
-    featured >= 0 &&
-      featured < promotion &&
+    hero >= 0 &&
+      hero < build &&
+      build < promotion &&
       promotion < priceMatch &&
-      priceMatch < reviews &&
-      reviews < financing &&
-      financing < purchaseFlow &&
-      purchaseFlow < contact,
+      priceMatch < spotlight,
   );
 });

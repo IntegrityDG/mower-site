@@ -1,5 +1,27 @@
 ﻿import { formatCents, priceLabel } from "@/lib/catalog/pricing";
-import type { CatalogPrice } from "@/lib/catalog/types";
+import type { CatalogPrice, CatalogPricePromotion } from "@/lib/catalog/types";
+
+function PublicPricePromotion({ promotion }: { promotion: CatalogPricePromotion | null | undefined }) {
+  if (!promotion) return null;
+
+  return (
+    <div className="mt-3 max-w-xl" data-testid="public-price-promotion">
+      {promotion.message && (
+        <p className="text-sm font-medium leading-relaxed text-slate-700">{promotion.message}</p>
+      )}
+      {promotion.imageUrl && (
+        <div className={`${promotion.message ? "mt-3 " : ""}overflow-hidden rounded-lg`}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- promotion dimensions are not available in catalog data */}
+          <img
+            src={promotion.imageUrl}
+            alt="Current pricing promotion"
+            className="h-auto max-w-full rounded-lg object-contain"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 type EverydayPriceDisplayProps = {
   item: CatalogPrice;
@@ -27,9 +49,10 @@ export default function EverydayPriceDisplay({
     currentPriceCents === null
   ) {
     return (
-      <p className={`${className} ${priceClassName}`.trim()}>
-        {priceLabel(item)}
-      </p>
+      <div className={className}>
+        <p className={priceClassName}>{priceLabel(item)}</p>
+        <PublicPricePromotion promotion={item.publicPromotion} />
+      </div>
     );
   }
 
@@ -74,6 +97,7 @@ export default function EverydayPriceDisplay({
             )}
           </>
         )}
+        <PublicPricePromotion promotion={item.publicPromotion} />
       </div>
     );
   }
@@ -114,6 +138,7 @@ export default function EverydayPriceDisplay({
           )}
         </>
       )}
+      <PublicPricePromotion promotion={item.publicPromotion} />
     </div>
   );
 }

@@ -24,6 +24,7 @@ function operationError(error: unknown, fallback: string) {
   if (code === "inactive_region") return json({ error: "Inactive regions cannot be used for a new day assignment." }, 409);
   if (code === "inactive_city") return json({ error: "Inactive cities cannot be used for a new day assignment." }, 409);
   if (code === "city_region_mismatch") return json({ error: "The selected city does not belong to the selected region." }, 400);
+  if (code === "reserved_area") return json({ error: "Custom / Out-of-Area is reserved and cannot be edited." }, 409);
   return json({ error: fallback }, 409);
 }
 
