@@ -3,11 +3,13 @@ import { sendIdsNotification } from "@/lib/email";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import type { OrderPriceSnapshot } from "@/lib/checkout/types";
 import { paymentNotificationEventKey } from "@/lib/notifications/notification-keys";
+import { shippingAddressLines, type NotificationShippingAddress } from "@/lib/notifications/shipping-address-lines";
 
 export type PaymentNotificationType = "ach_processing" | "paid" | "payment_failed" | "refund" | "dispute";
 export type OrderNotificationContext = {
   orderId: string; publicReference: string; orderStatus: string; paymentStatus: string;
   customerName: string; customerEmail: string | null; customerPhone: string | null;
+  shippingAddress: NotificationShippingAddress | null;
   subtotalCents: number; discountCents: number; taxCents: number; shippingCents: number;
   totalCents: number; refundedCents: number; paymentMethod: string; paidAt: string | null;
   snapshot: OrderPriceSnapshot; referral: { referrerName: string; referrerEmail: string } | null;
@@ -42,10 +44,11 @@ export function paymentNotificationMessage(type: PaymentNotificationType, contex
   } as const;
   const status = type === "ach_processing" ? ["PAYMENT STATUS: PROCESSING", "Do not treat this order as paid until ACH clears."] : [`Payment status: ${context.paymentStatus}`];
   const refund = type === "refund" ? [`Original order total: ${money(context.totalCents)}`, `Refunded amount: ${money(context.refundedCents)}`] : [];
+  const newOrderAddress = type === "paid" || type === "ach_processing" ? ["", ...shippingAddressLines(context.shippingAddress), ""] : [];
   return { subject: titles[type], text: [
     ...status, `Order: ${context.publicReference}`, `Customer: ${context.customerName}`,
     `Email: ${context.customerEmail ?? "Not supplied"}`, `Phone: ${context.customerPhone ?? "Not supplied"}`,
-    `Product: ${context.snapshot.product.name}`, `Payment method: ${context.paymentMethod}`,
+    ...newOrderAddress, `Product: ${context.snapshot.product.name}`, `Payment method: ${context.paymentMethod}`,
     "Selected configuration/items:", ...itemLines(context.snapshot),
     `Subtotal: ${money(context.subtotalCents)}`, `Discount: ${money(context.discountCents)}`,
     `Tax: ${money(context.taxCents)}`, `Shipping: ${money(context.shippingCents)}`,

@@ -4,6 +4,8 @@ import test from "node:test";
 
 import { notifyReviewSubmitted } from "../lib/reviews/notification";
 import { paymentNotificationEventKey, refundNotificationSemanticId } from "../lib/notifications/notification-keys";
+import { shippingAddressLines } from "../lib/notifications/shipping-address-lines";
+import type { OrderNotificationContext } from "../lib/notifications/payment-notifications";
 
 test("new review notification is attempted after storage and contains moderation details", async () => {
   const messages: Array<{ subject: string; text: string }> = [];
@@ -48,6 +50,39 @@ test("payment content uses canonical context, includes referral, and isolates se
   assert.match(source, /catch \{ console\.error\("Payment notification failed"/);
   const webhook = readFileSync("app/api/stripe/webhook/route.ts", "utf8");
   assert.match(webhook, /await applyCardEventV2\([\s\S]*?await notifyPaymentBusinessEvent\(\{ orderId: record\.orderId, type: "paid" \}\)/);
+});
+
+test("new-order notifications include a clean shipping address without changing other notification types", () => {
+  const addressContext: Pick<OrderNotificationContext, "shippingAddress"> = {
+    shippingAddress: { line1: " 123 Main Street ", line2: " Apt 4B ", city: " Poplar Bluff ", state: " MO ", postal_code: " 63901 ", country: " US " },
+  };
+  assert.deepEqual(shippingAddressLines(addressContext.shippingAddress), ["SHIPPING ADDRESS", "123 Main Street", "Apt 4B", "Poplar Bluff, MO 63901", "US"]);
+  assert.deepEqual(shippingAddressLines({ ...addressContext.shippingAddress!, line2: "  " }), ["SHIPPING ADDRESS", "123 Main Street", "Poplar Bluff, MO 63901", "US"]);
+  assert.deepEqual(shippingAddressLines(null), ["SHIPPING ADDRESS", "Not supplied"]);
+
+  const sparse = shippingAddressLines({ line1: " 5 Rural Route ", line2: null, city: null, state: " MO ", postal_code: null, country: null }).join("\n");
+  assert.equal(sparse, "SHIPPING ADDRESS\n5 Rural Route\nMO");
+  assert.doesNotMatch(sparse, /undefined|null|,\s*$| {2}/m);
+
+  const source = readFileSync("lib/notifications/payment-notifications.ts", "utf8");
+  assert.match(source, /type === "paid" \|\| type === "ach_processing" \? \["", \.\.\.shippingAddressLines\(context\.shippingAddress\), ""\] : \[\]/);
+  assert.ok(source.indexOf("...newOrderAddress") > source.indexOf("Phone:"));
+  assert.ok(source.indexOf("...newOrderAddress") < source.indexOf("Product:"));
+  assert.match(source, /Customer:.*customerName/);
+  assert.match(source, /Email:.*customerEmail/);
+  assert.match(source, /Phone:.*customerPhone/);
+  for (const detail of ["Product:", "Payment method:", "Selected configuration/items:", "Subtotal:", "Discount:", "Tax:", "Shipping:", "Final total:", "REFERRAL ATTACHED"]) assert.match(source, new RegExp(detail));
+});
+
+test("notification context migration adds only the stored shipping address and remains service-role only", () => {
+  const sql = readFileSync("supabase/migrations/20260825001457_include_shipping_address_in_notification_context.sql", "utf8");
+  assert.match(sql, /create or replace function public\.checkout_notification_context\(p_order_id uuid\)/i);
+  assert.match(sql, /returns jsonb language sql security invoker set search_path=pg_catalog,public,checkout_private/i);
+  assert.match(sql, /'shippingAddress',o\.shipping_address/);
+  assert.match(sql, /revoke all on function public\.checkout_notification_context\(uuid\) from public,anon,authenticated/i);
+  assert.match(sql, /grant execute on function public\.checkout_notification_context\(uuid\) to service_role/i);
+  assert.doesNotMatch(sql, /grant .* to anon|grant .* to authenticated/i);
+  assert.doesNotMatch(sql, /alter table|add column|security definer/i);
 });
 
 test("notification ledger is private, retryable, and service-role only", () => {
