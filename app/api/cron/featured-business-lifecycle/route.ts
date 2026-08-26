@@ -1,0 +1,2 @@
+import { runFeaturedBusinessLifecycle } from "@/lib/featured-businesses/listing-lifecycle";import { isCronAuthorized } from "@/lib/featured-businesses/cron-auth";
+export async function GET(request:Request){if(!isCronAuthorized(request.headers.get("authorization"),process.env.CRON_SECRET))return Response.json({error:"Unauthorized"},{status:401});try{return Response.json(await runFeaturedBusinessLifecycle())}catch{return Response.json({error:"Lifecycle processing failed."},{status:500})}}

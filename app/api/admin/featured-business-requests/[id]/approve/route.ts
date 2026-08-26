@@ -1,0 +1,2 @@
+import { isReviewAdmin } from "@/lib/reviews/admin-auth";import { approveRequest } from "@/lib/featured-businesses/request-server";
+export async function POST(_:Request,{params}:{params:Promise<{id:string}>}){if(!(await isReviewAdmin()))return Response.json({error:"Unauthorized"},{status:401});try{return Response.json({businessId:await approveRequest((await params).id)});}catch{return Response.json({error:"Request could not be approved. Verify all fields and the logo, then try again."},{status:409});}}

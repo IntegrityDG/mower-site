@@ -17,6 +17,7 @@
     "validate:bank-payment-migration": "tsx scripts/validate-bank-payment-migration.ts"
   },
   "dependencies": {
+    "@nickgraffis/us-counties": "0.0.2",
     "@supabase/supabase-js": "2.112.3",
     "heic-to": "1.5.2",
     "next": "16.3.2",

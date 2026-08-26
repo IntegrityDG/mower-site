@@ -1,0 +1,12 @@
+@keyframes businessSpotlightFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.businessTransition {
+  animation: businessSpotlightFade 400ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .businessTransition { animation: none; }
+}

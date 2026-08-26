@@ -1,0 +1,2 @@
+import { isReviewAdmin } from "@/lib/reviews/admin-auth";import { denyRequest } from "@/lib/featured-businesses/request-server";
+export async function POST(request:Request,{params}:{params:Promise<{id:string}>}){if(!(await isReviewAdmin()))return Response.json({error:"Unauthorized"},{status:401});const body=await request.json().catch(()=>({}));try{await denyRequest((await params).id,typeof body.adminNotes==="string"?body.adminNotes:undefined);return Response.json({success:true});}catch{return Response.json({error:"Request could not be denied."},{status:409});}}

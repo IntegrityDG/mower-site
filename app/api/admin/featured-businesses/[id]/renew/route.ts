@@ -1,0 +1,2 @@
+import { isReviewAdmin } from "@/lib/reviews/admin-auth";import { renewBusiness } from "@/lib/featured-businesses/server";
+export async function POST(_:Request,{params}:{params:Promise<{id:string}>}){if(!(await isReviewAdmin()))return Response.json({error:"Unauthorized"},{status:401});try{return Response.json({business:await renewBusiness((await params).id)});}catch{return Response.json({error:"Listing could not be renewed. Archived listings must be unarchived, and the grace period must still be open."},{status:409});}}

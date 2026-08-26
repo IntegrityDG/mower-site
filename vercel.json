@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/featured-business-lifecycle", "schedule": "0 14 * * *" }
+  ]
+}
