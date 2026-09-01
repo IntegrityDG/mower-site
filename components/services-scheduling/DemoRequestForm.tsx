@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { DEMO_REGION_MARKER_CLASSES, publicDemoAreaAccessibleLabel, publicDemoAreaLabel, publicDemoAreaLegend } from "@/lib/demo-scheduling/public-area-planning";
-import { DEMO_EQUIPMENT_INTERESTS, type DemoSlot, type DemoSource, type PublicDemoAreaPlan } from "@/lib/demo-scheduling/types";
+import { DEMO_EQUIPMENT_INTERESTS, DEMO_REQUEST_BOT_TRAP_FIELD, type DemoSlot, type DemoSource, type PublicDemoAreaPlan } from "@/lib/demo-scheduling/types";
 import { DEMO_PARTY_DISCLAIMER } from "@/lib/demo-party/disclaimer";
 import type { DemoFormat } from "@/lib/demo-party/types";
 
@@ -69,7 +69,6 @@ export default function DemoRequestForm({ source }: { source: DemoSource }) {
       activelyConsideringPurchase: form.get("activelyConsideringPurchase") === "yes",
       purchaseTimeframe: String(form.get("purchaseTimeframe") ?? ""),
       equipmentBudget: String(form.get("equipmentBudget") ?? ""),
-      decisionMaker: form.get("decisionMaker") === "yes",
       certification: form.get("certification") === "yes",
     } : null;
     const logical = {
@@ -84,7 +83,7 @@ export default function DemoRequestForm({ source }: { source: DemoSource }) {
       notes: String(form.get("notes") ?? ""),
       demoFormat: format,
       partyScreening,
-      company: String(form.get("company") ?? ""),
+      [DEMO_REQUEST_BOT_TRAP_FIELD]: String(form.get(DEMO_REQUEST_BOT_TRAP_FIELD) ?? ""),
     };
     const fingerprint = JSON.stringify(logical);
     if (!attempt.current || attempt.current.fingerprint !== fingerprint) attempt.current = { fingerprint, id: crypto.randomUUID() };
@@ -140,7 +139,7 @@ export default function DemoRequestForm({ source }: { source: DemoSource }) {
 
       <fieldset><legend className="text-xl font-black">Machine interest</legend><div className="mt-3 grid gap-3 sm:grid-cols-3">{DEMO_EQUIPMENT_INTERESTS.map((option) => <label key={option} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 font-bold has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50"><input type="radio" name="equipmentInterest" value={option} required className="h-5 w-5 accent-emerald-700" />{option}</label>)}</div></fieldset>
 
-      <section className="grid gap-4 sm:grid-cols-2"><label className="font-bold">Name<input name="name" required maxLength={160} autoComplete="name" className="mt-2 min-h-12 w-full rounded-xl border p-3" /></label><label className="font-bold">Email<input name="email" type="email" required maxLength={320} autoComplete="email" className="mt-2 min-h-12 w-full rounded-xl border p-3" /></label><label className="font-bold">Phone<input name="phone" type="tel" required maxLength={80} autoComplete="tel" className="mt-2 min-h-12 w-full rounded-xl border p-3" /></label><label className="font-bold">Property address<input name="propertyAddress" required maxLength={500} autoComplete="street-address" className="mt-2 min-h-12 w-full rounded-xl border p-3" /></label><label className="font-bold sm:col-span-2">Anything IDS should know?<textarea name="notes" maxLength={2000} rows={3} className="mt-2 w-full rounded-xl border p-3" /></label><label className="sr-only" aria-hidden="true">Company<input name="company" tabIndex={-1} autoComplete="off" /></label></section>
+      <section className="grid gap-4 sm:grid-cols-2"><label className="font-bold">Name<input name="name" required maxLength={160} autoComplete="name" className="mt-2 min-h-12 w-full rounded-xl border p-3" /></label><label className="font-bold">Email<input name="email" type="email" required maxLength={320} autoComplete="email" className="mt-2 min-h-12 w-full rounded-xl border p-3" /></label><label className="font-bold">Phone<input name="phone" type="tel" required maxLength={80} autoComplete="tel" className="mt-2 min-h-12 w-full rounded-xl border p-3" /></label><label className="font-bold">Property address<input name="propertyAddress" required maxLength={500} autoComplete="street-address" className="mt-2 min-h-12 w-full rounded-xl border p-3" /></label><label className="font-bold sm:col-span-2">Anything IDS should know?<textarea name="notes" maxLength={2000} rows={3} className="mt-2 w-full rounded-xl border p-3" /></label><input name={DEMO_REQUEST_BOT_TRAP_FIELD} tabIndex={-1} autoComplete="off" aria-hidden="true" className="pointer-events-none absolute h-px w-px overflow-hidden opacity-0" /></section>
 
         {format === "party" && <fieldset className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-5">
           <legend className="px-2 text-xl font-black text-emerald-950">Demo Party eligibility</legend>
@@ -152,7 +151,6 @@ export default function DemoRequestForm({ source }: { source: DemoSource }) {
             <label className="font-bold">Purchase timeframe<select name="purchaseTimeframe" required className="mt-2 min-h-12 w-full rounded-xl border bg-white p-3"><option value="">Choose one</option><option value="within_30_days">Within 30 days</option><option value="1_to_3_months">1–3 months</option><option value="3_to_6_months">3–6 months</option><option value="researching_later">Researching for later</option></select></label>
             <label className="font-bold">Estimated equipment budget<select name="equipmentBudget" required className="mt-2 min-h-12 w-full rounded-xl border bg-white p-3"><option value="">Choose one</option><option value="under_3000">Under $3,000</option><option value="3000_to_5000">$3,000–$5,000</option><option value="5000_to_8000">$5,000–$8,000</option><option value="8000_to_12000">$8,000–$12,000</option><option value="12000_plus">$12,000+</option></select></label>
             <label className="font-bold">Actively considering a purchase?<select name="activelyConsideringPurchase" required className="mt-2 min-h-12 w-full rounded-xl border bg-white p-3"><option value="">Choose one</option><option value="yes">Yes</option><option value="no">No</option></select></label>
-            <label className="font-bold">Part of the purchase decision?<select name="decisionMaker" required className="mt-2 min-h-12 w-full rounded-xl border bg-white p-3"><option value="">Choose one</option><option value="yes">Yes</option><option value="no">No</option></select></label>
           </div>
           <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl bg-white p-4 font-bold"><input type="checkbox" name="certification" value="yes" required className="mt-1 h-5 w-5 shrink-0 accent-emerald-700" /><span>I confirm that I own this property or am authorized to make property-maintenance decisions for this location.</span></label>
           <div className="mt-5 rounded-xl border border-emerald-200 bg-white p-4"><h4 className="font-black text-emerald-950">Demo Party program terms acknowledgment</h4><p className="mt-2 text-sm leading-6 text-slate-700">By submitting a Demo Party request, I acknowledge the following:</p><p className="mt-2 text-xs leading-6 text-slate-600">{DEMO_PARTY_DISCLAIMER}</p></div>

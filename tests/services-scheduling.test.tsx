@@ -6,8 +6,8 @@ import type Stripe from "stripe";
 
 import ServicesSchedulingPage from "../app/services-scheduling/page";
 import HostPortal from "../components/services-scheduling/HostPortal";
-import { APPOINTMENT_TYPE_CONFIG, APPOINTMENT_TYPES_IN_ORDER } from "../lib/scheduling/config";
-import { generateAppointmentSlots } from "../lib/scheduling/availability";
+import { APPOINTMENT_TYPE_CONFIG, APPOINTMENT_TYPES_IN_ORDER, DEMO_APPOINTMENT_BUFFER_MINUTES } from "../lib/scheduling/config";
+import { appointmentRangesConflict, generateAppointmentSlots } from "../lib/scheduling/availability";
 import {
   DEMO_FEE_CENTS,
   MAX_DEMO_PARTY_GUESTS,
@@ -22,7 +22,9 @@ import {
 import { generatePortalToken, hashPortalToken, portalTokenHashMatches, portalTokenIsWellFormed } from "../lib/demo-party/security";
 import { buildDemoCheckoutSession, DemoPaymentReconciliationError, reconcileDemoCheckoutSession } from "../lib/demo-party/stripe-policy";
 import { applyDemoPartyBenefitToOrder } from "../lib/demo-party/order-benefit";
-import { validateDemoAppointmentRequest } from "../lib/demo-party/validation";
+import { validateDemoAppointmentRequest, type ValidDemoAppointmentRequest } from "../lib/demo-party/validation";
+import { handleDemoRequestPost } from "../lib/demo-scheduling/request-handler";
+import { DEMO_REQUEST_BOT_TRAP_FIELD, type DemoRequest } from "../lib/demo-scheduling/types";
 import { buildCardCheckoutSession } from "../lib/stripe/checkout-session";
 import { demoPartyReferralRewardForProduct, referralRewardForProduct } from "../lib/checkout/referral-rewards";
 import { DEMO_PARTY_CONFIRMATION_SUMMARY, DEMO_PARTY_DISCLAIMER } from "../lib/demo-party/disclaimer";
@@ -31,6 +33,7 @@ import type { DemoPartyPortal } from "../lib/demo-party/types";
 
 const source = (path: string) => readFileSync(path, "utf8");
 const migration = source("supabase/migrations/20260831231030_services_scheduling_demo_party.sql");
+const correctiveMigration = source("supabase/migrations/20260901154029_enforce_demo_buffer_remove_decision_maker.sql");
 const webhook = source("app/api/stripe/webhook/route.ts");
 const portalServer = source("lib/demo-party/server.ts");
 const portalPage = source("app/services-scheduling/manage/[token]/page.tsx");
@@ -85,7 +88,7 @@ const validRequest = {
   demoFormat: "private",
   partyScreening: null,
   idempotencyKey: "10000000-0000-4000-8000-000000000001",
-  company: "",
+  [DEMO_REQUEST_BOT_TRAP_FIELD]: "",
 };
 
 test("shared appointment registry has the requested durations and activates Demo only", () => {
@@ -93,17 +96,17 @@ test("shared appointment registry has the requested durations and activates Demo
     ["demo", 240, true], ["install", 240, false], ["setup", 240, false], ["service", 120, false],
   ]);
   assert.equal(APPOINTMENT_TYPE_CONFIG.demo.label, "Demo");
+  assert.equal(DEMO_APPOINTMENT_BUFFER_MINUTES, 60);
 });
 
 test("all appointment types share one collision calendar", () => {
   const slots = generateAppointmentSlots({
     start: "2026-09-14", end: "2026-09-14", now: new Date("2026-09-01T00:00:00Z"),
     rules: [{ weekday: 1, enabled: true, start_time: "08:00", end_time: "16:00" }],
-    exceptions: [], durationMinutes: 240, horizonDays: 90,
+    exceptions: [], appointmentType: "demo", durationMinutes: 240, horizonDays: 90,
     appointments: [{ appointment_type: "install", requested_start_at: "2026-09-14T13:00:00.000Z", requested_end_at: "2026-09-14T17:00:00.000Z", status: "approved" }],
   });
-  assert.equal(slots.length, 1);
-  assert.equal(slots[0].timeLabel, "12:00 PM");
+  assert.equal(slots.length, 0);
   assert.match(migration, /demo_requests_no_overlap|demo_requests_type_calendar_idx/);
 });
 
@@ -117,15 +120,89 @@ test("request and payment retries are serialized and reuse their original record
   assert.match(migration, /if payment\.status in \('paid','partially_refunded','refunded'\) then\s+return jsonb_build_object\('state','paid'/);
 });
 
-test("private requests reject party fields and Demo Party requires every screening answer", () => {
+test("private requests reject party fields and Demo Party no longer asks for decisionMaker", () => {
   assert.equal(validateDemoAppointmentRequest(validRequest).ok, true);
   assert.equal(validateDemoAppointmentRequest({ ...validRequest, partyScreening: { certification: true } }).ok, false);
-  const party = { ...validRequest, demoFormat: "party", partyScreening: { propertyRelationship: "homeowner", propertyType: "residential", mowableAcreage: 2.5, activelyConsideringPurchase: true, purchaseTimeframe: "within_30_days", equipmentBudget: "5000_to_8000", decisionMaker: true, certification: true } };
+  const party = { ...validRequest, demoFormat: "party", partyScreening: { propertyRelationship: "homeowner", propertyType: "residential", mowableAcreage: 2.5, activelyConsideringPurchase: true, purchaseTimeframe: "within_30_days", equipmentBudget: "5000_to_8000", certification: true } };
   assert.equal(validateDemoAppointmentRequest(party).ok, true);
+  assert.equal(validateDemoAppointmentRequest({ ...party, partyScreening: { ...party.partyScreening, decisionMaker: true } }).ok, false);
   assert.equal(validateDemoAppointmentRequest({ ...party, partyScreening: { ...party.partyScreening, certification: false } }).ok, false);
   assert.equal(validateDemoAppointmentRequest({ ...party, annualIncome: 50_000 }).ok, false);
+  assert.doesNotMatch(requestForm, /Part of the purchase decision\?|name="decisionMaker"/);
+  assert.doesNotMatch(partyAdmin, /decision_maker|Decision maker/);
+  const replacementRpc = correctiveMigration.slice(correctiveMigration.indexOf("create or replace function public.scheduling_create_demo_request"), correctiveMigration.indexOf("alter table scheduling_private.demo_parties"));
+  assert.doesNotMatch(replacementRpc, /decisionMaker|decision_maker/);
+  assert.match(correctiveMigration, /drop column decision_maker/);
   assert.match(migration, /request_id uuid not null references scheduling_private\.demo_parties\(request_id\)/);
   assert.match(hostPortal, /portal\.demoFormat === "party" &&/);
+});
+
+test("obscure bot trap rejects bots without using the autofill-prone company field", () => {
+  assert.equal(validateDemoAppointmentRequest(validRequest).ok, true);
+  assert.equal(validateDemoAppointmentRequest({ ...validRequest, [DEMO_REQUEST_BOT_TRAP_FIELD]: "filled" }).ok, false);
+  assert.equal(validateDemoAppointmentRequest({ ...validRequest, company: "browser autofill" }).ok, false);
+  assert.match(requestForm, /name=\{DEMO_REQUEST_BOT_TRAP_FIELD\}/);
+  assert.match(requestForm, /tabIndex=\{-1\}/);
+  assert.match(requestForm, /aria-hidden="true"/);
+  assert.doesNotMatch(requestForm, /name="company"|form\.get\("company"\)/);
+});
+
+test("valid Private Demo and Demo Party API requests reach creation and return pending 201", async () => {
+  const created: ValidDemoAppointmentRequest[] = [];
+  const savedRequest: DemoRequest = {
+    id: "20000000-0000-4000-8000-000000000001",
+    customerName: "Demo Host",
+    customerEmail: "host@example.com",
+    customerPhone: "555-555-1212",
+    propertyAddress: "100 Main Street",
+    requestedStartAt: "2026-09-14T14:00:00.000Z",
+    requestedEndAt: "2026-09-14T18:00:00.000Z",
+    status: "pending",
+    source: "contact_ids",
+    equipmentInterest: "Help Me Decide",
+    adminMessage: null,
+    createdAt: "2026-09-01T00:00:00.000Z",
+    approvedAt: null,
+    deniedAt: null,
+    cancelledAt: null,
+  };
+  const dependencies = {
+    createRequest: async (value: ValidDemoAppointmentRequest) => { created.push(value); return savedRequest.id; },
+    readRequest: async () => savedRequest,
+    notifyRequest: async () => undefined,
+  };
+  const privateResponse = await handleDemoRequestPost(new Request("https://example.test/api/demo-scheduling/requests", { method: "POST", body: JSON.stringify(validRequest) }), dependencies);
+  assert.equal(privateResponse.status, 201);
+  assert.equal((await privateResponse.json()).status, "pending");
+  const partyPayload = { ...validRequest, idempotencyKey: "30000000-0000-4000-8000-000000000001", demoFormat: "party", partyScreening: { propertyRelationship: "homeowner", propertyType: "residential", mowableAcreage: 2.5, activelyConsideringPurchase: true, purchaseTimeframe: "within_30_days", equipmentBudget: "5000_to_8000", certification: true } };
+  const partyResponse = await handleDemoRequestPost(new Request("https://example.test/api/demo-scheduling/requests", { method: "POST", body: JSON.stringify(partyPayload) }), dependencies);
+  assert.equal(partyResponse.status, 201);
+  assert.equal((await partyResponse.json()).status, "pending");
+  assert.equal(created.length, 2);
+  assert.equal("decisionMaker" in (created[1] as { partyScreening: object }).partyScreening, false);
+  const botResponse = await handleDemoRequestPost(new Request("https://example.test/api/demo-scheduling/requests", { method: "POST", body: JSON.stringify({ ...partyPayload, [DEMO_REQUEST_BOT_TRAP_FIELD]: "filled" }) }), dependencies);
+  assert.equal(botResponse.status, 400);
+  const invalidResponse = await handleDemoRequestPost(new Request("https://example.test/api/demo-scheduling/requests", { method: "POST", body: JSON.stringify({ ...validRequest, email: "invalid" }) }), dependencies);
+  assert.equal(invalidResponse.status, 400);
+  assert.equal((await invalidResponse.json()).errors.email, "Enter a valid email address.");
+  assert.equal(created.length, 2);
+});
+
+test("Demo buffer is symmetric, exact at 60 minutes, and Demo-only", () => {
+  assert.equal(appointmentRangesConflict("2026-09-14T13:00:00Z", "2026-09-14T17:00:00Z", "demo", "2026-09-14T17:00:00Z", "2026-09-14T21:00:00Z", "demo"), true);
+  assert.equal(appointmentRangesConflict("2026-09-14T13:00:00Z", "2026-09-14T17:00:00Z", "demo", "2026-09-14T17:30:00Z", "2026-09-14T21:30:00Z", "demo"), true);
+  assert.equal(appointmentRangesConflict("2026-09-14T13:00:00Z", "2026-09-14T17:00:00Z", "demo", "2026-09-14T18:00:00Z", "2026-09-14T22:00:00Z", "demo"), false);
+  assert.equal(appointmentRangesConflict("2026-09-14T13:30:00Z", "2026-09-14T17:30:00Z", "demo", "2026-09-14T18:00:00Z", "2026-09-14T22:00:00Z", "demo"), true);
+  assert.equal(appointmentRangesConflict("2026-09-14T13:00:00Z", "2026-09-14T17:00:00Z", "demo", "2026-09-14T17:00:00Z", "2026-09-14T21:00:00Z", "install"), false);
+});
+
+test("database Demo buffer is atomic for active rows and does not lengthen appointments", () => {
+  assert.match(correctiveMigration, /demo_requests_demo_buffer_no_overlap[\s\S]*requested_end_at \+ interval '1 hour'[\s\S]*appointment_type='demo' and status in \('pending','approved'\)/);
+  assert.match(correctiveMigration, /request_end:=p_start_at\+make_interval\(mins=>type_settings\.duration_minutes\)/);
+  assert.match(correctiveMigration, /tstzrange\(p_start_at,request_end\+interval '1 hour','\[\)'\)/);
+  assert.match(correctiveMigration, /exception when exclusion_violation then raise exception 'slot_conflict'/);
+  assert.doesNotMatch(correctiveMigration, /demo_availability_exceptions[\s\S]{0,200}interval '1 hour'/);
+  assert.equal(APPOINTMENT_TYPE_CONFIG.demo.durationMinutes, 240);
 });
 
 test("benefit formulas pay $20 per qualifying guest and cap both benefits at five guests and $100", () => {

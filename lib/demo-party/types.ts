@@ -24,7 +24,6 @@ export type DemoPartyScreening = {
   activelyConsideringPurchase: boolean;
   purchaseTimeframe: PurchaseTimeframe;
   equipmentBudget: EquipmentBudget;
-  decisionMaker: boolean;
   certification: true;
 };
 

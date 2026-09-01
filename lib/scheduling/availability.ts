@@ -1,4 +1,5 @@
 import { addDays, centralWeekday, minutes, slotFromLocal, timeFromMinutes } from "./time";
+import { DEMO_APPOINTMENT_BUFFER_MINUTES } from "./config";
 import type { AppointmentSlot, AppointmentStatus, AppointmentType } from "./types";
 
 export type CalendarOccupancy = {
@@ -12,6 +13,21 @@ export function appointmentRangesOverlap(aStart: string, aEnd: string, bStart: s
   return Date.parse(aStart) < Date.parse(bEnd) && Date.parse(bStart) < Date.parse(aEnd);
 }
 
+export function appointmentRangesConflict(
+  aStart: string,
+  aEnd: string,
+  aType: AppointmentType,
+  bStart: string,
+  bEnd: string,
+  bType: AppointmentType,
+) {
+  const bufferMilliseconds = aType === "demo" && bType === "demo"
+    ? DEMO_APPOINTMENT_BUFFER_MINUTES * 60_000
+    : 0;
+  return Date.parse(aStart) < Date.parse(bEnd) + bufferMilliseconds
+    && Date.parse(bStart) < Date.parse(aEnd) + bufferMilliseconds;
+}
+
 export function appointmentOccupiesCalendar(status: AppointmentStatus) {
   return status === "pending" || status === "approved";
 }
@@ -23,6 +39,7 @@ export function generateAppointmentSlots(input: {
   rules: { weekday: number; enabled: boolean; start_time: string; end_time: string }[];
   exceptions: { starts_at: string; ends_at: string }[];
   appointments: CalendarOccupancy[];
+  appointmentType: AppointmentType;
   durationMinutes: number;
   horizonDays: number;
 }) {
@@ -32,15 +49,17 @@ export function generateAppointmentSlots(input: {
   for (let date = input.start; date <= input.end; date = addDays(date, 1)) {
     const rule = ruleMap.get(centralWeekday(date));
     if (!rule?.enabled) continue;
+    const startIntervalMinutes = input.durationMinutes
+      + (input.appointmentType === "demo" ? DEMO_APPOINTMENT_BUFFER_MINUTES : 0);
     for (
       let at = minutes(rule.start_time);
       at + input.durationMinutes <= minutes(rule.end_time);
-      at += input.durationMinutes
+      at += startIntervalMinutes
     ) {
       const slot = slotFromLocal(date, timeFromMinutes(at), input.durationMinutes);
       if (!slot || Date.parse(slot.startAt) <= input.now.getTime() || Date.parse(slot.startAt) > latest) continue;
       if (input.exceptions.some((exception) => appointmentRangesOverlap(slot.startAt, slot.endAt, exception.starts_at, exception.ends_at))) continue;
-      if (input.appointments.some((appointment) => appointmentOccupiesCalendar(appointment.status) && appointmentRangesOverlap(slot.startAt, slot.endAt, appointment.requested_start_at, appointment.requested_end_at))) continue;
+      if (input.appointments.some((appointment) => appointmentOccupiesCalendar(appointment.status) && appointmentRangesConflict(slot.startAt, slot.endAt, input.appointmentType, appointment.requested_start_at, appointment.requested_end_at, appointment.appointment_type ?? "demo"))) continue;
       slots.push(slot);
     }
   }

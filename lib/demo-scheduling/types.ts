@@ -2,6 +2,7 @@ import { APPOINTMENT_TYPE_CONFIG } from "@/lib/scheduling/config";
 
 export const DEMO_TIMEZONE="America/Chicago";
 export const DEMO_DURATION_MINUTES=APPOINTMENT_TYPE_CONFIG.demo.durationMinutes;
+export const DEMO_REQUEST_BOT_TRAP_FIELD="ids_request_guard_7b91d2";
 export const DEMO_SOURCES=["featured_lymow","featured_yarbo","featured_machines","contact_ids","meet_or_beat","ids_in_action"] as const;
 export type DemoSource=typeof DEMO_SOURCES[number];
 export const DEMO_EQUIPMENT_INTERESTS=["Lymow One Plus","Yarbo Core","Help Me Decide"] as const;

@@ -1,4 +1,4 @@
-import { DEMO_EQUIPMENT_INTERESTS, DEMO_SOURCES, type DemoEquipmentInterest, type DemoSource } from "@/lib/demo-scheduling/types";
+import { DEMO_EQUIPMENT_INTERESTS, DEMO_REQUEST_BOT_TRAP_FIELD, DEMO_SOURCES, type DemoEquipmentInterest, type DemoSource } from "@/lib/demo-scheduling/types";
 import {
   DEMO_FORMATS,
   EQUIPMENT_BUDGETS,
@@ -26,7 +26,7 @@ const requestKeys = new Set([
   "demoFormat",
   "partyScreening",
   "idempotencyKey",
-  "company",
+  DEMO_REQUEST_BOT_TRAP_FIELD,
 ]);
 const screeningKeys = new Set([
   "propertyRelationship",
@@ -35,7 +35,6 @@ const screeningKeys = new Set([
   "activelyConsideringPurchase",
   "purchaseTimeframe",
   "equipmentBudget",
-  "decisionMaker",
   "certification",
 ]);
 
@@ -74,7 +73,6 @@ function validatePartyScreening(input: unknown, errors: Record<string, string>):
   if (typeof input.activelyConsideringPurchase !== "boolean") errors.activelyConsideringPurchase = "Choose whether you are actively considering a purchase.";
   if (!PURCHASE_TIMEFRAMES.includes(purchaseTimeframe)) errors.purchaseTimeframe = "Choose an expected purchase timeframe.";
   if (!EQUIPMENT_BUDGETS.includes(equipmentBudget)) errors.equipmentBudget = "Choose an estimated equipment budget.";
-  if (typeof input.decisionMaker !== "boolean") errors.decisionMaker = "Choose whether you participate in the purchase decision.";
   if (input.certification !== true) errors.certification = "The property authorization certification is required for a Demo Party.";
   if (Object.keys(errors).some((key) => screeningKeys.has(key) || key === "partyScreening")) return null;
   return {
@@ -84,7 +82,6 @@ function validatePartyScreening(input: unknown, errors: Record<string, string>):
     activelyConsideringPurchase: input.activelyConsideringPurchase as boolean,
     purchaseTimeframe,
     equipmentBudget,
-    decisionMaker: input.decisionMaker as boolean,
     certification: true,
   };
 }
@@ -105,7 +102,7 @@ export function validateDemoAppointmentRequest(input: unknown) {
   const notes = notesValue || null;
   const demoFormat = clean(body.demoFormat, 20) as DemoFormat;
   const idempotencyKey = clean(body.idempotencyKey, 36);
-  const honeypot = clean(body.company, 100);
+  const honeypot = clean(body[DEMO_REQUEST_BOT_TRAP_FIELD], 100);
 
   if (honeypot) errors.form = "Request could not be submitted.";
   if (appointmentType !== "demo") errors.appointmentType = "This appointment type is not available yet.";

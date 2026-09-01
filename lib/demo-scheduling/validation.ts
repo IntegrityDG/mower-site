@@ -1,8 +1,8 @@
-import { DEMO_EQUIPMENT_INTERESTS, DEMO_SOURCES, type DemoEquipmentInterest, type DemoSource } from "./types";
+import { DEMO_EQUIPMENT_INTERESTS, DEMO_REQUEST_BOT_TRAP_FIELD, DEMO_SOURCES, type DemoEquipmentInterest, type DemoSource } from "./types";
 const clean=(v:unknown,max:number)=>typeof v==="string"?v.trim().slice(0,max+1):"";
 export function validateDemoRequest(input:unknown){
  const b=(input&&typeof input==="object"?input:{})as Record<string,unknown>,errors:Record<string,string>={};
- const name=clean(b.name,160),email=clean(b.email,320).toLowerCase(),phone=clean(b.phone,80),address=clean(b.propertyAddress,500),startAt=clean(b.requestedStartAt,40),source=clean(b.source,40)as DemoSource,equipmentInterest=clean(b.equipmentInterest,80)as DemoEquipmentInterest,idempotencyKey=clean(b.idempotencyKey,36),honeypot=clean(b.company,100);
+ const name=clean(b.name,160),email=clean(b.email,320).toLowerCase(),phone=clean(b.phone,80),address=clean(b.propertyAddress,500),startAt=clean(b.requestedStartAt,40),source=clean(b.source,40)as DemoSource,equipmentInterest=clean(b.equipmentInterest,80)as DemoEquipmentInterest,idempotencyKey=clean(b.idempotencyKey,36),honeypot=clean(b[DEMO_REQUEST_BOT_TRAP_FIELD],100);
  if(honeypot)errors.form="Request could not be submitted.";
  if(!name||name.length>160)errors.name="Enter your name.";
  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>320)errors.email="Enter a valid email address.";

@@ -11,6 +11,8 @@ export const APPOINTMENT_TYPE_CONFIG: Record<AppointmentType, AppointmentTypeCon
   service: { type: "service", label: "Service", durationMinutes: 120, active: false },
 };
 
+export const DEMO_APPOINTMENT_BUFFER_MINUTES = 60;
+
 export const APPOINTMENT_TYPES_IN_ORDER = APPOINTMENT_TYPES.map((type) => APPOINTMENT_TYPE_CONFIG[type]);
 
 export function isAppointmentType(value: unknown): value is AppointmentType {
