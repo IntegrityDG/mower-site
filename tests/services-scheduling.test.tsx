@@ -236,7 +236,13 @@ test("Demo Party referrals always use Tier 1 while normal Yarbo referrals retain
   assert.match(demoReferralLink, /like 'yarbo%'.*tier_one_reward=10000/);
   assert.doesNotMatch(demoReferralLink, /like 'yarbo%'.*tier_one_reward=(15000|20000)/);
   assert.match(migration, /tier_one_reward,tier_one_reward/);
-  assert.match(migration, /drop constraint referrals_higher_tier_reward_cents_check/);
+  assert.match(migration, /from pg_catalog\.pg_constraint constraint_row/);
+  assert.match(migration, /constraint_row\.conrelid='checkout_private\.referrals'::regclass/);
+  assert.match(migration, /constraint_row\.contype='c'/);
+  assert.match(migration, /pg_catalog\.pg_get_constraintdef\(constraint_row\.oid\)/);
+  assert.match(migration, /candidate\.definition not like '%demo_party_guest_id%'/);
+  assert.match(migration, /pg_catalog\.format\([\s\S]*drop constraint %I[\s\S]*old_constraint_name/);
+  assert.doesNotMatch(migration, /alter table checkout_private\.referrals\s+drop constraint referrals_higher_tier_reward_cents_check/);
   assert.match(migration, /demo_party_guest_id is not null and higher_tier_reward_cents=base_reward_cents/);
   assert.match(migration, /demo_party_guest_id is null[\s\S]*qualifying_brand='Yarbo' and higher_tier_reward_cents=15000/);
   assert.match(migration, /checkout_referrals_demo_party_tier_one_check/);

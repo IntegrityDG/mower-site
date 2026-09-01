@@ -267,8 +267,44 @@ create index appointment_audit_events_request_idx
   on scheduling_private.appointment_audit_events(request_id,created_at);
 
 -- Link direct Demo Party guests to the existing authoritative referral ledger.
+do $$
+declare
+  old_constraint_name text;
+  old_constraint_count bigint;
+begin
+  select count(*),max(candidate.conname)
+  into old_constraint_count,old_constraint_name
+  from (
+    select constraint_row.conname::text,
+      pg_catalog.pg_get_constraintdef(constraint_row.oid) as definition
+    from pg_catalog.pg_constraint constraint_row
+    where constraint_row.conrelid='checkout_private.referrals'::regclass
+      and constraint_row.contype='c'
+      and constraint_row.conname<>'referrals_higher_tier_reward_cents_check'
+  ) candidate
+  where candidate.definition like '%higher_tier_reward_cents%'
+    and candidate.definition like '%qualifying_brand%'
+    and candidate.definition like '%''Lymow''%'
+    and candidate.definition like '%''Yarbo''%'
+    and candidate.definition like '%''Pandag''%'
+    and candidate.definition like '%7500%'
+    and candidate.definition like '%15000%'
+    and candidate.definition like '%100000%'
+    and candidate.definition not like '%base_reward_cents%'
+    and candidate.definition not like '%demo_party_guest_id%';
+
+  if old_constraint_count<>1 then
+    raise exception 'Expected exactly one legacy higher_tier_reward_cents CHECK constraint, found %',old_constraint_count;
+  end if;
+
+  execute pg_catalog.format(
+    'alter table checkout_private.referrals drop constraint %I',
+    old_constraint_name
+  );
+end
+$$;
+
 alter table checkout_private.referrals
-  drop constraint referrals_higher_tier_reward_cents_check,
   add column demo_party_request_id uuid references scheduling_private.demo_parties(request_id) on delete restrict,
   add column demo_party_guest_id uuid references scheduling_private.demo_party_guests(id) on delete restrict,
   add column demo_party_purchase_window_ends_at timestamptz,
