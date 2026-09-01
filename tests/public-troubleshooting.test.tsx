@@ -266,7 +266,7 @@ test("member submissions cannot send or receive public moderation controls", () 
 test("the homepage contact section keeps both actions and adds the public troubleshooting link", () => {
   const html = renderToStaticMarkup(<HomepageContactSection />);
   assert.match(html, /<button[^>]*>Contact Us<\/button>/);
-  assert.match(html, /<button[^>]*>Schedule a Demo<\/button>/);
+  assert.match(html, /<a[^>]*href="\/services-scheduling[^>]*>Schedule Service\/Demo<\/a>/);
   assert.match(
     html,
     /href="\/troubleshoot-your-robot"[^>]*>Troubleshoot Your Robot<\/a>/,

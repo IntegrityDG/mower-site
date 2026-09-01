@@ -37,7 +37,7 @@ test("the homepage contact section remains an isolated desktop view before the s
     /Need help choosing the right system\? Have a complex property that may require multiple machines\? Contact us today and let our team help you build the right solution\./
   );
   assert.match(html, /<button[^>]*>Contact Us<\/button>/);
-  assert.match(html, /<button[^>]*>Schedule a Demo<\/button>/);
+  assert.match(html, /<a[^>]*href="\/services-scheduling[^>]*>Schedule Service\/Demo<\/a>/);
   assert.ok(requestFlowStart >= 0);
   assert.ok(contactSectionStart > requestFlowStart);
   assert.ok(footerStart > contactSectionStart);

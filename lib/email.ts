@@ -48,12 +48,12 @@ export async function sendIdsNotification({ subject, text }: { subject: string; 
   return result;
 }
 
-export async function sendServerEmail({to,subject,text,attachments}: {to:string;subject:string;text:string;attachments?:{filename:string;content:string;contentType?:string}[]}) {
+export async function sendServerEmail({to,subject,text,html,attachments}: {to:string;subject:string;text:string;html?:string;attachments?:{filename:string;content:string;contentType?:string}[]}) {
   const from=process.env.DEMO_FROM_EMAIL?.trim();
   if(!from)throw new Error("DEMO_FROM_EMAIL is missing.");
   let result;
   try {
-    result=await getResendClient().emails.send({from,to,subject,text,attachments});
+    result=await getResendClient().emails.send({from,to,subject,text,html,attachments});
   } catch(error) {
     throw new Error(sanitizeEmailFailure(error));
   }

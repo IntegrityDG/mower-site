@@ -1,10 +1,12 @@
+import { APPOINTMENT_TYPE_CONFIG } from "@/lib/scheduling/config";
+
 export const DEMO_TIMEZONE="America/Chicago";
-export const DEMO_DURATION_MINUTES=240;
+export const DEMO_DURATION_MINUTES=APPOINTMENT_TYPE_CONFIG.demo.durationMinutes;
 export const DEMO_SOURCES=["featured_lymow","featured_yarbo","featured_machines","contact_ids","meet_or_beat","ids_in_action"] as const;
 export type DemoSource=typeof DEMO_SOURCES[number];
 export const DEMO_EQUIPMENT_INTERESTS=["Lymow One Plus","Yarbo Core","Help Me Decide"] as const;
 export type DemoEquipmentInterest=typeof DEMO_EQUIPMENT_INTERESTS[number];
-export type DemoRequest={id:string;customerName:string;customerEmail:string;customerPhone:string;propertyAddress:string;requestedStartAt:string;requestedEndAt:string;status:"pending"|"approved"|"denied"|"cancelled";source:DemoSource;equipmentInterest:DemoEquipmentInterest|null;adminMessage:string|null;createdAt:string;approvedAt:string|null;deniedAt:string|null;cancelledAt:string|null};
+export type DemoRequest={id:string;customerName:string;customerEmail:string;customerPhone:string;propertyAddress:string;requestedStartAt:string;requestedEndAt:string;status:"pending"|"approved"|"denied"|"cancelled";source:DemoSource;equipmentInterest:DemoEquipmentInterest|null;adminMessage:string|null;createdAt:string;approvedAt:string|null;deniedAt:string|null;cancelledAt:string|null;appointmentType?:"demo";durationMinutes?:number;paymentStatus?:"not_started"|"checkout_open"|"paid"|"partially_refunded"|"refunded";demoFormat?:"private"|"party";notes?:string|null;informationRequestedAt?:string|null};
 export type DemoSlot={startAt:string;endAt:string;date:string;timeLabel:string};
 export type DemoRegionColor="blue"|"purple"|"orange"|"cyan"|"teal"|"indigo"|"pink"|"amber"|"lime"|"violet"|"sky"|"red";
 export type PublicDemoAreaPlan={serviceDate:string;regionName:string;locationLabel:string|null;color:DemoRegionColor;isCustom:boolean};

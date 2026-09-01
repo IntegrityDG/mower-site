@@ -23,9 +23,9 @@ test("checkout accepts only a complete referral identity", () => {
 });
 
 test("official referral amounts are derived from server product data", () => {
-  assert.equal(referralRewardForProduct({ id: "1", slug: "lymow-one-plus", name: "Lymow One Plus" }).baseRewardCents, 5000);
-  assert.equal(referralRewardForProduct({ id: "2", slug: "yarbo", name: "Yarbo" }).baseRewardCents, 10000);
-  assert.equal(referralRewardForProduct({ id: "3", slug: "pandag-g1", name: "Pandag G1" }).baseRewardCents, 75000);
+  assert.deepEqual(referralRewardForProduct({ id: "1", slug: "lymow-one-plus", name: "Lymow One Plus" }), { brand: "Lymow", baseRewardCents: 5000, higherTierRewardCents: 7500 });
+  assert.deepEqual(referralRewardForProduct({ id: "2", slug: "yarbo", name: "Yarbo" }), { brand: "Yarbo", baseRewardCents: 10000, higherTierRewardCents: 15000 });
+  assert.deepEqual(referralRewardForProduct({ id: "3", slug: "pandag-g1", name: "Pandag G1" }), { brand: "Pandag", baseRewardCents: 75000, higherTierRewardCents: 100000 });
   assert.throws(() => referralRewardForProduct({ id: "4", slug: "unknown", name: "Unknown" }));
 });
 

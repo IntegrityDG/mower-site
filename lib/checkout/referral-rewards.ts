@@ -1,6 +1,7 @@
 import type { CheckoutRequest, OrderPriceSnapshot } from "./types";
 
 export const REFERRAL_SCHEDULE_VERSION = "ids-referral-schedule-2026-08-08";
+export const DEMO_PARTY_REFERRAL_SCHEDULE_VERSION = `${REFERRAL_SCHEDULE_VERSION}-demo-party-tier-1`;
 
 const schedules = {
   lymow: { brand: "Lymow", baseRewardCents: 5_000, higherTierRewardCents: 7_500 },
@@ -18,6 +19,11 @@ export function referralRewardForProduct(product: OrderPriceSnapshot["product"])
         : null;
   if (!key) throw new Error("No referral reward schedule exists for this equipment.");
   return schedules[key];
+}
+
+export function demoPartyReferralRewardForProduct(product: OrderPriceSnapshot["product"]) {
+  const schedule = referralRewardForProduct(product);
+  return { brand: schedule.brand, tierOneRewardCents: schedule.baseRewardCents };
 }
 
 export function privateReferralRecord(

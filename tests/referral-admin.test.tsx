@@ -6,7 +6,7 @@ import { createReferralAdminHandlers } from "../lib/referrals/admin-handlers";
 import { displayReferralStatus, isReadyForReview, rewardForQualification, type AdminReferral } from "../lib/referrals/admin";
 
 const id = "00000000-0000-4000-8000-000000000001";
-const referral = (overrides: Partial<AdminReferral> = {}): AdminReferral => ({ id, referrerName: "Person", referrerEmail: "person@example.com", orderIdentifier: "IDS-123", brand: "Lymow", productName: "Lymow One Plus", purchaseDate: "2026-01-01T00:00:00Z", eligibleDate: "2026-01-31T00:00:00Z", status: "pending", baseRewardCents: 5000, higherTierRewardCents: 7500, finalRewardCents: null, tierApplied: null, qualifiedAt: null, paidAt: null, disqualifiedAt: null, disqualificationReason: null, orderStatus: "confirmed", paymentStatus: "paid", ...overrides });
+const referral = (overrides: Partial<AdminReferral> = {}): AdminReferral => ({ id, referrerName: "Person", referrerEmail: "person@example.com", orderIdentifier: "IDS-123", brand: "Lymow", productName: "Lymow One Plus", purchaseDate: "2026-01-01T00:00:00Z", eligibleDate: "2026-01-31T00:00:00Z", status: "pending", baseRewardCents: 5000, higherTierRewardCents: 7500, finalRewardCents: null, tierApplied: null, qualifiedAt: null, paidAt: null, disqualifiedAt: null, disqualificationReason: null, orderStatus: "confirmed", paymentStatus: "paid", isDemoParty: false, ...overrides });
 
 test("unauthenticated referral admin read and mutation are rejected", async () => {
   const handlers = createReferralAdminHandlers({ isAdmin: async () => false, list: async () => [], mutate: async () => referral() });

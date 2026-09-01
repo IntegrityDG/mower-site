@@ -22,6 +22,7 @@ export type AdminReferral = {
   disqualificationReason: string | null;
   orderStatus: string;
   paymentStatus: string;
+  isDemoParty: boolean;
 };
 
 export function isReadyForReview(referral: Pick<AdminReferral, "status" | "eligibleDate">, now = new Date()) {

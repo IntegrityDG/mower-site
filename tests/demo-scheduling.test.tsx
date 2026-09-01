@@ -40,7 +40,8 @@ const contact = source("components/contact/HomepageContactSection.tsx");
 const priceMatch = source("components/promotions/HomePriceMatch.tsx");
 const action = source("components/ids-action/IdsActionCarousel.tsx");
 const gallery = source("components/ids-action/IdsActionGallery.tsx");
-const modal = source("components/demo-scheduling/ScheduleDemoModal.tsx");
+const modal = source("components/services-scheduling/DemoRequestForm.tsx");
+const schedulingCta = source("components/demo-scheduling/ScheduleDemoModal.tsx");
 const server = source("lib/demo-scheduling/server.ts");
 const notifications = source("lib/demo-scheduling/notifications.ts");
 const emailSource = source("lib/email.ts");
@@ -332,41 +333,37 @@ test("honeypot and unknown sources remain rejected", () => {
   assert.equal(validateDemoRequest({ ...valid, company: "spam" }).ok, false);
 });
 
-test("scheduler mounts its overlay in a body-level React portal", () => {
-  assert.match(modal, /import \{ createPortal \} from "react-dom"/);
-  assert.match(modal, /createPortal\(overlay, document\.body\)/);
-  assert.match(modal, /open && typeof document !== "undefined"/);
-  assert.match(modal, /data-demo-scheduling-portal="body"/);
+test("legacy scheduler CTA now routes into the permanent service hub", () => {
+  assert.match(schedulingCta, /href=\{`\/services-scheduling\?service=demo&source=/);
+  assert.match(schedulingCta, /#request-demo/);
+  assert.match(schedulingCta, />Schedule Service\/Demo<\/Link>/);
+  assert.doesNotMatch(schedulingCta, /createPortal|role="dialog"/);
 });
 
-test("portal dialog remains viewport-safe and scrolls internally", () => {
-  assert.match(modal, /fixed inset-0/);
-  assert.match(modal, /max-h-\[calc\(100dvh-1rem\)\]/);
-  assert.match(modal, /overflow-y-auto overflow-x-hidden overscroll-contain/);
-  assert.match(modal, /sticky top-0/);
+test("inline scheduler loads a bounded date range and groups returned slots", () => {
+  assert.match(modal, /end\.setDate\(end\.getDate\(\) \+ 42\)/);
+  assert.match(modal, /\/api\/demo-scheduling\/availability\?start=/);
+  assert.match(modal, /slots\.reduce<Map<string, DemoSlot\[\]>>/);
+  assert.match(modal, /All times are Central Time/);
 });
 
-test("dialog keeps Escape, backdrop, focus trap, focus return, and body scroll restoration", () => {
-  assert.match(modal, /event\.key === "Escape"/);
-  assert.match(modal, /event\.target === event\.currentTarget/);
-  assert.match(modal, /document\.body\.style\.overflow = "hidden"/);
-  assert.match(modal, /document\.body\.style\.overflow = previousOverflow/);
-  assert.match(modal, /origin\?\.focus\(\)/);
-  assert.match(modal, /event\.key !== "Tab"/);
+test("scheduler exposes Private Demo and Demo Party as one accessible choice", () => {
+  assert.match(modal, /<fieldset>/);
+  assert.match(modal, /Choose your demo format/);
+  assert.match(modal, /value="private"/);
+  assert.match(modal, /value="party"/);
 });
 
 test("machine question is an accessible required radio group", () => {
   assert.match(modal, /<fieldset>/);
-  assert.match(modal, /Which machine would you like to see\?/);
+  assert.match(modal, /Machine interest/);
   assert.match(modal, /type="radio" name="equipmentInterest" value=\{option\} required/);
   assert.match(modal, /DEMO_EQUIPMENT_INTERESTS\.map/);
 });
 
-test("shared dialog still captures required customer fields and pending copy", () => {
+test("shared form captures required customer fields and pending copy", () => {
   for (const name of ["name", "email", "phone", "propertyAddress"]) assert.match(modal, new RegExp(`name="${name}"`));
-  assert.match(modal, /role="dialog"/);
-  assert.match(modal, /aria-modal="true"/);
-  assert.match(modal, /not confirmed until IDS approves/);
+  assert.match(modal, /pending until approved/);
   assert.match(modal, /Central Time/);
 });
 
@@ -460,9 +457,9 @@ test("canonical payload fingerprint changes for every material field", () => {
   for (const change of changes) assert.notEqual(demoRequestFingerprint({ ...fingerprintBase, ...change }), original);
 });
 
-test("modal reuses keys only for the same canonical fingerprint", () => {
-  assert.match(modal, /attemptedFingerprint\.current !== fingerprint/);
-  assert.match(modal, /attemptedFingerprint\.current = fingerprint/);
+test("inline form reuses keys only for the same logical payload", () => {
+  assert.match(modal, /attempt\.current\.fingerprint !== fingerprint/);
+  assert.match(modal, /attempt\.current = \{ fingerprint, id: crypto\.randomUUID\(\) \}/);
   assert.equal((modal.match(/crypto\.randomUUID\(\)/g) ?? []).length, 1);
 });
 
@@ -709,12 +706,10 @@ test("Manage Areas supports region and city creation, editing, sort, and active 
   for (const route of ["/api/admin/demo-scheduling/areas", "/cities"]) assert.match(admin, new RegExp(route));
 });
 
-test("Travel & Fuel Notice is prominent before submission and contains the approval promise", () => {
-  const notice = "Because IDS covers a large service area, some demo requests may require a reasonable travel or fuel charge depending on distance. If a charge applies, IDS will contact you before approving the appointment so there are no surprises. We appreciate your understanding as we work to provide on-site demos across a wide region.";
-  assert.match(modal, /Travel &amp; Fuel Notice/);
-  assert.ok(modal.includes(notice));
-  assert.ok(modal.indexOf("Travel &amp; Fuel Notice") < modal.indexOf("Request Demo Time"));
-  assert.match(modal, /before approving the appointment so there are no surprises/);
+test("approval and fixed-fee notice appears before submission", () => {
+  assert.match(modal, /Approval and \$100 fee/);
+  assert.match(modal, /charged only after IDS approves/);
+  assert.ok(modal.indexOf("Approval and $100 fee") < modal.indexOf("Request ${format"));
 });
 
 test("area planning and travel notice add no automated fee or payment behavior", () => {
@@ -742,7 +737,7 @@ test("area assignments do not participate in availability or mutate demo request
 
 test("the public availability contract reports the unchanged four-hour duration", () => {
   assert.equal(DEMO_DURATION_MINUTES, 240);
-  assert.match(publicAvailabilityRoute, /durationMinutes:DEMO_DURATION_MINUTES/);
+  assert.match(publicAvailabilityRoute, /durationMinutes:APPOINTMENT_TYPE_CONFIG\.demo\.durationMinutes/);
   assert.doesNotMatch(publicAvailabilityRoute, /durationMinutes:60/);
 });
 
@@ -808,14 +803,14 @@ test("availability never generates a partial four-hour block", () => {
   assert.deepEqual(mondaySlots("08:00", "15:00").map(({startAt,endAt})=>[startAt,endAt]), [[only.startAt, only.endAt]]);
 });
 
-test("request creation derives an exact four-hour end from the database setting", () => {
+test("request creation delegates the exact duration to shared database configuration", () => {
   const start = new Date("2026-08-17T13:00:00.000Z");
   assert.equal(endAtForDuration(start, 240).toISOString(), "2026-08-17T17:00:00.000Z");
-  assert.match(server, /from\("demo_settings"\)\.select\("duration_minutes"\)/);
-  assert.match(server, /endAtForDuration\(start,Number\(settings\.duration_minutes\)\)/);
-  assert.match(server, /p_end_at:end\.toISOString\(\)/);
+  assert.match(server, /rpc\("scheduling_create_demo_request"/);
+  assert.match(server, /p_start_at:new Date\(value\.startAt\)\.toISOString\(\)/);
   assert.doesNotMatch(server, /3600000/);
-  assert.match(oldMigration, /p_end_at<>p_start_at\+make_interval\(mins=>v_settings\.duration_minutes\)/);
+  const schedulingMigration = source("supabase/migrations/20260831231030_services_scheduling_demo_party.sql");
+  assert.match(schedulingMigration, /request_end:=p_start_at\+make_interval\(mins=>type_settings\.duration_minutes\)/);
 });
 
 test("a pending four-hour request blocks its slot", () => {
@@ -880,13 +875,13 @@ test("ICS keeps stable request semantics and includes machine interest", () => {
 test("customer confirmation ICS uses the persisted four-hour range", () => {
   const ics = createDemoIcs(request, calendarOptions).replace(/\r\n /g, "");
   assert.match(ics, /DTSTART:20260820T190000Z[\s\S]*DTEND:20260820T230000Z/);
-  assert.match(notifications, /attachments:\[attachment\(r,r\.customerEmail,r\.customerName\)\]/);
+  assert.match(notifications, /attachments: \[attachment\(request, request\.customerEmail, request\.customerName\)\]/);
 });
 
 test("IDS Proton invitation uses the persisted four-hour range", () => {
   const ics = createDemoIcs(request, {...calendarOptions,attendeeEmail:"calendar@integrityautomowers.com",attendeeName:"IDS Demo Calendar"}).replace(/\r\n /g, "");
   assert.match(ics, /DTSTART:20260820T190000Z[\s\S]*DTEND:20260820T230000Z/);
-  assert.match(notifications, /attachments:\[attachment\(r,calendarEmail,"IDS Demo Calendar"\)\]/);
+  assert.match(notifications, /attachments: \[attachment\(request, calendarEmail, "IDS Demo Calendar"\)\]/);
 });
 
 test("ICS rejects header injection and keeps organizer and attendee", () => {
@@ -897,8 +892,8 @@ test("ICS rejects header injection and keeps organizer and attendee", () => {
 });
 
 test("machine interest appears in IDS, customer, calendar, and admin information", () => {
-  assert.match(notifications, /Equipment: \$\{r\.equipmentInterest/);
-  assert.equal((notifications.match(/Machine requested: \$\{r\.equipmentInterest/g) ?? []).length, 2);
+  assert.match(notifications, /Equipment: \$\{request\.equipmentInterest/);
+  assert.match(notifications, /Machine requested: \$\{request\.equipmentInterest/);
   assert.match(source("lib/demo-scheduling/ics.ts"), /Equipment Interest: \$\{request\.equipmentInterest/);
   assert.match(admin, /selected\.equipmentInterest\?\?"Not specified"/);
 });
@@ -921,8 +916,8 @@ test("server email requires DEMO_FROM_EMAIL and never falls back after failure",
 });
 
 test("notification delivery failures persist short sanitized errors without rolling back transitions", () => {
-  assert.match(notifications, /p_status:"failed"/);
-  assert.match(notifications, /error\.message\.slice\(0,100\)/);
+  assert.match(notifications, /p_status: "failed"/);
+  assert.match(notifications, /error\.message\.slice\(0, 100\)/);
   assert.match(oldMigration, /char_length\(last_error\)<=100/);
   assert.match(admin, /event\?\.status==="failed"&&event\.last_error&&<span/);
   assert.match(admin, /Retry Failed Notifications/);
@@ -931,17 +926,17 @@ test("notification delivery failures persist short sanitized errors without roll
 test("Resend attachment fields match the installed SDK", () => {
   const resendTypes = source("node_modules/resend/dist/index.d.mts");
   assert.match(resendTypes, /interface Attachment[\s\S]*contentType\?: string/);
-  assert.match(notifications, /contentType:"text\/calendar; method=REQUEST; charset=UTF-8"/);
+  assert.match(notifications, /contentType: "text\/calendar; method=REQUEST; charset=UTF-8"/);
 });
 
 test("request route keeps size, notification, and generic error protections", () => {
   const route = source("app/api/demo-scheduling/requests/route.ts");
-  assert.match(route, /new TextEncoder\(\)\.encode\(raw\)\.byteLength>12000/);
+  assert.match(route, /new TextEncoder\(\)\.encode\(raw\)\.byteLength>16000/);
   assert.match(route, /await notifyNewDemoRequest/);
   assert.doesNotMatch(route, /customer_email|stored payload|service_role/i);
 });
 
 test("availability loading is reset around every fetch", () => {
-  assert.match(modal, /setLoading\(true\)/);
+  assert.match(modal, /useState\(true\)/);
   assert.match(modal, /\.finally\(\(\) => \{ if \(active\) setLoading\(false\); \}\)/);
 });

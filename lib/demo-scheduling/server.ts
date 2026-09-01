@@ -1,6 +1,6 @@
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase";
-import { addDays, centralLocalToUtc, endAtForDuration } from "./time";
+import { addDays, centralLocalToUtc } from "./time";
 import { generateAvailableSlots } from "./availability";
 import { CUSTOM_DEMO_AREA_ID, toPublicDemoAreaPlanning } from "./public-area-planning";
 import type {
@@ -8,21 +8,20 @@ import type {
   AvailabilityRule,
   DemoAreaAssignment,
   DemoAreaAssignmentInput,
-  DemoEquipmentInterest,
   DemoRequest,
   DemoServiceArea,
   DemoServiceAreaCity,
   DemoServiceAreaCityInput,
   DemoServiceAreaInput,
-  DemoSource,
   PublicDemoAreaPlan,
 } from "./types";
+import type { ValidDemoAppointmentRequest } from "@/lib/demo-party/validation";
 
-const requestColumns="id,customer_name,customer_email,customer_phone,property_address,requested_start_at,requested_end_at,status,source,equipment_interest,admin_message,created_at,approved_at,denied_at,cancelled_at";
+const requestColumns="id,customer_name,customer_email,customer_phone,property_address,requested_start_at,requested_end_at,status,source,equipment_interest,admin_message,created_at,approved_at,denied_at,cancelled_at,appointment_type,duration_minutes,payment_status,demo_format,notes,information_requested_at";
 const serviceAreaColumns="id,name,description,active,sort_order,created_at,updated_at";
 const serviceAreaCityColumns="id,region_id,name,state_abbreviation,active,sort_order,created_at,updated_at";
 const areaAssignmentColumns="id,service_date,region_id,city_id,custom_city,internal_note,created_at,updated_at";
-const mapRequest=(r:Record<string,unknown>):DemoRequest=>({id:String(r.id),customerName:String(r.customer_name),customerEmail:String(r.customer_email),customerPhone:String(r.customer_phone),propertyAddress:String(r.property_address),requestedStartAt:String(r.requested_start_at),requestedEndAt:String(r.requested_end_at),status:r.status as DemoRequest["status"],source:r.source as DemoRequest["source"],equipmentInterest:r.equipment_interest as DemoRequest["equipmentInterest"],adminMessage:r.admin_message as string|null,createdAt:String(r.created_at),approvedAt:r.approved_at as string|null,deniedAt:r.denied_at as string|null,cancelledAt:r.cancelled_at as string|null});
+const mapRequest=(r:Record<string,unknown>):DemoRequest=>({id:String(r.id),customerName:String(r.customer_name),customerEmail:String(r.customer_email),customerPhone:String(r.customer_phone),propertyAddress:String(r.property_address),requestedStartAt:String(r.requested_start_at),requestedEndAt:String(r.requested_end_at),status:r.status as DemoRequest["status"],source:r.source as DemoRequest["source"],equipmentInterest:r.equipment_interest as DemoRequest["equipmentInterest"],adminMessage:r.admin_message as string|null,createdAt:String(r.created_at),approvedAt:r.approved_at as string|null,deniedAt:r.denied_at as string|null,cancelledAt:r.cancelled_at as string|null,appointmentType:(r.appointment_type??"demo") as "demo",durationMinutes:Number(r.duration_minutes??240),paymentStatus:(r.payment_status??"not_started") as NonNullable<DemoRequest["paymentStatus"]>,demoFormat:(r.demo_format??"private") as NonNullable<DemoRequest["demoFormat"]>,notes:r.notes as string|null,informationRequestedAt:r.information_requested_at as string|null});
 const mapServiceArea=(r:Record<string,unknown>):DemoServiceArea=>({id:String(r.id),name:String(r.name),description:r.description as string|null,active:Boolean(r.active),sortOrder:Number(r.sort_order),createdAt:String(r.created_at),updatedAt:String(r.updated_at)});
 const mapServiceAreaCity=(r:Record<string,unknown>):DemoServiceAreaCity=>({id:String(r.id),regionId:String(r.region_id),name:String(r.name),stateAbbreviation:r.state_abbreviation as string|null,active:Boolean(r.active),sortOrder:Number(r.sort_order),createdAt:String(r.created_at),updatedAt:String(r.updated_at)});
 const mapAreaAssignment=(r:Record<string,unknown>):DemoAreaAssignment=>({id:String(r.id),serviceDate:String(r.service_date),regionId:String(r.region_id),cityId:r.city_id as string|null,customCity:r.custom_city as string|null,internalNote:r.internal_note as string|null,createdAt:String(r.created_at),updatedAt:String(r.updated_at)});
@@ -31,7 +30,7 @@ export type DemoAreaPlanningServerErrorCode="region_not_found"|"inactive_region"
 export class DemoAreaPlanningServerError extends Error {
   constructor(public readonly code:DemoAreaPlanningServerErrorCode){super(code);this.name="DemoAreaPlanningServerError";}
 }
-export async function getAvailableSlots(start:string,end:string,now=new Date()){const c=getSupabaseServiceClient();const rangeStart=centralLocalToUtc(start,"00:00")?.toISOString(),rangeEnd=centralLocalToUtc(addDays(end,1),"00:00")?.toISOString();if(!rangeStart||!rangeEnd)return[];const [{data:rules,error:rErr},{data:exceptions,error:eErr},{data:requests,error:qErr},{data:settings,error:sErr}]=await Promise.all([c.from("demo_availability_rules").select("id,weekday,enabled,start_time,end_time"),c.from("demo_availability_exceptions").select("id,starts_at,ends_at,all_day,reason").lt("starts_at",rangeEnd).gt("ends_at",rangeStart),c.from("demo_requests").select("requested_start_at,requested_end_at,status").in("status",["pending","approved"]).lt("requested_start_at",rangeEnd).gt("requested_end_at",rangeStart),c.from("demo_settings").select("duration_minutes,scheduling_horizon_days").eq("id",true).single()]);if(rErr||eErr||qErr||sErr)throw rErr??eErr??qErr??sErr;return generateAvailableSlots({start,end,now,rules:rules??[],exceptions:exceptions??[],requests:requests??[],duration:Number(settings.duration_minutes),horizon:Number(settings.scheduling_horizon_days)});}
+export async function getAvailableSlots(start:string,end:string,now=new Date()){const c=getSupabaseServiceClient();const rangeStart=centralLocalToUtc(start,"00:00")?.toISOString(),rangeEnd=centralLocalToUtc(addDays(end,1),"00:00")?.toISOString();if(!rangeStart||!rangeEnd)return[];const [{data:rules,error:rErr},{data:exceptions,error:eErr},{data:requests,error:qErr},{data:settings,error:sErr},{data:typeSettings,error:tErr}]=await Promise.all([c.from("demo_availability_rules").select("id,weekday,enabled,start_time,end_time"),c.from("demo_availability_exceptions").select("id,starts_at,ends_at,all_day,reason").lt("starts_at",rangeEnd).gt("ends_at",rangeStart),c.from("demo_requests").select("requested_start_at,requested_end_at,status,appointment_type").in("status",["pending","approved"]).lt("requested_start_at",rangeEnd).gt("requested_end_at",rangeStart),c.from("demo_settings").select("scheduling_horizon_days").eq("id",true).single(),c.from("appointment_type_settings").select("duration_minutes,public_active").eq("appointment_type","demo").single()]);if(rErr||eErr||qErr||sErr||tErr)throw rErr??eErr??qErr??sErr??tErr;if(!typeSettings.public_active)return[];return generateAvailableSlots({start,end,now,rules:rules??[],exceptions:exceptions??[],requests:requests??[],duration:Number(typeSettings.duration_minutes),horizon:Number(settings.scheduling_horizon_days)});}
 
 export async function getPublicDemoAreaPlanning(start:string,end:string):Promise<PublicDemoAreaPlan[]>{
  const c=getSupabaseServiceClient();
@@ -47,7 +46,7 @@ export async function getPublicDemoAreaPlanning(start:string,end:string):Promise
  if(areaError||cityError)throw areaError??cityError;
  return toPublicDemoAreaPlanning(assignments,areas??[],cities??[]);
 }
-export async function createDemoRequest(value:{name:string;email:string;phone:string;address:string;startAt:string;source:DemoSource;equipmentInterest:DemoEquipmentInterest;idempotencyKey:string}){const c=getSupabaseServiceClient(),start=new Date(value.startAt);const{data:settings,error:settingsError}=await c.from("demo_settings").select("duration_minutes").eq("id",true).single();if(settingsError)throw settingsError;const end=endAtForDuration(start,Number(settings.duration_minutes));const{data,error}=await c.rpc("demo_create_request",{p_name:value.name,p_email:value.email,p_phone:value.phone,p_address:value.address,p_start_at:start.toISOString(),p_end_at:end.toISOString(),p_source:value.source,p_equipment_interest:value.equipmentInterest,p_idempotency_key:value.idempotencyKey});if(error)throw error;return String(data);}
+export async function createDemoRequest(value:ValidDemoAppointmentRequest){const{data,error}=await getSupabaseServiceClient().rpc("scheduling_create_demo_request",{p_name:value.name,p_email:value.email,p_phone:value.phone,p_address:value.address,p_start_at:new Date(value.startAt).toISOString(),p_source:value.source,p_equipment_interest:value.equipmentInterest,p_notes:value.notes,p_demo_format:value.demoFormat,p_party_screening:value.partyScreening,p_idempotency_key:value.idempotencyKey});if(error)throw error;return String(data);}
 export async function readDemoRequest(id:string){const{data,error}=await getSupabaseServiceClient().from("demo_requests").select(requestColumns).eq("id",id).single();if(error)throw error;return mapRequest(data as Record<string,unknown>);}
 export async function readDemoNotificationEvents(id:string){const{data,error}=await getSupabaseServiceClient().from("demo_notification_events").select("event_type,status,last_error").eq("request_id",id);if(error)throw error;return data??[];}
 export async function readAdminScheduling(){
@@ -84,7 +83,7 @@ function eventsByRequest(rows:{request_id:string;event_type:string;status:string
 export async function saveRules(rules:AvailabilityRule[]){const c=getSupabaseServiceClient();for(const r of rules){const{error}=await c.from("demo_availability_rules").update({enabled:r.enabled,start_time:r.startTime,end_time:r.endTime,updated_at:new Date().toISOString()}).eq("weekday",r.weekday);if(error)throw error;}}
 export async function addException(value:{startsAt:string;endsAt:string;allDay:boolean;reason:string|null}){const{error}=await getSupabaseServiceClient().from("demo_availability_exceptions").insert({starts_at:value.startsAt,ends_at:value.endsAt,all_day:value.allDay,reason:value.reason});if(error)throw error;}
 export async function deleteException(id:string){const{error}=await getSupabaseServiceClient().from("demo_availability_exceptions").delete().eq("id",id);if(error)throw error;}
-export async function transitionRequest(id:string,action:string,message:string|null){const{data,error}=await getSupabaseServiceClient().rpc("demo_transition_request",{p_request_id:id,p_action:action,p_message:message});if(error)throw error;return data as "changed"|"unchanged";}
+export async function transitionRequest(id:string,action:string,message:string|null){const{data,error}=await getSupabaseServiceClient().rpc("scheduling_transition_appointment",{p_request_id:id,p_action:action,p_message:message});if(error)throw error;return data as "changed"|"unchanged";}
 
 export async function saveDemoAreaAssignment(value:DemoAreaAssignmentInput){
  const c=getSupabaseServiceClient();
