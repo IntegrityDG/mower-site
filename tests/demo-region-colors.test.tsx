@@ -93,13 +93,22 @@ test("public endpoint and mapper cannot expose internal notes", () => {
 });
 
 test("shared public calendar keeps availability backgrounds and adds markers, legend, location, and accessible text", () => {
-  const modal = source("components/demo-scheduling/ScheduleDemoModal.tsx");
-  assert.match(modal, /available \? "border-emerald-500 bg-emerald-50 text-emerald-900" : "border-slate-100 bg-slate-100 text-slate-400"/);
-  assert.match(modal, /DEMO_REGION_MARKER_CLASSES\[areaPlan\.color\]/);
-  assert.match(modal, /publicDemoAreaLegend\(areaPlanning\)/);
-  assert.match(modal, /publicDemoAreaLabel\(selectedAreaPlan\)/);
-  assert.match(modal, /publicDemoAreaAccessibleLabel\(areaPlan\)/);
-  assert.match(modal, /areaPlan && <span aria-hidden="true"/);
+  const requestForm = source("components/services-scheduling/DemoRequestForm.tsx");
+  const availabilityRoute = source("app/api/demo-scheduling/availability/route.ts");
+  const schedulingShortcut = source("components/demo-scheduling/ScheduleDemoModal.tsx");
+  assert.match(schedulingShortcut, /\/services-scheduling\?service=demo&source=\$\{encodeURIComponent\(source\)\}#request-demo/);
+  assert.match(requestForm, /available \? "border-emerald-500 bg-emerald-50 text-emerald-900" : "border-slate-100 bg-slate-100 text-slate-400"/);
+  assert.match(requestForm, /DEMO_REGION_MARKER_CLASSES\[areaPlan\.color\]/);
+  assert.match(requestForm, /publicDemoAreaLegend\(areaPlanning\)/);
+  assert.match(requestForm, /publicDemoAreaLabel\(selectedAreaPlan\)/);
+  assert.match(requestForm, /publicDemoAreaAccessibleLabel\(areaPlan\)/);
+  assert.match(requestForm, /areaPlan && <span aria-hidden="true"/);
+  assert.match(requestForm, /plan\.isCustom \? "Custom \/ Out-of-Area" : plan\.regionName/);
+  assert.match(requestForm, /setAreaPlanning\(payload\.areaPlanning \?\? \[\]\)/);
+  assert.match(availabilityRoute, /getAvailableSlots/);
+  assert.match(availabilityRoute, /getPublicDemoAreaPlanning/);
+  assert.match(availabilityRoute, /slots,areaPlanning/);
+  assert.doesNotMatch(`${requestForm}\n${availabilityRoute}`, /internalNote|internal_note/);
 });
 
 test("reserved migration is fixed, idempotent, last-sorted, and does not alter existing regions", () => {

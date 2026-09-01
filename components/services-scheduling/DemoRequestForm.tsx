@@ -1,7 +1,8 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { DEMO_EQUIPMENT_INTERESTS, type DemoSlot, type DemoSource } from "@/lib/demo-scheduling/types";
+import { DEMO_REGION_MARKER_CLASSES, publicDemoAreaAccessibleLabel, publicDemoAreaLabel, publicDemoAreaLegend } from "@/lib/demo-scheduling/public-area-planning";
+import { DEMO_EQUIPMENT_INTERESTS, type DemoSlot, type DemoSource, type PublicDemoAreaPlan } from "@/lib/demo-scheduling/types";
 import { DEMO_PARTY_DISCLAIMER } from "@/lib/demo-party/disclaimer";
 import type { DemoFormat } from "@/lib/demo-party/types";
 
@@ -10,6 +11,7 @@ const isoDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() 
 export default function DemoRequestForm({ source }: { source: DemoSource }) {
   const [format, setFormat] = useState<DemoFormat>("private");
   const [slots, setSlots] = useState<DemoSlot[]>([]);
+  const [areaPlanning, setAreaPlanning] = useState<PublicDemoAreaPlan[]>([]);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedStart, setSelectedStart] = useState("");
   const [loading, setLoading] = useState(true);
@@ -28,7 +30,7 @@ export default function DemoRequestForm({ source }: { source: DemoSource }) {
     let active = true;
     fetch(`/api/demo-scheduling/availability?start=${range.start}&end=${range.end}`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : Promise.reject())
-      .then((payload) => { if (active) setSlots(payload.slots ?? []); })
+      .then((payload) => { if (active) { setSlots(payload.slots ?? []); setAreaPlanning(payload.areaPlanning ?? []); } })
       .catch(() => { if (active) setMessage("Availability could not be loaded. Please try again shortly."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -40,7 +42,20 @@ export default function DemoRequestForm({ source }: { source: DemoSource }) {
     map.set(slot.date, group);
     return map;
   }, new Map()), [slots]);
-  const dates = [...byDate.keys()].sort();
+  const planByDate = useMemo(() => new Map(areaPlanning.map((plan) => [plan.serviceDate, plan])), [areaPlanning]);
+  const visibleAreaLegend = useMemo(() => publicDemoAreaLegend(areaPlanning), [areaPlanning]);
+  const selectedAreaPlan = planByDate.get(selectedDate) ?? null;
+  const calendarDates = useMemo(() => {
+    const dates: string[] = [];
+    const current = new Date(`${range.start}T12:00:00`);
+    const last = new Date(`${range.end}T12:00:00`);
+    while (current <= last) {
+      dates.push(isoDate(current));
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  }, [range]);
+  const firstDay = new Date(`${range.start}T12:00:00`).getDay();
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -107,7 +122,20 @@ export default function DemoRequestForm({ source }: { source: DemoSource }) {
       <section aria-labelledby="appointment-time">
         <h3 id="appointment-time" className="text-xl font-black">Request an available four-hour appointment</h3>
         <p className="mt-1 text-sm text-slate-600">All times are Central Time and remain pending until IDS approval and payment.</p>
-        {loading ? <p role="status" className="mt-4 font-bold">Loading availability…</p> : <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="font-bold">Available date<select value={selectedDate} required onChange={(event) => { setSelectedDate(event.target.value); setSelectedStart(""); }} className="mt-2 min-h-12 w-full rounded-xl border p-3"><option value="">Choose a date</option>{dates.map((date) => <option key={date} value={date}>{new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}</option>)}</select></label><fieldset><legend className="font-bold">Available time</legend><div className="mt-2 grid grid-cols-2 gap-2">{selectedDate ? (byDate.get(selectedDate) ?? []).map((slot) => <button key={slot.startAt} type="button" aria-pressed={selectedStart === slot.startAt} onClick={() => setSelectedStart(slot.startAt)} className={`min-h-12 rounded-xl border px-3 py-2 font-black ${selectedStart === slot.startAt ? "bg-emerald-700 text-white" : "bg-white"}`}>{slot.timeLabel} CT</button>) : <p className="col-span-2 text-sm text-slate-500">Choose a date first.</p>}</div></fieldset></div>}
+        {loading ? <p role="status" className="mt-4 font-bold">Loading availability…</p> : <div className="mt-4">
+          <div className="grid grid-cols-7 gap-1 text-center text-xs font-black" aria-hidden="true">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span key={day}>{day}</span>)}</div>
+          <div className="mt-1 grid grid-cols-7 gap-1">
+            {Array.from({ length: firstDay }, (_, index) => <span key={`blank-${index}`} />)}
+            {calendarDates.map((date) => {
+              const available = (byDate.get(date)?.length ?? 0) > 0;
+              const selected = date === selectedDate;
+              const areaPlan = planByDate.get(date);
+              return <button key={date} type="button" disabled={!available} aria-label={`${new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}${available ? ", available" : ", unavailable"}${areaPlan ? `, ${publicDemoAreaAccessibleLabel(areaPlan)}` : ""}`} aria-pressed={selected} onClick={() => { setSelectedDate(date); setSelectedStart(""); }} className={`relative aspect-square min-h-12 min-w-0 rounded-lg border text-sm font-black ${selected ? "border-slate-950 bg-slate-950 text-white" : available ? "border-emerald-500 bg-emerald-50 text-emerald-900" : "border-slate-100 bg-slate-100 text-slate-400"}`}>{new Date(`${date}T12:00:00`).getDate()}{areaPlan && <span aria-hidden="true" className={`absolute inset-x-2 bottom-1 h-1 rounded-full ${DEMO_REGION_MARKER_CLASSES[areaPlan.color]}`} />}</button>;
+            })}
+          </div>
+          {visibleAreaLegend.length > 0 && <div aria-label="Demo area color key" className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-bold text-slate-700">{visibleAreaLegend.map((plan) => <span key={plan.isCustom ? "custom" : `${plan.regionName}-${plan.color}`} className="inline-flex items-center gap-1.5"><span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${DEMO_REGION_MARKER_CLASSES[plan.color]}`} />{plan.isCustom ? "Custom / Out-of-Area" : plan.regionName}</span>)}</div>}
+          {selectedDate && <div className="mt-5 rounded-2xl bg-slate-50 p-4">{selectedAreaPlan && <p className="mb-2 text-sm font-bold text-slate-700">{publicDemoAreaLabel(selectedAreaPlan)}</p>}<fieldset><legend className="font-bold">Available time</legend><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{(byDate.get(selectedDate) ?? []).map((slot) => <button key={slot.startAt} type="button" aria-pressed={selectedStart === slot.startAt} onClick={() => setSelectedStart(slot.startAt)} className={`min-h-12 rounded-xl border px-3 py-2 font-black ${selectedStart === slot.startAt ? "bg-emerald-700 text-white" : "bg-white"}`}>{slot.timeLabel} CT</button>)}</div></fieldset></div>}
+        </div>}
       </section>
 
       <fieldset><legend className="text-xl font-black">Machine interest</legend><div className="mt-3 grid gap-3 sm:grid-cols-3">{DEMO_EQUIPMENT_INTERESTS.map((option) => <label key={option} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border p-3 font-bold has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-50"><input type="radio" name="equipmentInterest" value={option} required className="h-5 w-5 accent-emerald-700" />{option}</label>)}</div></fieldset>
