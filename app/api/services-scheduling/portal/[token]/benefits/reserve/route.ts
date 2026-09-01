@@ -34,25 +34,19 @@ export async function POST(request: Request, context: { params: Promise<{ token:
   if (new TextEncoder().encode(raw).byteLength > 2_000) return Response.json({ error: "Request is too large." }, { status: 413, headers: noStore });
   const body = (() => { try { return JSON.parse(raw); } catch { return null; } })();
   const orderReference = typeof body?.orderReference === "string" ? body.orderReference.trim() : "";
-  const benefitType = body?.benefitType;
-  const application = body?.application;
-  if (!/^[A-Za-z0-9-]{4,80}$/.test(orderReference) || !["base_machine_discount", "bonus_credit"].includes(benefitType) || !["accessories", "machine"].includes(application)) return Response.json({ error: "Choose an eligible benefit and enter the IDS order reference." }, { status: 400, headers: noStore });
-  if (benefitType === "base_machine_discount" && application !== "machine") return Response.json({ error: "The base benefit applies only to one eligible machine." }, { status: 400, headers: noStore });
+  if (!/^[A-Za-z0-9-]{4,80}$/.test(orderReference)) return Response.json({ error: "Enter the IDS order reference for one eligible machine." }, { status: 400, headers: noStore });
   const { token } = await context.params;
   try {
     const portal = await readDemoPartyPortal(token);
     if (!portal) return Response.json({ error: "This secure link is invalid." }, { status: 404, headers: noStore });
-    await reserveDemoPartyBenefit(token, orderReference, benefitType, application);
-    if (benefitType === "base_machine_discount" && application === "machine" && portal.bonusCreditElection === "machine" && portal.benefits.bonusCreditCents > 0) {
-      await reserveDemoPartyBenefit(token, orderReference, "bonus_credit", "machine");
-    }
+    await reserveDemoPartyBenefit(token, orderReference);
     let prepared = await prepareDemoPartyBenefitCheckout(token, orderReference);
     if (prepared.state === "resume") return Response.json({ state: "checkout", checkoutUrl: prepared.checkoutUrl, message: "Your server-authorized benefit checkout is ready." }, { headers: noStore });
     if (prepared.state === "prepare") {
       const originalSnapshot = prepared.snapshot as OrderPriceSnapshot;
       const result = prepared.pricingApplied
         ? { state: "apply" as const, snapshot: originalSnapshot, benefitCents: Number(originalSnapshot.discountCents), machineOrderItemSourceId: null, machineUnitAmountCents: null }
-        : applyDemoPartyBenefitToOrder({ snapshot: originalSnapshot, appointmentId: String(prepared.appointmentId), baseMachineDiscountCents: Number(prepared.baseReservedCents), bonusCreditCents: Number(prepared.bonusReservedCents), application: prepared.application as "machine" | "accessories", regularMachineMsrpCents: prepared.regularMachineMsrpCents === null ? null : Number(prepared.regularMachineMsrpCents) });
+        : applyDemoPartyBenefitToOrder({ snapshot: originalSnapshot, appointmentId: String(prepared.appointmentId), baseMachineDiscountCents: Number(prepared.baseReservedCents), regularMachineMsrpCents: prepared.regularMachineMsrpCents === null ? null : Number(prepared.regularMachineMsrpCents) });
       if (result.state === "existing_price_wins") {
         await releaseDemoPartyOrderReservations(token, orderReference);
         return Response.json({ state: "existing_price_wins", message: "The current IDS/promotional machine price is already better than the Demo Party MSRP route, so no Demo Party credit was consumed." }, { headers: noStore });
@@ -81,9 +75,8 @@ export async function POST(request: Request, context: { params: Promise<{ token:
   } catch (error) {
     const code=String((error as{message?:string})?.message??"");
     const message = /requires_card/i.test(code) ? "Demo Party website benefits currently require the card checkout route for the canonical order."
-      : /minimum(?:_| )card|below_minimum/i.test(code) ? "Add more eligible accessory merchandise so the private card checkout remains payable; unused Bonus Credit stays available."
       : /non_stacking|double_spend|already_linked|committed/i.test(code) ? "That benefit is already reserved or another machine discount route is active."
-      : /order_type|election|base_discount_machine/i.test(code) ? "The order does not match the elected benefit route."
+      : /order_type|base_discount_machine/i.test(code) ? "The order must contain one eligible machine."
       : /msrp/i.test(code) ? "IDS must review the authoritative MSRP for this machine before applying the Demo Party route."
       : /stale_benefit_order/i.test(code) ? "The order changed while the benefit was being applied. Retry from this secure page."
       : "The benefit could not be applied to that order.";

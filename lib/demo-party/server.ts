@@ -1,8 +1,9 @@
 import "server-only";
 
 import { getSupabaseServiceClient } from "@/lib/supabase";
+import { MAX_QUALIFYING_GUESTS } from "./benefits";
 import { generatePortalToken, hashPortalToken, portalTokenIsWellFormed } from "./security";
-import type { BonusCreditElection, DemoPartyGuest, DemoPartyPortal } from "./types";
+import type { DemoPartyGuest, DemoPartyPortal } from "./types";
 import { DEMO_PARTY_REFERRAL_SCHEDULE_VERSION, demoPartyReferralRewardForProduct } from "@/lib/checkout/referral-rewards";
 import type { OrderPriceSnapshot } from "@/lib/checkout/types";
 
@@ -68,8 +69,6 @@ export async function readDemoPartyPortal(rawToken: string): Promise<DemoPartyPo
   const guests = ((guestResult.data ?? []) as JsonObject[]).map(guestFromRow);
   const ledgers = (ledgerResult.data ?? []) as JsonObject[];
   const earned = (kind: string) => Number(ledgers.find((row) => row.benefit_type === kind)?.earned_cents ?? 0);
-  const consumed = (kind: string) => Number(ledgers.find((row) => row.benefit_type === kind)?.consumed_cents ?? 0);
-  const bonus = ledgers.find((row) => row.benefit_type === "bonus_credit");
   const isParty = request.demo_format === "party";
   return {
     appointmentId: requestId,
@@ -89,14 +88,11 @@ export async function readDemoPartyPortal(rawToken: string): Promise<DemoPartyPo
     guestListLocked: Boolean(party?.guest_list_locked),
     guests: isParty ? guests : [],
     benefits: {
-      qualifyingGuests: Math.min(10, guests.filter((guest) => guest.qualificationStatus === "qualifying").length),
+      qualifyingGuests: Math.min(MAX_QUALIFYING_GUESTS, guests.filter((guest) => guest.qualificationStatus === "qualifying").length),
       feeRefundCents: earned("demo_fee_refund"),
       baseMachineDiscountCents: earned("base_machine_discount"),
-      bonusCreditCents: earned("bonus_credit"),
-      maximumMachineDiscountCents: earned("base_machine_discount") + earned("bonus_credit"),
+      maximumMachineDiscountCents: earned("base_machine_discount"),
     },
-    bonusCreditElection: (bonus?.election ?? null) as BonusCreditElection | null,
-    bonusCreditRedeemedCents: consumed("bonus_credit"),
     benefitCheckoutUrl: (redemptionResult.data?.checkout_url as string | null | undefined) ?? null,
     benefitCheckoutExpiresAt: (redemptionResult.data?.checkout_expires_at as string | null | undefined) ?? null,
   };
@@ -190,15 +186,9 @@ export async function deleteGuest(rawToken: string, guestId: string) {
   if (error) throw error;
 }
 
-export async function setBonusElection(rawToken: string, election: BonusCreditElection) {
+export async function reserveDemoPartyBenefit(rawToken: string, orderReference: string) {
   if (!portalTokenIsWellFormed(rawToken)) throw new Error("Invalid portal token.");
-  const { error } = await getSupabaseServiceClient().rpc("scheduling_set_demo_party_bonus_election", { p_token_hash: hashPortalToken(rawToken), p_election: election });
-  if (error) throw error;
-}
-
-export async function reserveDemoPartyBenefit(rawToken: string, orderReference: string, benefitType: "base_machine_discount" | "bonus_credit", application: BonusCreditElection) {
-  if (!portalTokenIsWellFormed(rawToken)) throw new Error("Invalid portal token.");
-  const result = await getSupabaseServiceClient().rpc("scheduling_reserve_demo_party_benefit", { p_token_hash: hashPortalToken(rawToken), p_order_reference: orderReference, p_benefit_type: benefitType, p_application: application });
+  const result = await getSupabaseServiceClient().rpc("scheduling_reserve_demo_party_benefit", { p_token_hash: hashPortalToken(rawToken), p_order_reference: orderReference, p_benefit_type: "base_machine_discount", p_application: "machine" });
   return one<JsonObject>(result.data, result.error);
 }
 

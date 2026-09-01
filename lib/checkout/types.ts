@@ -81,7 +81,7 @@ export type OrderPriceSnapshot = {
   safeMetadata:
     | { phase: "4B1"; adjustments: "not_implemented" }
     | { phase: "4B2B"; discountPolicy: "none" | "bank-payment-275bps-v1" }
-    | { phase: "demo-party-v1"; pricingRoute: "msrp_machine" | "accessory_credit"; appointmentId: string; benefitCents: number; regularMsrpCents: number | null };
+    | { phase: "demo-party-v1"; pricingRoute: "msrp_machine"; appointmentId: string; benefitCents: number; regularMsrpCents: number };
 };
 
 export type EligibilityResult = { ok: true; snapshot: OrderPriceSnapshot } | { ok: false; code: CheckoutRejectionCode; message: string };

@@ -17,9 +17,6 @@ export type PurchaseTimeframe = (typeof PURCHASE_TIMEFRAMES)[number];
 export const EQUIPMENT_BUDGETS = ["under_3000", "3000_to_5000", "5000_to_8000", "8000_to_12000", "12000_plus"] as const;
 export type EquipmentBudget = (typeof EQUIPMENT_BUDGETS)[number];
 
-export const BONUS_CREDIT_ELECTIONS = ["accessories", "machine"] as const;
-export type BonusCreditElection = (typeof BONUS_CREDIT_ELECTIONS)[number];
-
 export type DemoPartyScreening = {
   propertyRelationship: PropertyRelationship;
   propertyType: PropertyType;
@@ -35,7 +32,6 @@ export type DemoPartyBenefits = {
   qualifyingGuests: number;
   feeRefundCents: number;
   baseMachineDiscountCents: number;
-  bonusCreditCents: number;
   maximumMachineDiscountCents: number;
 };
 
@@ -70,8 +66,6 @@ export type DemoPartyPortal = {
   guestListLocked: boolean;
   guests: DemoPartyGuest[];
   benefits: DemoPartyBenefits;
-  bonusCreditElection: BonusCreditElection | null;
-  bonusCreditRedeemedCents: number;
   benefitCheckoutUrl: string | null;
   benefitCheckoutExpiresAt: string | null;
 };

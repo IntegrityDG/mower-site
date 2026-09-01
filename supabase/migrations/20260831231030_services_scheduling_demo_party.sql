@@ -168,20 +168,18 @@ create table scheduling_private.demo_party_benefit_ledger (
   id uuid primary key default gen_random_uuid(),
   request_id uuid not null references scheduling_private.demo_parties(request_id) on delete restrict,
   benefit_type text not null
-    check (benefit_type in ('demo_fee_refund','base_machine_discount','bonus_credit','referral_reward')),
+    check (benefit_type in ('demo_fee_refund','base_machine_discount','referral_reward')),
   source_key text not null default 'party' check (char_length(source_key) between 1 and 100),
   earned_cents integer not null default 0 check (earned_cents>=0),
   consumed_cents integer not null default 0 check (consumed_cents between 0 and earned_cents),
   state text not null default 'pending'
     check (state in ('pending','earned','partially_consumed','consumed','voided')),
-  election text check (election is null or election in ('accessories','machine')),
   stripe_refund_id text unique,
   linked_order_id uuid references checkout_private.orders(id) on delete restrict,
   calculation_version text not null default 'demo-party-benefits-v1',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique(request_id,benefit_type,source_key),
-  check (benefit_type='bonus_credit' or election is null),
   check (benefit_type='demo_fee_refund' or stripe_refund_id is null)
 );
 
@@ -193,9 +191,9 @@ create table scheduling_private.demo_party_benefit_events (
   id uuid primary key default gen_random_uuid(),
   request_id uuid not null references scheduling_private.demo_parties(request_id) on delete restrict,
   benefit_type text not null
-    check (benefit_type in ('demo_fee_refund','base_machine_discount','bonus_credit','referral_reward')),
+    check (benefit_type in ('demo_fee_refund','base_machine_discount','referral_reward')),
   event_type text not null
-    check (event_type in ('calculated','election_changed','reserved','released','redeemed','refunded','adjusted','voided')),
+    check (event_type in ('calculated','reserved','released','redeemed','refunded','adjusted','voided')),
   amount_cents integer not null check (amount_cents>=0),
   balance_after_cents integer not null check (balance_after_cents>=0),
   source text not null check (char_length(source) between 1 and 100),
@@ -228,8 +226,8 @@ create table scheduling_private.demo_refund_attempts (
 create table scheduling_private.demo_party_benefit_redemptions (
   id uuid primary key default gen_random_uuid(),
   request_id uuid not null references scheduling_private.demo_parties(request_id) on delete restrict,
-  benefit_type text not null check (benefit_type in ('base_machine_discount','bonus_credit')),
-  application text not null check (application in ('accessories','machine')),
+  benefit_type text not null check (benefit_type='base_machine_discount'),
+  application text not null check (application='machine'),
   amount_cents integer not null check (amount_cents>0),
   order_id uuid not null references checkout_private.orders(id) on delete restrict,
   checkout_attempt_id uuid references checkout_private.payment_attempts(id) on delete restrict,
@@ -246,9 +244,6 @@ create table scheduling_private.demo_party_benefit_redemptions (
   check ((state='released')=(released_at is not null))
 );
 
-create unique index demo_party_one_active_bonus_redemption_idx
-  on scheduling_private.demo_party_benefit_redemptions(request_id,benefit_type)
-  where benefit_type='bonus_credit' and state='reserved';
 create unique index demo_party_one_active_base_redemption_idx
   on scheduling_private.demo_party_benefit_redemptions(request_id,benefit_type)
   where benefit_type='base_machine_discount' and state='reserved';
@@ -383,7 +378,6 @@ declare
   qualifying_count integer;
   fee_refund integer;
   base_discount integer;
-  bonus_credit integer;
   benefit record;
   existing scheduling_private.demo_party_benefit_ledger;
   had_existing boolean;
@@ -392,19 +386,17 @@ begin
   perform 1 from scheduling_private.demo_parties where request_id=p_request_id for update;
   if not found then raise exception 'demo_party_not_found'; end if;
 
-  select least(10,count(*))::integer into qualifying_count
+  select least(5,count(*))::integer into qualifying_count
   from scheduling_private.demo_party_guests
   where request_id=p_request_id and qualification_status='qualifying';
 
-  fee_refund:=least(qualifying_count,5)*2000;
+  fee_refund:=qualifying_count*2000;
   base_discount:=qualifying_count*2000;
-  bonus_credit:=greatest(0,qualifying_count-5)*2000;
 
   for benefit in
     select * from (values
       ('demo_fee_refund'::text,fee_refund),
-      ('base_machine_discount'::text,base_discount),
-      ('bonus_credit'::text,bonus_credit)
+      ('base_machine_discount'::text,base_discount)
     ) as calculated(benefit_type,earned_cents)
   loop
     select * into existing
@@ -449,8 +441,7 @@ begin
     'qualifyingGuests',qualifying_count,
     'feeRefundCents',fee_refund,
     'baseMachineDiscountCents',base_discount,
-    'bonusCreditCents',bonus_credit,
-    'maximumMachineDiscountCents',base_discount+bonus_credit
+    'maximumMachineDiscountCents',base_discount
   );
 end
 $$;
@@ -689,6 +680,9 @@ begin
   if exists(select 1 from scheduling_private.demo_parties where request_id=request_uuid and guest_list_locked) then
     raise exception 'guest_list_locked';
   end if;
+  if (select count(*) from scheduling_private.demo_party_guests where request_id=request_uuid)>=5 then
+    raise exception 'guest_limit_reached';
+  end if;
   insert into scheduling_private.demo_party_guests(request_id,full_name,email,normalized_email,phone)
   values(request_uuid,btrim(p_full_name),lower(btrim(p_email)),lower(btrim(p_email)),btrim(p_phone))
   returning * into guest;
@@ -762,37 +756,6 @@ begin
   if not found then raise exception 'guest_cannot_be_removed'; end if;
   insert into scheduling_private.appointment_audit_events(request_id,event_type,actor_type,metadata)
   values(request_uuid,'guest_removed','customer',jsonb_build_object('guestId',p_guest_id));
-end
-$$;
-
-create function public.scheduling_set_demo_party_bonus_election(p_token_hash text,p_election text)
-returns void
-language plpgsql
-security invoker
-set search_path=pg_catalog,public,scheduling_private
-as $$
-declare request_uuid uuid; ledger scheduling_private.demo_party_benefit_ledger;
-begin
-  if p_election not in ('accessories','machine') then raise exception 'invalid_bonus_election'; end if;
-  select token.request_id into request_uuid
-  from scheduling_private.appointment_portal_tokens token
-  join public.demo_requests request on request.id=token.request_id
-  join scheduling_private.demo_parties party on party.request_id=request.id
-  where token.token_hash=p_token_hash and token.revoked_at is null
-    and request.status='approved' and request.payment_status in ('paid','partially_refunded','refunded')
-  for update of party;
-  if not found then raise exception 'portal_unavailable'; end if;
-  select * into ledger from scheduling_private.demo_party_benefit_ledger
-  where request_id=request_uuid and benefit_type='bonus_credit' and source_key='party' for update;
-  if not found then perform scheduling_private.recalculate_demo_party_benefits(request_uuid); select * into ledger from scheduling_private.demo_party_benefit_ledger where request_id=request_uuid and benefit_type='bonus_credit' and source_key='party' for update; end if;
-  if (ledger.consumed_cents>0 or exists(
-    select 1 from scheduling_private.demo_party_benefit_redemptions
-    where request_id=request_uuid and benefit_type='bonus_credit' and state='reserved'
-  )) and ledger.election is distinct from p_election then raise exception 'bonus_credit_already_committed'; end if;
-  update scheduling_private.demo_party_benefit_ledger set election=p_election,updated_at=now() where id=ledger.id;
-  insert into scheduling_private.demo_party_benefit_events
-    (request_id,benefit_type,event_type,amount_cents,balance_after_cents,source,metadata)
-  values(request_uuid,'bonus_credit','election_changed',0,ledger.earned_cents-ledger.consumed_cents,'host_portal',jsonb_build_object('election',p_election));
 end
 $$;
 
@@ -1116,7 +1079,6 @@ declare
   redemption scheduling_private.demo_party_benefit_redemptions;
   remaining_cents integer;
   redemption_cents integer;
-  is_accessory_order boolean;
 begin
   select token.request_id,lower(btrim(request.customer_email)) into request_uuid,host_email
   from scheduling_private.appointment_portal_tokens token
@@ -1124,8 +1086,8 @@ begin
   where token.token_hash=p_token_hash and token.revoked_at is null
     and request.status='approved' and request.payment_status in ('paid','partially_refunded','refunded');
   if not found then raise exception 'portal_unavailable'; end if;
-  if p_benefit_type not in ('base_machine_discount','bonus_credit') then raise exception 'invalid_benefit_type'; end if;
-  if p_application not in ('accessories','machine') then raise exception 'invalid_benefit_application'; end if;
+  if p_benefit_type<>'base_machine_discount' then raise exception 'invalid_benefit_type'; end if;
+  if p_application<>'machine' then raise exception 'invalid_benefit_application'; end if;
   select * into benefit from scheduling_private.demo_party_benefit_ledger
   where request_id=request_uuid and benefit_type=p_benefit_type and source_key='party' for update;
   if not found or benefit.state not in ('earned','partially_consumed') then raise exception 'benefit_unavailable'; end if;
@@ -1146,19 +1108,11 @@ begin
     raise exception 'benefit_order_already_linked';
   end if;
   if remaining_cents<=0 then raise exception 'benefit_consumed'; end if;
-  is_accessory_order:=coalesce(order_row.pricing_snapshot->>'purchaseMode','')='accessories';
-  if (p_application='accessories') is distinct from is_accessory_order then raise exception 'benefit_order_type_mismatch'; end if;
-  if p_benefit_type='base_machine_discount' and p_application<>'machine' then raise exception 'base_discount_machine_only'; end if;
-  if p_benefit_type='bonus_credit' and benefit.election is distinct from p_application then raise exception 'bonus_election_mismatch'; end if;
-  if p_application='machine' and order_row.discount_cents>0 then raise exception 'machine_discount_non_stacking'; end if;
-  if p_benefit_type='bonus_credit' and p_application='machine' and not exists(
-    select 1 from scheduling_private.demo_party_benefit_redemptions r
-    where r.request_id=request_uuid and r.order_id=order_row.id
-      and r.benefit_type='base_machine_discount' and r.application='machine' and r.state in ('reserved','applied')
-  ) then raise exception 'bonus_machine_requires_same_base_order'; end if;
+  if coalesce(order_row.pricing_snapshot->>'purchaseMode','')='accessories' then raise exception 'benefit_order_type_mismatch'; end if;
+  if order_row.discount_cents>0 then raise exception 'machine_discount_non_stacking'; end if;
   if order_row.subtotal_cents<=0 then raise exception 'order_has_no_eligible_value'; end if;
-  redemption_cents:=least(remaining_cents,order_row.subtotal_cents::integer - case when is_accessory_order then 50 else 0 end);
-  if redemption_cents<=0 then raise exception 'order_below_minimum_card_charge'; end if;
+  redemption_cents:=least(remaining_cents,order_row.subtotal_cents::integer);
+  if redemption_cents<=0 then raise exception 'order_has_no_eligible_value'; end if;
   insert into scheduling_private.demo_party_benefit_redemptions
     (request_id,benefit_type,application,amount_cents,order_id)
   values(request_uuid,p_benefit_type,p_application,redemption_cents,order_row.id)
@@ -1260,7 +1214,6 @@ declare
   customer checkout_private.customers;
   primary_item checkout_private.order_items;
   base_reserved integer;
-  bonus_reserved integer;
   reserved_application text;
   msrp_cents integer;
   linked_attempt_id uuid;
@@ -1280,12 +1233,11 @@ begin
   if order_row.payment_method_choice<>'card' or order_row.pricing_snapshot->>'paymentMethod'<>'card' then raise exception 'benefit_checkout_requires_card'; end if;
   if order_row.currency<>'usd' then raise exception 'benefit_checkout_requires_usd'; end if;
   select * into customer from checkout_private.customers where id=order_row.customer_id;
-  select coalesce(sum(amount_cents) filter(where benefit_type='base_machine_discount'),0),
-    coalesce(sum(amount_cents) filter(where benefit_type='bonus_credit'),0),min(application)
-  into base_reserved,bonus_reserved,reserved_application
+  select coalesce(sum(amount_cents),0),min(application)
+  into base_reserved,reserved_application
   from scheduling_private.demo_party_benefit_redemptions
-  where request_id=request_uuid and order_id=order_row.id and state='reserved';
-  if base_reserved+bonus_reserved<=0 then raise exception 'no_reserved_benefit'; end if;
+  where request_id=request_uuid and order_id=order_row.id and benefit_type='base_machine_discount' and state='reserved';
+  if base_reserved<=0 then raise exception 'no_reserved_benefit'; end if;
   if exists(
     select 1 from scheduling_private.demo_party_benefit_redemptions redemption
     where redemption.request_id=request_uuid and redemption.order_id=order_row.id
@@ -1314,27 +1266,23 @@ begin
   select * into attempt from checkout_private.payment_attempts
   where order_id=order_row.id and attempt_status in ('creating','open')
   order by attempt_number desc limit 1 for update;
-  if order_row.pricing_snapshot->>'purchaseMode'='accessories' then
-    if reserved_application<>'accessories' or base_reserved<>0 or bonus_reserved<=0 then raise exception 'benefit_order_type_mismatch'; end if;
+  if order_row.pricing_snapshot->>'purchaseMode'='accessories' or reserved_application<>'machine' then raise exception 'benefit_order_type_mismatch'; end if;
+  select * into primary_item from checkout_private.order_items
+  where order_id=order_row.id and item_type in ('product','variant','package') and not included_in_package_price
+  order by created_at limit 1;
+  if not found or primary_item.quantity<>1 then raise exception 'eligible_machine_not_found'; end if;
+  if primary_item.item_type='product' then
+    select display_msrp_price_cents into msrp_cents from public.catalog_products where id=primary_item.product_id;
+  elsif primary_item.item_type='variant' then
+    select display_msrp_price_cents into msrp_cents from public.catalog_product_variants where id=primary_item.variant_id;
   else
-    if reserved_application<>'machine' or base_reserved<=0 then raise exception 'benefit_order_type_mismatch'; end if;
-    select * into primary_item from checkout_private.order_items
-    where order_id=order_row.id and item_type in ('product','variant','package') and not included_in_package_price
-    order by created_at limit 1;
-    if not found or primary_item.quantity<>1 then raise exception 'eligible_machine_not_found'; end if;
-    if primary_item.item_type='product' then
-      select display_msrp_price_cents into msrp_cents from public.catalog_products where id=primary_item.product_id;
-    elsif primary_item.item_type='variant' then
-      select display_msrp_price_cents into msrp_cents from public.catalog_product_variants where id=primary_item.variant_id;
-    else
-      select display_msrp_price_cents into msrp_cents from public.catalog_packages where id=primary_item.package_id;
-    end if;
-    if msrp_cents is null or msrp_cents<=0 then raise exception 'authoritative_msrp_unavailable'; end if;
+    select display_msrp_price_cents into msrp_cents from public.catalog_packages where id=primary_item.package_id;
   end if;
+  if msrp_cents is null or msrp_cents<=0 then raise exception 'authoritative_msrp_unavailable'; end if;
   return jsonb_build_object('state','prepare','appointmentId',request_uuid,'orderId',order_row.id,
     'publicReference',order_row.public_reference,'updatedAt',order_row.updated_at,
     'snapshot',order_row.pricing_snapshot,'baseReservedCents',base_reserved,
-    'bonusReservedCents',bonus_reserved,'application',reserved_application,'regularMachineMsrpCents',msrp_cents,
+    'application',reserved_application,'regularMachineMsrpCents',msrp_cents,
     'machineOrderItemId',primary_item.id,'machineSourceId',coalesce(primary_item.product_id,primary_item.variant_id,primary_item.package_id),
     'activeAttemptId',attempt.id,'activeSessionId',attempt.stripe_checkout_session_id,
     'pricingApplied',pricing_applied,'customerEmail',order_row.customer_email);
@@ -1392,7 +1340,6 @@ declare
   new_attempt checkout_private.payment_attempts;
   next_attempt integer;
   base_reserved integer;
-  bonus_reserved integer;
   reserved_application text;
   expected_discount integer;
   expected_subtotal integer;
@@ -1413,24 +1360,17 @@ begin
   if order_row.updated_at is distinct from p_expected_updated_at then raise exception 'stale_benefit_order'; end if;
   perform 1 from scheduling_private.demo_party_benefit_redemptions
   where request_id=request_uuid and order_id=order_row.id and state='reserved' for update;
-  select coalesce(sum(amount_cents) filter(where benefit_type='base_machine_discount'),0),
-    coalesce(sum(amount_cents) filter(where benefit_type='bonus_credit'),0),min(application)
-  into base_reserved,bonus_reserved,reserved_application
+  select coalesce(sum(amount_cents),0),min(application)
+  into base_reserved,reserved_application
   from scheduling_private.demo_party_benefit_redemptions
-  where request_id=request_uuid and order_id=order_row.id and state='reserved';
-  if base_reserved+bonus_reserved<=0 then raise exception 'no_reserved_benefit'; end if;
+  where request_id=request_uuid and order_id=order_row.id and benefit_type='base_machine_discount' and state='reserved';
+  if base_reserved<=0 then raise exception 'no_reserved_benefit'; end if;
   pricing_applied:=order_row.pricing_snapshot->'safeMetadata'->>'phase'='demo-party-v1'
     and order_row.pricing_snapshot->'safeMetadata'->>'appointmentId'=request_uuid::text;
   if pricing_applied then
     expected_subtotal:=order_row.subtotal_cents::integer;
     expected_discount:=order_row.discount_cents::integer;
     if p_snapshot is distinct from order_row.pricing_snapshot then raise exception 'benefit_snapshot_mismatch'; end if;
-  elsif reserved_application='accessories' then
-    if order_row.pricing_snapshot->>'purchaseMode'<>'accessories' or base_reserved<>0 then raise exception 'benefit_order_type_mismatch'; end if;
-    expected_subtotal:=order_row.subtotal_cents::integer;
-    expected_discount:=least(bonus_reserved,expected_subtotal);
-    if expected_subtotal-expected_discount<50 then raise exception 'order_below_minimum_card_charge'; end if;
-    if p_machine_order_item_id is not null or p_machine_unit_cents is not null then raise exception 'unexpected_machine_pricing'; end if;
   else
     if order_row.pricing_snapshot->>'purchaseMode'='accessories' or reserved_application<>'machine' or base_reserved<=0 or order_row.discount_cents<>0 then raise exception 'machine_discount_non_stacking'; end if;
     select * into primary_item from checkout_private.order_items where id=p_machine_order_item_id and order_id=order_row.id for update;
@@ -1439,7 +1379,7 @@ begin
     elsif primary_item.item_type='variant' then select display_msrp_price_cents into msrp_cents from public.catalog_product_variants where id=primary_item.variant_id;
     else select display_msrp_price_cents into msrp_cents from public.catalog_packages where id=primary_item.package_id; end if;
     if msrp_cents is null or p_machine_unit_cents is distinct from msrp_cents then raise exception 'authoritative_msrp_mismatch'; end if;
-    expected_discount:=base_reserved+bonus_reserved;
+    expected_discount:=base_reserved;
     if expected_discount>msrp_cents then raise exception 'benefit_exceeds_machine_msrp'; end if;
     if primary_item.extended_amount_cents<=msrp_cents-expected_discount then raise exception 'existing_price_wins'; end if;
     expected_subtotal:=order_row.subtotal_cents::integer-primary_item.extended_amount_cents::integer+msrp_cents;
@@ -1560,7 +1500,7 @@ begin
       select id from scheduling_private.demo_party_guests
       where request_id=guest.request_id and qualification_status='qualifying'
       order by qualification_verified_at,id
-      limit 10
+      limit 5
     ) qualifying_cap where qualifying_cap.id=guest.id
   ) then raise exception 'guest_outside_qualifying_cap'; end if;
   select * into request_row from public.demo_requests where id=guest.request_id for update;
@@ -1756,7 +1696,6 @@ revoke all on function public.scheduling_revoke_portal_token(uuid) from public,a
 revoke all on function public.scheduling_add_demo_party_guest(text,text,text,text) from public,anon,authenticated;
 revoke all on function public.scheduling_update_demo_party_guest(text,uuid,text,text,text) from public,anon,authenticated;
 revoke all on function public.scheduling_delete_demo_party_guest(text,uuid) from public,anon,authenticated;
-revoke all on function public.scheduling_set_demo_party_bonus_election(text,text) from public,anon,authenticated;
 revoke all on function public.scheduling_admin_set_demo_party_lock(uuid,boolean,text) from public,anon,authenticated;
 revoke all on function public.scheduling_admin_update_demo_party_guest(uuid,text,text,boolean) from public,anon,authenticated;
 revoke all on function public.scheduling_admin_set_demo_party_food(uuid,text,text,integer) from public,anon,authenticated;
@@ -1786,7 +1725,6 @@ grant execute on function public.scheduling_revoke_portal_token(uuid) to service
 grant execute on function public.scheduling_add_demo_party_guest(text,text,text,text) to service_role;
 grant execute on function public.scheduling_update_demo_party_guest(text,uuid,text,text,text) to service_role;
 grant execute on function public.scheduling_delete_demo_party_guest(text,uuid) to service_role;
-grant execute on function public.scheduling_set_demo_party_bonus_election(text,text) to service_role;
 grant execute on function public.scheduling_admin_set_demo_party_lock(uuid,boolean,text) to service_role;
 grant execute on function public.scheduling_admin_update_demo_party_guest(uuid,text,text,boolean) to service_role;
 grant execute on function public.scheduling_admin_set_demo_party_food(uuid,text,text,integer) to service_role;

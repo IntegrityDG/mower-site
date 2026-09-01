@@ -16,6 +16,7 @@ export async function POST(request: Request, context: { params: Promise<{ token:
   } catch (error) {
     const code = String((error as { message?: string })?.message ?? "");
     if (/guest_list_locked/i.test(code)) return Response.json({ error: "The guest list is locked. Contact IDS for help." }, { status: 409, headers: noStore });
+    if (/guest_limit_reached/i.test(code)) return Response.json({ error: "A Demo Party is limited to 5 invited guests." }, { status: 409, headers: noStore });
     if (/duplicate|unique/i.test(code)) return Response.json({ error: "That guest email is already registered for this Demo Party." }, { status: 409, headers: noStore });
     return Response.json({ error: "Guest details could not be saved." }, { status: 403, headers: noStore });
   }
