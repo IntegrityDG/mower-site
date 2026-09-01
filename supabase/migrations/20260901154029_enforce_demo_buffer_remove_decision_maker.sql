@@ -7,9 +7,9 @@ begin;
 alter table public.demo_requests
   add constraint demo_requests_demo_buffer_no_overlap
   exclude using gist (
-    tstzrange(
-      requested_start_at,
-      requested_end_at + interval '1 hour',
+    tsrange(
+      requested_start_at at time zone 'UTC',
+      (requested_end_at at time zone 'UTC') + interval '1 hour',
       '[)'
     ) with &&
   )

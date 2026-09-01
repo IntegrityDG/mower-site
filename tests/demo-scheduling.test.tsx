@@ -850,7 +850,7 @@ test("public availability never offers a Demo inside the one-hour buffer", () =>
   const second = slotFromLocal("2026-08-17", "13:00", 240)!;
   const requests:SlotRequests = [{requested_start_at:first.startAt,requested_end_at:first.endAt,status:"pending"}];
   assert.deepEqual(mondaySlots("08:00", "18:00", requests).map(slot=>slot.startAt), [second.startAt]);
-  assert.match(correctiveMigration, /requested_end_at \+ interval '1 hour'/);
+  assert.match(correctiveMigration, /tsrange\([\s\S]*requested_start_at at time zone 'UTC'[\s\S]*\(requested_end_at at time zone 'UTC'\) \+ interval '1 hour'/);
 });
 
 test("a blackout overlapping any part of a four-hour slot removes that slot", () => {

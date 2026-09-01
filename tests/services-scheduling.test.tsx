@@ -197,7 +197,7 @@ test("Demo buffer is symmetric, exact at 60 minutes, and Demo-only", () => {
 });
 
 test("database Demo buffer is atomic for active rows and does not lengthen appointments", () => {
-  assert.match(correctiveMigration, /demo_requests_demo_buffer_no_overlap[\s\S]*requested_end_at \+ interval '1 hour'[\s\S]*appointment_type='demo' and status in \('pending','approved'\)/);
+  assert.match(correctiveMigration, /demo_requests_demo_buffer_no_overlap[\s\S]*tsrange\([\s\S]*requested_start_at at time zone 'UTC'[\s\S]*\(requested_end_at at time zone 'UTC'\) \+ interval '1 hour'[\s\S]*appointment_type='demo' and status in \('pending','approved'\)/);
   assert.match(correctiveMigration, /request_end:=p_start_at\+make_interval\(mins=>type_settings\.duration_minutes\)/);
   assert.match(correctiveMigration, /tstzrange\(p_start_at,request_end\+interval '1 hour','\[\)'\)/);
   assert.match(correctiveMigration, /exception when exclusion_violation then raise exception 'slot_conflict'/);
