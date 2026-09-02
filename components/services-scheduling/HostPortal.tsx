@@ -3,7 +3,8 @@
 import { type FormEvent, useState } from "react";
 import { MAX_DEMO_PARTY_GUESTS } from "@/lib/demo-party/benefits";
 import { DEMO_PARTY_DISCLAIMER } from "@/lib/demo-party/disclaimer";
-import type { DemoPartyGuest, DemoPartyPortal } from "@/lib/demo-party/types";
+import { demoPartyGuestFromRpc } from "@/lib/demo-party/portal-payload";
+import type { DemoPartyPortal } from "@/lib/demo-party/types";
 
 const money = (cents: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(cents / 100);
 const dateTime = (value: string) => new Intl.DateTimeFormat("en-US", { dateStyle: "full", timeStyle: "short", timeZone: "America/Chicago" }).format(new Date(value));
@@ -37,7 +38,8 @@ export default function HostPortal({ token, initial }: { token: string; initial:
       const response = await fetch(`/api/services-scheduling/portal/${encodeURIComponent(token)}/guests`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ fullName: form.get("fullName"), email: form.get("email"), phone: form.get("phone") }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
-      setPortal((current) => ({ ...current, guests: [...current.guests, data.guest as DemoPartyGuest] }));
+      const guest = demoPartyGuestFromRpc(data.guest);
+      setPortal((current) => ({ ...current, guests: [...current.guests, guest] }));
       formElement.reset();
       setMessage("Guest added.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Guest could not be added."); }

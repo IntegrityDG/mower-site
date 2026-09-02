@@ -20,6 +20,9 @@ import {
   reserveBenefit,
 } from "../lib/demo-party/benefits";
 import { generatePortalToken, hashPortalToken, portalTokenHashMatches, portalTokenIsWellFormed } from "../lib/demo-party/security";
+import { demoPartyGuestFromRpc, readDemoPartyPortalWithRpc } from "../lib/demo-party/portal-reader";
+import { adminDemoPartyResponse, readAdminDemoPartyWithRpc } from "../lib/demo-party/admin-reader";
+import { demoReferralOrderFromRpc } from "../lib/demo-party/referral-reader";
 import { buildDemoCheckoutSession, DemoPaymentReconciliationError, reconcileDemoCheckoutSession } from "../lib/demo-party/stripe-policy";
 import { applyDemoPartyBenefitToOrder } from "../lib/demo-party/order-benefit";
 import { validateDemoAppointmentRequest, type ValidDemoAppointmentRequest } from "../lib/demo-party/validation";
@@ -29,11 +32,12 @@ import { buildCardCheckoutSession } from "../lib/stripe/checkout-session";
 import { demoPartyReferralRewardForProduct, referralRewardForProduct } from "../lib/checkout/referral-rewards";
 import { DEMO_PARTY_CONFIRMATION_SUMMARY, DEMO_PARTY_DISCLAIMER } from "../lib/demo-party/disclaimer";
 import type { OrderPriceSnapshot } from "../lib/checkout/types";
-import type { DemoPartyPortal } from "../lib/demo-party/types";
+import type { AdminDemoPartyDetail, DemoPartyPortal } from "../lib/demo-party/types";
 
 const source = (path: string) => readFileSync(path, "utf8");
 const migration = source("supabase/migrations/20260831231030_services_scheduling_demo_party.sql");
 const correctiveMigration = source("supabase/migrations/20260901154029_enforce_demo_buffer_remove_decision_maker.sql");
+const portalReadMigration = source("supabase/migrations/20260901225001_fix_demo_portal_private_reads.sql");
 const webhook = source("app/api/stripe/webhook/route.ts");
 const portalServer = source("lib/demo-party/server.ts");
 const portalPage = source("app/services-scheduling/manage/[token]/page.tsx");
@@ -50,6 +54,8 @@ const attendanceRoute = source("app/api/admin/services-scheduling/guests/[guestI
 const referralRoute = source("app/api/admin/services-scheduling/guests/[guestId]/referral/route.ts");
 const retryRoute = source("app/api/admin/demo-scheduling/requests/[id]/retry/route.ts");
 const adminOperations = source("components/services-scheduling/AdminAppointmentOperations.tsx");
+const adminAppointmentRoute = source("app/api/admin/services-scheduling/appointments/[id]/route.ts");
+const demoPartyTypes = source("lib/demo-party/types.ts");
 const pricingResolver = source("lib/checkout/pricing-resolver.ts");
 const demoCheckoutRoute = source("app/api/services-scheduling/portal/[token]/checkout/route.ts");
 const originalReferralMigration = source("supabase/migrations/20260808120000_add_private_referral_records.sql");
@@ -360,13 +366,9 @@ test("every customer-facing Demo Party terms surface states the fixed Tier 1 ref
   assert.match(applicationTerms, /I confirm that I own this property or am authorized/);
 
   const partyPortal: DemoPartyPortal = {
-    appointmentId: "10000000-0000-4000-8000-000000000001",
     customerName: "Demo Host",
-    customerEmail: "host@example.com",
-    customerPhone: "555-555-1212",
     propertyAddress: "100 Main Street",
     requestedStartAt: "2026-09-14T14:00:00.000Z",
-    requestedEndAt: "2026-09-14T18:00:00.000Z",
     equipmentInterest: "Yarbo",
     status: "approved",
     paymentStatus: "paid",
@@ -376,13 +378,12 @@ test("every customer-facing Demo Party terms surface states the fixed Tier 1 ref
     guestArrivalAt: "2026-09-14T16:00:00.000Z",
     guestListLocked: false,
     guests: [],
-    benefits: { qualifyingGuests: 0, feeRefundCents: 0, baseMachineDiscountCents: 0, maximumMachineDiscountCents: 0 },
+    benefits: { qualifyingGuests: 0, feeRefundCents: 0, baseMachineDiscountCents: 0 },
     benefitCheckoutUrl: null,
-    benefitCheckoutExpiresAt: null,
   };
   const portalMarkup = renderToStaticMarkup(<HostPortal token={"A".repeat(43)} initial={partyPortal} />);
   assert.ok(portalMarkup.includes(expected), "secure Demo Party host portal must render the complete disclaimer");
-  const fullGuestListMarkup = renderToStaticMarkup(<HostPortal token={"A".repeat(43)} initial={{ ...partyPortal, guests: Array.from({ length: 5 }, (_, index) => ({ id: `guest-${index}`, fullName: `Guest ${index + 1}`, email: `guest${index + 1}@example.com`, phone: "555-555-1212", checkedInAt: null, checkedOutAt: null, qualificationStatus: "pending" as const, qualificationVerifiedAt: null, followUpConsent: null, referralIdentifier: `referral-${index}` })) }} />);
+  const fullGuestListMarkup = renderToStaticMarkup(<HostPortal token={"A".repeat(43)} initial={{ ...partyPortal, guests: Array.from({ length: 5 }, (_, index) => ({ id: `guest-${index}`, fullName: `Guest ${index + 1}`, email: `guest${index + 1}@example.com`, phone: "555-555-1212", qualificationStatus: "pending" as const })) }} />);
   assert.doesNotMatch(fullGuestListMarkup, /Add registered guest/);
   assert.match(fullGuestListMarkup, /guest list is full at 5 invited guests/);
   const cancelledPortalMarkup = renderToStaticMarkup(<HostPortal token={"A".repeat(43)} initial={{ ...partyPortal, status: "cancelled" }} />);
@@ -414,6 +415,179 @@ test("portal bearer tokens have 256 bits of entropy and only hashes reach storag
   assert.doesNotMatch(migration, /raw_token|portal_token text/);
 });
 
+test("valid portal tokens resolve through the hashed service-role RPC without exposing the bearer token", async () => {
+  const token = "A".repeat(43);
+  const expected: DemoPartyPortal = {
+    customerName: "Demo Host",
+    propertyAddress: "100 Main Street",
+    requestedStartAt: "2026-09-14T14:00:00.000Z",
+    equipmentInterest: "Help Me Decide",
+    status: "approved",
+    paymentStatus: "not_started",
+    amountPaidCents: 0,
+    amountRefundedCents: 0,
+    demoFormat: "private",
+    guestArrivalAt: null,
+    guestListLocked: false,
+    guests: [],
+    benefits: { qualifyingGuests: 0, feeRefundCents: 0, baseMachineDiscountCents: 0 },
+    benefitCheckoutUrl: null,
+  };
+  const rpcPayload = {
+    ...expected,
+    appointmentId: "10000000-0000-4000-8000-000000000001",
+    customerEmail: "host@example.com",
+    customerPhone: "555-555-1212",
+    requestedEndAt: "2026-09-14T18:00:00.000Z",
+    benefitCheckoutExpiresAt: "2026-09-14T19:00:00.000Z",
+    benefits: { ...expected.benefits, maximumMachineDiscountCents: 10_000 },
+  };
+  const hashes: string[] = [];
+  const actual = await readDemoPartyPortalWithRpc(token, async (tokenHash) => {
+    hashes.push(tokenHash);
+    return { data: rpcPayload, error: null };
+  });
+  assert.deepEqual(actual, expected);
+  assert.deepEqual(Object.keys(actual!).sort(), Object.keys(expected).sort());
+  assert.doesNotMatch(JSON.stringify(actual), /host@example|555-555-1212|requestedEndAt|maximumMachineDiscountCents|benefitCheckoutExpiresAt/);
+  assert.deepEqual(demoPartyGuestFromRpc({
+    id: "guest-1", fullName: "Guest One", email: "guest@example.com", phone: "555-0100", qualificationStatus: "pending",
+    checkedInAt: "2026-09-14T16:00:00Z", checkedOutAt: "2026-09-14T17:00:00Z", qualificationVerifiedAt: "2026-09-14T17:00:00Z",
+    followUpConsent: true, referralIdentifier: "private-referral-id",
+  }), { id: "guest-1", fullName: "Guest One", email: "guest@example.com", phone: "555-0100", qualificationStatus: "pending" });
+  assert.deepEqual(hashes, [hashPortalToken(token)]);
+  assert.doesNotMatch(JSON.stringify(hashes), new RegExp(token));
+  const markup = renderToStaticMarkup(<HostPortal token={token} initial={expected} />);
+  assert.match(markup, /Private Demo/);
+  assert.match(markup, /Approved .* Payment Required/);
+  assert.match(markup, /Pay \$100 securely/);
+});
+
+test("malformed, unknown, and revoked portal tokens return not found while backend failures throw", async () => {
+  let calls = 0;
+  assert.equal(await readDemoPartyPortalWithRpc("bad-token", async () => {
+    calls += 1;
+    return { data: null, error: null };
+  }), null);
+  assert.equal(calls, 0);
+
+  for (const state of ["unknown", "revoked"]) {
+    const result = await readDemoPartyPortalWithRpc("B".repeat(43), async () => ({ data: null, error: null }));
+    assert.equal(result, null, `${state} tokens must resolve to not found`);
+  }
+
+  const backendError = new Error("backend unavailable");
+  await assert.rejects(
+    readDemoPartyPortalWithRpc("C".repeat(43), async () => ({ data: null, error: backendError })),
+    (error) => error === backendError,
+  );
+  assert.match(portalPage, /if \(!portal\) notFound\(\)/);
+  assert.doesNotMatch(portalPage, /catch\s*\(/);
+});
+
+test("private scheduling reads use narrow service-role-only RPCs without exposing private schemas", () => {
+  for (const rpc of [
+    "scheduling_read_demo_portal",
+    "scheduling_read_demo_payment",
+    "scheduling_read_admin_demo_party",
+    "scheduling_read_demo_referral_order",
+  ]) {
+    assert.match(portalReadMigration, new RegExp(`create function public\\.${rpc}`));
+    assert.match(portalReadMigration, new RegExp(`revoke all on function public\\.${rpc}[\\s\\S]*from public,anon,authenticated`));
+    assert.match(portalReadMigration, new RegExp(`grant execute on function public\\.${rpc}[\\s\\S]*to service_role`));
+    assert.match(portalServer, new RegExp(rpc));
+  }
+  assert.doesNotMatch(portalServer, /\.schema\("(?:scheduling_private|checkout_private)"\)/);
+  assert.doesNotMatch(portalReadMigration, /grant usage on schema (?:scheduling_private|checkout_private) to (?:anon|authenticated)|pgrst\.db_schemas|exposed schemas/i);
+  assert.equal((portalReadMigration.match(/security invoker/g) ?? []).length, 4);
+  assert.equal((portalReadMigration.match(/set search_path=pg_catalog/g) ?? []).length, 4);
+});
+
+test("portal read model supports Private Demo and Demo Party without exposing internal planning data", () => {
+  const portalRpc = portalReadMigration.slice(
+    portalReadMigration.indexOf("create function public.scheduling_read_demo_portal"),
+    portalReadMigration.indexOf("create function public.scheduling_read_demo_payment"),
+  );
+  assert.match(portalRpc, /request_row\.demo_format='party'/);
+  assert.match(portalRpc, /else '\[\]'::jsonb end/);
+  assert.match(portalRpc, /least\(5,/);
+  assert.match(portalRpc, /guest_arrival_offset_minutes/);
+  assert.match(portalRpc, /token\.revoked_at is null/);
+  assert.doesNotMatch(portalRpc, /food_notes|food_budget_cents|qualification_note|audit|metadata|party_screening|token_hash',|p_token_hash'/);
+  assert.doesNotMatch(portalRpc, /request_row\.customer_email|request_row\.customer_phone|request_row\.requested_end_at|guest\.checked_in_at|guest\.checked_out_at|guest\.qualification_verified_at|guest\.follow_up_consent|guest\.referral_identifier/);
+  assert.doesNotMatch(portalRpc, /'appointmentId'|'customerEmail'|'customerPhone'|'requestedEndAt'|'checkedInAt'|'checkedOutAt'|'qualificationVerifiedAt'|'followUpConsent'|'referralIdentifier'|'maximumMachineDiscountCents'|'benefitCheckoutExpiresAt'/);
+  assert.match(portalRpc, /benefit\.checkout_expires_at>pg_catalog\.now\(\)/, "checkout expiry must still gate resumable URLs without being returned");
+  const browserPortalTypes = demoPartyTypes.slice(demoPartyTypes.indexOf("export type DemoPartyGuest"), demoPartyTypes.indexOf("export type AdminDemoPartyDetail"));
+  assert.doesNotMatch(browserPortalTypes, /appointmentId|customerEmail|customerPhone|requestedEndAt|checkedInAt|checkedOutAt|qualificationVerifiedAt|followUpConsent|referralIdentifier|maximumMachineDiscountCents|benefitCheckoutExpiresAt/);
+  const checkoutLog = demoCheckoutRoute.slice(
+    demoCheckoutRoute.indexOf("console.error"),
+    demoCheckoutRoute.indexOf("return Response.json", demoCheckoutRoute.indexOf("console.error")),
+  );
+  assert.match(checkoutLog, /errorName/);
+  assert.doesNotMatch(checkoutLog, /error\.message|token|hash|url/i);
+});
+
+test("admin appointment reads return a narrow payload and use HTTP 404 for unknown appointments", async () => {
+  const expected: AdminDemoPartyDetail = {
+    appointment: { requested_start_at: "2026-09-14T14:00:00.000Z", status: "approved", payment_status: "paid" },
+    party: null,
+    payment: null,
+    guests: [],
+    benefits: [],
+    redemptions: [],
+    referrals: [],
+    auditEvents: [],
+  };
+  const valid = await readAdminDemoPartyWithRpc("10000000-0000-4000-8000-000000000001", async () => ({
+    data: {
+      ...expected,
+      appointment: { ...expected.appointment, id: "10000000-0000-4000-8000-000000000001", requested_end_at: "2026-09-14T18:00:00.000Z", demo_format: "private" },
+      internalAuditMetadata: { shouldNotSerialize: true },
+    },
+    error: null,
+  }));
+  assert.deepEqual(valid, expected);
+  const validResponse = adminDemoPartyResponse(valid);
+  assert.equal(validResponse.status, 200);
+  assert.deepEqual(await validResponse.json(), expected);
+
+  const unknown = await readAdminDemoPartyWithRpc("20000000-0000-4000-8000-000000000002", async () => ({ data: null, error: null }));
+  const unknownResponse = adminDemoPartyResponse(unknown);
+  assert.equal(unknownResponse.status, 404);
+  assert.deepEqual(await unknownResponse.json(), { error: "Appointment not found." });
+  assert.match(adminAppointmentRoute, /adminDemoPartyResponse\(await readAdminDemoParty\(id\)\)/);
+
+  const adminRpc = portalReadMigration.slice(
+    portalReadMigration.indexOf("create function public.scheduling_read_admin_demo_party"),
+    portalReadMigration.indexOf("create function public.scheduling_read_demo_referral_order"),
+  );
+  assert.match(adminRpc, /if p_request_id is null then\s+return null/);
+  assert.match(adminRpc, /if appointment is null then\s+return null/);
+  assert.doesNotMatch(adminRpc, /checkout_generation|stripe_checkout_url|stripe_checkout_expires_at|stripe_charge_id|normalized_email|qualification_verified_at|qualification_note|follow_up_consent_recorded_at|last_reconciled_at|'metadata'|audit\.metadata|calculation_version|stripe_refund_id|linked_order_id/);
+  assert.doesNotMatch(adminRpc, /'requested_end_at'|'demo_format'|'guest_list_locked_at'|'guest_list_lock_reason'|'application'|'checkout_url'|'checkout_expires_at'|'applied_at'|'released_at'/);
+});
+
+test("payment and referral read RPCs return only reconciliation and product identity fields", () => {
+  const paymentRpc = portalReadMigration.slice(
+    portalReadMigration.indexOf("create function public.scheduling_read_demo_payment"),
+    portalReadMigration.indexOf("create function public.scheduling_read_admin_demo_party"),
+  );
+  assert.match(paymentRpc, /p_lookup_kind is null or p_lookup_kind not in \('checkout_session','payment_intent'\)/);
+  assert.match(paymentRpc, /raise exception 'invalid_payment_lookup_kind'/);
+  assert.doesNotMatch(paymentRpc, /'status'|payment_row\.status/);
+
+  const product = { id: "10000000-0000-4000-8000-000000000101", slug: "test-machine", name: "Test machine" };
+  assert.deepEqual(demoReferralOrderFromRpc({ product, currency: "usd", totalCents: 495_000, safeMetadata: { private: true } }), { product });
+  const referralRpc = portalReadMigration.slice(
+    portalReadMigration.indexOf("create function public.scheduling_read_demo_referral_order"),
+    portalReadMigration.indexOf("-- New functions receive EXECUTE"),
+  );
+  assert.match(referralRpc, /jsonb_build_object\(\s*'product',order_row\.pricing_snapshot->'product'\s*\)/);
+  assert.doesNotMatch(referralRpc, /select order_row\.pricing_snapshot into/);
+  assert.match(portalServer, /demoReferralOrderFromRpc\(order\.data\)/);
+  assert.match(portalServer, /demoPartyReferralRewardForProduct\(orderDetails\.product\)/);
+});
+
 test("Demo Checkout is server-fixed to one $100 card line item and contains no guest data", () => {
   const params = buildDemoCheckoutSession({ appointmentId: "10000000-0000-4000-8000-000000000001", customerEmail: "host@example.com", appBaseUrl: "https://ids.example", portalToken: "A".repeat(43) });
   assert.equal(params.mode, "payment");
@@ -424,7 +598,7 @@ test("Demo Checkout is server-fixed to one $100 card line item and contains no g
 });
 
 test("Stripe reconciliation accepts only the stored Demo Session identity and amount", () => {
-  const record = { appointmentId: "10000000-0000-4000-8000-000000000001", stripeCheckoutSessionId: "cs_demo", stripePaymentIntentId: null, amountCents: 10_000, currency: "usd" as const, status: "checkout_open" as const };
+  const record = { appointmentId: "10000000-0000-4000-8000-000000000001", stripeCheckoutSessionId: "cs_demo", stripePaymentIntentId: null, amountCents: 10_000, currency: "usd" as const };
   const session = { id: "cs_demo", livemode: false, mode: "payment", payment_method_types: ["card"], client_reference_id: record.appointmentId, metadata: { payment_kind: "demo_reservation_fee", appointment_id: record.appointmentId }, currency: "usd", amount_total: 10_000, payment_status: "paid", status: "complete", payment_intent: "pi_demo" } as unknown as Stripe.Checkout.Session;
   assert.deepEqual(reconcileDemoCheckoutSession(session, record, false), { paymentIntentId: "pi_demo" });
   assert.throws(() => reconcileDemoCheckoutSession({ ...session, amount_total: 9_999 }, record, false), DemoPaymentReconciliationError);

@@ -33,9 +33,11 @@ export async function POST(_request: Request, context: { params: Promise<{ token
     });
     return Response.json({ state: "checkout", url: session.url }, { headers: noStore });
   } catch (error) {
-    const code = String((error as { message?: string })?.message ?? "");
-    if (/payment_not_approved|portal|invalid token/i.test(code)) return Response.json({ error: "Payment is not available from this link." }, { status: 403, headers: noStore });
-    console.error("Demo Checkout creation failed", { error: error instanceof Error ? error.message : "UNKNOWN" });
+    const message = String((error as { message?: string })?.message ?? "");
+    if (/payment_not_approved|portal|invalid token/i.test(message)) return Response.json({ error: "Payment is not available from this link." }, { status: 403, headers: noStore });
+    console.error("Demo Checkout creation failed", {
+      errorName: error instanceof Error ? error.name : "UnknownError",
+    });
     return Response.json({ error: "Payment is temporarily unavailable. Please try again." }, { status: 503, headers: noStore });
   }
 }

@@ -1,20 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { adminDemoPartyFromRpc } from "@/lib/demo-party/admin-reader";
+import type { AdminDemoPartyDetail } from "@/lib/demo-party/types";
 
-type Row = Record<string, unknown>;
-type Detail = { appointment?: Row | null; party: Row | null; payment: Row | null; guests: Row[]; benefits: Row[]; redemptions?: Row[]; auditEvents: Row[] };
 const money = (value: unknown) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value ?? 0) / 100);
 const paymentLabels: Record<string, string> = { not_started: "Not started", creating: "Opening checkout", checkout_open: "Payment link open", paid: "Confirmed — Paid", partially_refunded: "Partially refunded", refunded: "Refunded" };
 const qualificationLabels: Record<string, string> = { pending: "Pending IDS verification", qualifying: "Verified qualifying", not_qualifying: "Not qualifying" };
 
 export default function AdminAppointmentOperations({ appointmentId, isParty }: { appointmentId: string; isParty: boolean }) {
-  const [detail, setDetail] = useState<Detail | null>(null);
+  const [detail, setDetail] = useState<AdminDemoPartyDetail | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   async function load() {
     const response = await fetch(`/api/admin/services-scheduling/appointments/${appointmentId}`, { cache: "no-store" });
-    if (response.ok) setDetail(await response.json());
+    if (response.ok) setDetail(adminDemoPartyFromRpc(await response.json()));
   }
   async function loadAndNotify() {
     await load();
@@ -23,7 +23,7 @@ export default function AdminAppointmentOperations({ appointmentId, isParty }: {
   useEffect(() => {
     let active = true;
     fetch(`/api/admin/services-scheduling/appointments/${appointmentId}`, { cache: "no-store" })
-      .then(async (response) => response.ok ? await response.json() as Detail : null)
+      .then(async (response) => response.ok ? adminDemoPartyFromRpc(await response.json()) : null)
       .then((value) => { if (active && value) setDetail(value); });
     return () => { active = false; };
   }, [appointmentId]);
@@ -62,7 +62,7 @@ export default function AdminAppointmentOperations({ appointmentId, isParty }: {
   if (!detail) return <p className="mt-5 text-sm text-slate-500">Loading payment and party operations…</p>;
   const feeBenefit = detail.benefits.find((row) => row.benefit_type === "demo_fee_refund");
   const baseBenefit = detail.benefits.find((row) => row.benefit_type === "base_machine_discount");
-  const redemptions = detail.redemptions ?? [];
+  const redemptions = detail.redemptions;
   const paymentStatus = String(detail.payment?.status ?? "not_started");
   const attendanceAvailable = detail.appointment?.status === "approved" && ["paid", "partially_refunded", "refunded"].includes(paymentStatus);
   return <section className="mt-6 border-t border-slate-200 pt-6">

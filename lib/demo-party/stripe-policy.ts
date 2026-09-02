@@ -9,7 +9,6 @@ export type DemoPaymentRecord = {
   stripePaymentIntentId: string | null;
   amountCents: number;
   currency: "usd";
-  status: "not_started" | "checkout_open" | "paid" | "partially_refunded" | "refunded";
 };
 
 export function buildDemoCheckoutSession(input: {
