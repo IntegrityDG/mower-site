@@ -22,8 +22,8 @@ export async function sendLeadEmail(
   return sendIdsNotification({ subject, text: content });
 }
 
-export async function sendIdsNotification({ subject, text }: { subject: string; text: string }) {
-  const notifyEmail = process.env.NOTIFY_EMAIL;
+export async function sendIdsNotification({ subject, text, to, replyTo }: { subject: string; text: string; to?: string; replyTo?: string }) {
+  const notifyEmail = to ?? process.env.NOTIFY_EMAIL;
 
   if (!notifyEmail) {
     throw new Error("NOTIFY_EMAIL is missing.");
@@ -34,6 +34,7 @@ export async function sendIdsNotification({ subject, text }: { subject: string; 
     result = await getResendClient().emails.send({
       from: "onboarding@resend.dev",
       to: notifyEmail,
+      ...(replyTo ? { replyTo } : {}),
       subject,
       text,
     });
@@ -48,12 +49,14 @@ export async function sendIdsNotification({ subject, text }: { subject: string; 
   return result;
 }
 
-export async function sendServerEmail({to,subject,text,html,attachments}: {to:string;subject:string;text:string;html?:string;attachments?:{filename:string;content:string;contentType?:string}[]}) {
+export type ServerEmailOptions = {to:string;subject:string;text:string;replyTo?:string;html?:string;attachments?:{filename:string;content:string;contentType?:string}[]};
+
+export async function sendServerEmail({to,subject,text,replyTo,html,attachments}: ServerEmailOptions) {
   const from=process.env.DEMO_FROM_EMAIL?.trim();
   if(!from)throw new Error("DEMO_FROM_EMAIL is missing.");
   let result;
   try {
-    result=await getResendClient().emails.send({from,to,subject,text,html,attachments});
+    result=await getResendClient().emails.send({from,to,...(replyTo?{replyTo}:{}),subject,text,html,attachments});
   } catch(error) {
     throw new Error(sanitizeEmailFailure(error));
   }

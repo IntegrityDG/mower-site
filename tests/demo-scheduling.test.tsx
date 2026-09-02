@@ -21,6 +21,7 @@ import {
 } from "../lib/demo-scheduling/area-planning-handlers";
 import { generateAvailableSlots } from "../lib/demo-scheduling/availability";
 import { demoRequestFingerprint } from "../lib/demo-scheduling/client";
+import { DEMO_EMAIL_ROUTING } from "../lib/demo-scheduling/email-config";
 import { createDemoIcs } from "../lib/demo-scheduling/ics";
 import { centralLocalToUtc, endAtForDuration, slotFromLocal } from "../lib/demo-scheduling/time";
 import { DEMO_DURATION_MINUTES, DEMO_EQUIPMENT_INTERESTS, DEMO_REQUEST_BOT_TRAP_FIELD, DEMO_SOURCES, type DemoAreaAssignment, type DemoRequest, type DemoServiceArea, type DemoServiceAreaCity } from "../lib/demo-scheduling/types";
@@ -863,7 +864,7 @@ test("a blackout overlapping any part of a four-hour slot removes that slot", ()
 });
 
 const request: DemoRequest = { id: "10000000-0000-4000-8000-000000000001", customerName: "Doe, Jane; Jr", customerEmail: "jane@example.com", customerPhone: "555-555-1212", propertyAddress: "1 Main St; Unit 2, Town", requestedStartAt: "2026-08-20T19:00:00.000Z", requestedEndAt: "2026-08-20T23:00:00.000Z", status: "approved", source: "featured_machines", equipmentInterest: "Help Me Decide", adminMessage: null, createdAt: "2026-08-12T00:00:00Z", approvedAt: "2026-08-12T01:00:00Z", deniedAt: null, cancelledAt: null };
-const calendarOptions = { organizerEmail: "demos@integrityautomowers.com", attendeeEmail: "jane@example.com", attendeeName: "Doe, Jane; Jr" };
+const calendarOptions = { organizerEmail: "verified-sender@example.com", attendeeEmail: "jane@example.com", attendeeName: "Doe, Jane; Jr" };
 
 test("ICS keeps stable request semantics and includes machine interest", () => {
   const ics = createDemoIcs(request, calendarOptions).replace(/\r\n /g, "");
@@ -883,7 +884,7 @@ test("customer confirmation ICS uses the persisted four-hour range", () => {
 });
 
 test("IDS Proton invitation uses the persisted four-hour range", () => {
-  const ics = createDemoIcs(request, {...calendarOptions,attendeeEmail:"calendar@integrityautomowers.com",attendeeName:"IDS Demo Calendar"}).replace(/\r\n /g, "");
+  const ics = createDemoIcs(request, {...calendarOptions,attendeeEmail:DEMO_EMAIL_ROUTING.staffRecipient,attendeeName:"IDS Demo Calendar"}).replace(/\r\n /g, "");
   assert.match(ics, /DTSTART:20260820T190000Z[\s\S]*DTEND:20260820T230000Z/);
   assert.match(notifications, /attachments: \[attachment\(request, calendarEmail, "IDS Demo Calendar"\)\]/);
 });
@@ -891,8 +892,24 @@ test("IDS Proton invitation uses the persisted four-hour range", () => {
 test("ICS rejects header injection and keeps organizer and attendee", () => {
   assert.throws(() => createDemoIcs(request, { ...calendarOptions, attendeeEmail: "jane@example.com\r\nX-INJECTED:yes" }), /valid calendar email/);
   const ics = createDemoIcs(request, calendarOptions).replace(/\r\n /g, "");
-  assert.match(ics, /ORGANIZER;CN="Integrity Distribution Systems":mailto:demos@integrityautomowers\.com/);
+  assert.match(ics, /ORGANIZER;CN="Integrity Distribution Systems":mailto:verified-sender@example\.com/);
   assert.match(ics, /ATTENDEE;CN="Doe, Jane; Jr";RSVP=FALSE:mailto:jane@example\.com/);
+});
+
+test("demo staff delivery and replies use the centralized Proton mailbox", () => {
+  const retiredAddress = ["demos", "integrityautomowers.com"].join("@");
+  assert.deepEqual(DEMO_EMAIL_ROUTING, {
+    staffRecipient: "demos.IDS@proton.me",
+    replyTo: "demos.IDS@proton.me",
+  });
+  assert.notEqual(DEMO_EMAIL_ROUTING.staffRecipient, retiredAddress);
+  assert.notEqual(DEMO_EMAIL_ROUTING.replyTo, retiredAddress);
+  assert.doesNotMatch(`${source("lib/demo-scheduling/email-config.ts")}\n${notifications}`, new RegExp(retiredAddress.replace(".", "\\."), "i"));
+  assert.match(notifications, /sendIdsNotification\(\{ to: DEMO_EMAIL_ROUTING\.staffRecipient, replyTo: DEMO_EMAIL_ROUTING\.replyTo/);
+  assert.match(notifications, /const calendarEmail = DEMO_EMAIL_ROUTING\.staffRecipient/);
+  assert.match(notifications, /sendServerEmail\(\{ \.\.\.message, replyTo: DEMO_EMAIL_ROUTING\.replyTo \}\)/);
+  assert.equal(notifications.match(/sendServerEmail\(/g)?.length, 1);
+  assert.doesNotMatch(notifications, /process\.env\.(?:DEMO_CALENDAR_EMAIL|NOTIFY_EMAIL)/);
 });
 
 test("machine interest appears in IDS, customer, calendar, and admin information", () => {
@@ -915,6 +932,7 @@ test("Resend diagnostics classify useful failure reasons without returning raw m
 test("server email requires DEMO_FROM_EMAIL and never falls back after failure", () => {
   const serverEmail = emailSource.slice(emailSource.indexOf("export async function sendServerEmail"));
   assert.match(serverEmail, /DEMO_FROM_EMAIL\?\.trim\(\)/);
+  assert.match(serverEmail, /emails\.send\(\{from,to,\.\.\.\(replyTo\?\{replyTo\}:\{\}\),subject,text,html,attachments\}\)/);
   assert.match(serverEmail, /sanitizeEmailFailure\(result\.error\)/);
   assert.doesNotMatch(serverEmail, /onboarding@resend\.dev/);
 });
