@@ -27,6 +27,10 @@ import {
 const migrationPath =
   "supabase/migrations/20260815165544_create_dealer_network_portal.sql";
 const migration = readFileSync(migrationPath, "utf8");
+const activationSafetyMigration = readFileSync(
+  "supabase/migrations/20260902120000_make_dealer_activation_resend_failure_safe.sql",
+  "utf8",
+);
 const brandA = "10000000-0000-4000-8000-000000000001";
 const brandB = "10000000-0000-4000-8000-000000000002";
 const application = (overrides: Record<string, unknown> = {}) => ({
@@ -579,18 +583,15 @@ test("application and decision email state is idempotent, retryable and cannot r
   assert.doesNotMatch(notifications, /RESEND_API_KEY|service_role/i);
 });
 
-test("activation approval never assigns a PIN and token retry preparation happens only after event claim", () => {
+test("activation approval never assigns a PIN and replacement publication is staged", () => {
   const admin = readFileSync("lib/dealer-network/admin-server.ts", "utf8");
   assert.match(admin, /dealer_network_approve_application/);
   assert.match(admin, /notifyDealerActivation/);
-  assert.ok(
-    admin.indexOf(
-      'deliverDealerNotification({ eventKey: event.event_key, eventType: "applicant_activation"',
-    ) < admin.indexOf("dealer_network_replace_activation_token"),
-  );
-  assert.match(migration, /status='pending_activation'/);
-  assert.match(migration, /dealer_network_activate_member/);
-  assert.match(migration, /pin_hash=p_pin_hash,pin_salt=p_pin_salt/);
+  assert.match(admin, /deliverStagedActivation/);
+  assert.doesNotMatch(admin, /dealer_network_replace_activation_token/);
+  assert.match(activationSafetyMigration, /revoked_at = null/);
+  assert.match(activationSafetyMigration, /status <> 'pending_activation'/);
+  assert.match(activationSafetyMigration, /pin_hash = p_pin_hash/);
 });
 
 test("forgot PIN is non-enumerating and reset revokes existing sessions", () => {
@@ -680,8 +681,11 @@ test("admin member correction remounts by selection and rejects stale source dat
     "components/dealer-network/DealerNetworkAdmin.tsx",
     "utf8",
   );
+  const profileFormStart = adminUi.search(
+    /<form\r?\n\s+key=\{selected\.id\}/,
+  );
   const profileForm = adminUi.slice(
-    adminUi.indexOf("<form\n          key={selected.id}"),
+    profileFormStart,
     adminUi.indexOf("<h3 className=\"text-xl font-black\">Brand Affiliations"),
   );
   assert.match(profileForm, /key=\{selected\.id\}/);

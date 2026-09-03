@@ -23,6 +23,7 @@ import {
   type TroubleshootingStatus,
 } from "@/lib/dealer-network/types";
 import { US_STATES } from "@/lib/dealer-network/validation";
+import { activationResendEligibility } from "@/lib/dealer-network/activation-resend";
 import DealerNetworkBoardAdmin from "./DealerNetworkBoardAdmin";
 
 type Tab =
@@ -364,6 +365,7 @@ export default function DealerNetworkAdmin() {
         {tab === "applications" && (
           <ApplicationsTab
             applications={data.applications}
+            members={data.members}
             reload={load}
             notify={setMessage}
           />
@@ -656,10 +658,12 @@ export function BroadcastsTab({
 
 function ApplicationsTab({
   applications,
+  members,
   reload,
   notify,
 }: {
   applications: Application[];
+  members: Member[];
   reload: () => Promise<void>;
   notify: (value: string) => void;
 }) {
@@ -667,6 +671,18 @@ function ApplicationsTab({
   const selected =
     applications.find((item) => item.id === selectedId) ?? applications[0];
   const [message, setMessage] = useState("");
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const member = selected
+    ? members.find((item) => item.id === selected.memberId) ?? null
+    : null;
+  const resendEligibility = selected
+    ? activationResendEligibility({
+        applicationStatus: selected.status,
+        memberStatus: member?.status ?? null,
+        activatedAt: member?.activatedAt ?? null,
+        email: member?.email,
+      })
+    : { eligible: false as const, reason: "APPLICATION_NOT_APPROVED" as const };
   async function action(action: "approve" | "deny" | "more_information") {
     if (
       (action === "deny" || action === "more_information") &&
@@ -692,6 +708,38 @@ function ApplicationsTab({
     if (response.ok) {
       setMessage("");
       await reload();
+    }
+  }
+  async function resendActivation() {
+    if (!selected || !resendEligibility.eligible || resendingId !== null)
+      return;
+    if (
+      !window.confirm(
+        `Resend the activation email to ${resendEligibility.email}? The previous unused activation link remains valid unless the new email is delivered successfully.`,
+      )
+    )
+      return;
+    setResendingId(selected.id);
+    try {
+      const response = await fetch(
+        `/api/admin/dealer-network/applications/${selected.id}`,
+        {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "resend_activation" }),
+        },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        notify(payload.error ?? "Activation email could not be sent.");
+        return;
+      }
+      await reload();
+      notify("Activation email sent.");
+    } catch {
+      notify("Activation email could not be sent. Please try again.");
+    } finally {
+      setResendingId(null);
     }
   }
   if (!selected)
@@ -833,6 +881,25 @@ function ApplicationsTab({
           )}
         </section>
         <NotificationList notices={selected.notifications} />
+        {resendEligibility.eligible && (
+          <section className="mt-7 border-t pt-6">
+            <p className="mb-3 text-sm text-slate-600">
+              This member is approved and still awaiting activation. Resending
+              creates a new 24-hour link. The previous unused link remains valid
+              unless the new email is delivered successfully.
+            </p>
+            <button
+              type="button"
+              disabled={resendingId !== null}
+              onClick={() => void resendActivation()}
+              className="w-full rounded-xl border border-emerald-600 px-5 py-3 font-black text-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {resendingId === selected.id
+                ? "Resending…"
+                : "Resend Activation Email"}
+            </button>
+          </section>
+        )}
         {(selected.status === "pending" ||
           selected.status === "more_information_requested") && (
           <section className="mt-7 space-y-3 border-t pt-6">

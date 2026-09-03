@@ -6,6 +6,10 @@ import { getSupabaseServiceClient } from "@/lib/supabase";
 import { sendNewMessageEmail } from "./new-message-email";
 import { sendDealerBroadcastEmail } from "./broadcast-email";
 import {
+  deliverClaimedDealerNotification,
+  type DealerNotificationClaim,
+} from "./notification-delivery";
+import {
   sendDealerMemberInvitationEmail,
   type DealerMemberInvitationEmailInput,
 } from "./member-invitation-email";
@@ -16,7 +20,6 @@ import {
 import type { NotificationEventType } from "./types";
 import { sendBoardDiscussionEmail, sendBoardPollReminderEmail, sendBoardTopicEmail } from "./board-email";
 
-type Claim = { claimed: boolean; eventId: string; claimedAt: string };
 type EventContext = {
   eventKey: string;
   eventType: NotificationEventType;
@@ -35,57 +38,60 @@ export async function deliverDealerNotification(
   send: () => Promise<unknown>,
 ) {
   const client = getSupabaseServiceClient();
-  const { data, error } = await client.rpc(
-    "dealer_network_claim_notification",
-    {
-      p_event_key: context.eventKey,
-      p_event_type: context.eventType,
-      p_application_id: context.applicationId ?? null,
-      p_member_id: context.memberId ?? null,
+  return deliverClaimedDealerNotification({
+    claim: async () => {
+      const { data, error } = await client.rpc(
+        "dealer_network_claim_notification",
+        {
+          p_event_key: context.eventKey,
+          p_event_type: context.eventType,
+          p_application_id: context.applicationId ?? null,
+          p_member_id: context.memberId ?? null,
+        },
+      );
+      if (error || !data) throw new Error("Notification claim failed.");
+      return data as DealerNotificationClaim;
     },
-  );
-  if (error || !data) throw new Error("Notification claim failed.");
-  const claim = data as Claim;
-  if (!claim.claimed) return "skipped" as const;
-  if (
-    context.conversationId ||
-    context.messageId ||
-    context.broadcastId ||
-    context.invitationId ||
-    context.topicId ||
-    context.pollId
-  ) {
-    const { error: contextError } = await client
-      .from("dealer_network_notification_events")
-      .update({
-        conversation_id: context.conversationId ?? null,
-        message_id: context.messageId ?? null,
-        broadcast_id: context.broadcastId ?? null,
-        invitation_id: context.invitationId ?? null,
-        topic_id: context.topicId ?? null,
-        poll_id: context.pollId ?? null,
-      })
-      .eq("id", claim.eventId);
-    if (contextError) throw new Error("Notification context failed.");
-  }
-  try {
-    await send();
-    await client.rpc("dealer_network_finish_notification", {
-      p_event_id: claim.eventId,
-      p_claimed_at: claim.claimedAt,
-      p_status: "sent",
-      p_error: null,
-    });
-    return "sent" as const;
-  } catch (error) {
-    await client.rpc("dealer_network_finish_notification", {
-      p_event_id: claim.eventId,
-      p_claimed_at: claim.claimedAt,
-      p_status: "failed",
-      p_error: sanitizeEmailFailure(error),
-    });
-    throw error;
-  }
+    prepare: async (claim) => {
+      if (
+        !context.conversationId &&
+        !context.messageId &&
+        !context.broadcastId &&
+        !context.invitationId &&
+        !context.topicId &&
+        !context.pollId
+      )
+        return;
+      const { error: contextError } = await client
+        .from("dealer_network_notification_events")
+        .update({
+          conversation_id: context.conversationId ?? null,
+          message_id: context.messageId ?? null,
+          broadcast_id: context.broadcastId ?? null,
+          invitation_id: context.invitationId ?? null,
+          topic_id: context.topicId ?? null,
+          poll_id: context.pollId ?? null,
+        })
+        .eq("id", claim.eventId);
+      if (contextError) throw new Error("Notification context failed.");
+    },
+    send,
+    finish: async (claim, status, deliveryError) => {
+      const { error: finishError } = await client.rpc(
+        "dealer_network_finish_notification",
+        {
+          p_event_id: claim.eventId,
+          p_claimed_at: claim.claimedAt,
+          p_status: status,
+          p_error:
+            status === "failed"
+              ? sanitizeEmailFailure(deliveryError)
+              : null,
+        },
+      );
+      if (finishError) throw finishError;
+    },
+  });
 }
 
 export function notifyBoardTopic(input: { topicId: string; pollId?: string | null; recipientMemberId: string; recipientName: string; recipientEmail: string; topicTitle: string; responseRequested: boolean; origin: string; eventKeyPrefix?: string }, sender = sendServerEmail) {

@@ -4,6 +4,13 @@ import { sanitizeEmailFailure } from "@/lib/email-diagnostics";
 import { sendServerEmail } from "@/lib/email";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { createOneTimeToken } from "./security";
+import { activationResendEligibility } from "./activation-resend";
+import {
+  ACTIVATION_EMAIL_COOLDOWN_SECONDS,
+  ActivationDeliveryError,
+  deliverStagedActivation,
+  type StagedActivationToken,
+} from "./activation-delivery";
 import { normalizeRequestedBrandName } from "./brand-request-validation";
 import {
   readAdminApplications,
@@ -23,11 +30,16 @@ import {
   sendPinResetEmail,
 } from "./notifications";
 import {
+  notificationRetryResult,
+  type DealerNotificationDelivery,
+} from "./notification-delivery";
+import {
   markMemberGeocodeStale,
   refreshMemberGeocode,
   refreshStoredMemberGeocode,
 } from "./geocoding";
 import type {
+  ApplicationStatus,
   BrandStatus,
   MemberStatus,
   ReportStatus,
@@ -48,6 +60,34 @@ import { readAdminTroubleshootingEntries } from "./troubleshooting-server";
 
 const memberColumns =
   "id,application_id,member_name,company_name,phone,email,address_line_1,address_line_2,city,state,zip_code,country,website_url,role,experience,service_region,introduction,logo_path,status,account_locked,messaging_enabled,activated_at,suspended_at,archived_at,last_login_at,created_at,updated_at";
+
+function activationDeliveryError(
+  error: unknown,
+  fallback:
+    | "ACTIVATION_STAGING_FAILED"
+    | "ACTIVATION_FINALIZATION_FAILED",
+) {
+  const message = String(
+    error instanceof Error
+      ? error.message
+      : (error as { message?: unknown } | null)?.message ?? "",
+  ).toLowerCase();
+  if (message.includes("application_not_found"))
+    return new ActivationDeliveryError("APPLICATION_NOT_FOUND");
+  if (message.includes("application_not_approved"))
+    return new ActivationDeliveryError("APPLICATION_NOT_APPROVED");
+  if (message.includes("member_not_found"))
+    return new ActivationDeliveryError("MEMBER_NOT_FOUND");
+  if (message.includes("member_not_pending_activation"))
+    return new ActivationDeliveryError("MEMBER_NOT_PENDING_ACTIVATION");
+  if (message.includes("member_email_changed"))
+    return new ActivationDeliveryError("MEMBER_STATE_CHANGED");
+  if (message.includes("invalid_member_email"))
+    return new ActivationDeliveryError("INVALID_EMAIL");
+  if (message.includes("activation_email_cooldown"))
+    return new ActivationDeliveryError("RATE_LIMIT");
+  return new ActivationDeliveryError(fallback);
+}
 
 export async function readDealerNetworkAdminDashboard() {
   const client = getSupabaseServiceClient();
@@ -229,13 +269,24 @@ export async function approveDealerApplication(
         memberId: outcome.memberId,
       }),
     );
-    const application = await readApplicationNotice(applicationId);
-    await notifyDealerActivation(
-      application,
-      outcome.memberId,
-      token.token,
-      origin,
-    ).catch(() =>
+    await (async () => {
+      const target = await readActivationDeliveryTarget(
+        applicationId,
+        outcome.memberId,
+      );
+      const { data: cooldownAllowed, error: cooldownError } = await client.rpc(
+        "dealer_network_consume_activation_email_cooldown",
+        { p_member_id: outcome.memberId },
+      );
+      if (cooldownError) throw cooldownError;
+      if (!cooldownAllowed) throw new ActivationDeliveryError("RATE_LIMIT");
+      await notifyDealerActivation(
+        target.application,
+        outcome.memberId,
+        token.token,
+        origin,
+      );
+    })().catch(() =>
       console.error("Dealer activation notification failed", { applicationId }),
     );
   }
@@ -265,6 +316,173 @@ export async function transitionDealerApplication(
   );
 }
 
+type ActivationDeliveryTarget = {
+  application: Awaited<ReturnType<typeof readApplicationNotice>>;
+  memberId: string;
+  email: string;
+};
+
+async function readActivationDeliveryTarget(
+  applicationId: string,
+  expectedMemberId?: string,
+): Promise<ActivationDeliveryTarget> {
+  const client = getSupabaseServiceClient();
+  const [applicationResult, memberResult] = await Promise.all([
+    client
+      .from("dealer_network_applications")
+      .select("id,status")
+      .eq("id", applicationId)
+      .maybeSingle(),
+    client
+      .from("dealer_network_members")
+      .select("id,status,activated_at,email")
+      .eq("application_id", applicationId)
+      .is("deleted_at", null)
+      .maybeSingle(),
+  ]);
+  if (applicationResult.error) throw applicationResult.error;
+  if (memberResult.error) throw memberResult.error;
+  if (!applicationResult.data)
+    throw new ActivationDeliveryError("APPLICATION_NOT_FOUND");
+  if (
+    !memberResult.data ||
+    (expectedMemberId && memberResult.data.id !== expectedMemberId)
+  )
+    throw new ActivationDeliveryError("MEMBER_NOT_FOUND");
+
+  const eligibility = activationResendEligibility({
+    applicationStatus: applicationResult.data.status as ApplicationStatus,
+    memberStatus: memberResult.data.status as MemberStatus,
+    activatedAt: memberResult.data.activated_at as string | null,
+    email: memberResult.data.email,
+  });
+  if (!eligibility.eligible)
+    throw new ActivationDeliveryError(eligibility.reason);
+
+  return {
+    application: {
+      ...(await readApplicationNotice(applicationId)),
+      email: eligibility.email,
+    },
+    memberId: String(memberResult.data.id),
+    email: eligibility.email,
+  };
+}
+
+async function deliverDealerActivation(input: {
+  eventKey: string;
+  target: ActivationDeliveryTarget;
+  origin: string;
+}) {
+  const client = getSupabaseServiceClient();
+  const delivery = await deliverDealerNotification(
+    {
+      eventKey: input.eventKey,
+      eventType: "applicant_activation",
+      applicationId: input.target.application.id,
+      memberId: input.target.memberId,
+    },
+    () =>
+      deliverStagedActivation({
+        applicationId: input.target.application.id,
+        memberId: input.target.memberId,
+        expectedEmail: input.target.email,
+        createToken: createOneTimeToken,
+        stage: async (value) => {
+          const { data, error } = await client.rpc(
+            "dealer_network_stage_activation_token",
+            {
+              p_application_id: value.applicationId,
+              p_member_id: value.memberId,
+              p_expected_email: value.expectedEmail,
+              p_token_hash: value.tokenHash,
+            },
+          );
+          if (error || !data)
+            throw activationDeliveryError(error, "ACTIVATION_STAGING_FAILED");
+          const staged = data as StagedActivationToken;
+          if (
+            !validateUuid(staged.tokenId) ||
+            staged.memberId !== value.memberId ||
+            staged.recipientEmail !== value.expectedEmail
+          )
+            throw new ActivationDeliveryError("ACTIVATION_STAGING_FAILED");
+          return staged;
+        },
+        send: ({ recipientEmail, token }) =>
+          sendDealerActivationEmail(
+            { ...input.target.application, email: recipientEmail },
+            token,
+            input.origin,
+          ),
+        finalize: async (value) => {
+          const { data, error } = await client.rpc(
+            "dealer_network_finalize_activation_token",
+            {
+              p_member_id: value.memberId,
+              p_token_id: value.tokenId,
+              p_expected_email: value.expectedEmail,
+            },
+          );
+          if (error || !data)
+            throw activationDeliveryError(
+              error,
+              "ACTIVATION_FINALIZATION_FAILED",
+            );
+          return data as { finalized: boolean; reason?: string };
+        },
+      }),
+  );
+  return { delivery, memberId: input.target.memberId } as const;
+}
+
+async function auditActivationResend(
+  applicationId: string,
+  memberId: string,
+  result: "sent" | "failed" | "skipped",
+) {
+  const { error } = await getSupabaseServiceClient()
+    .from("dealer_network_status_events")
+    .insert({
+      application_id: applicationId,
+      member_id: memberId,
+      event_type: "activation_email_resend",
+      from_value: "pending_activation",
+      to_value: result,
+      actor_type: "admin",
+    });
+  if (error)
+    console.error("Dealer activation resend audit failed", {
+      applicationId,
+      memberId,
+      result,
+    });
+}
+
+export async function resendDealerActivationEmail(
+  applicationId: string,
+  origin: string,
+) {
+  const target = await readActivationDeliveryTarget(applicationId);
+  const eventBucket = Math.floor(
+    Date.now() / (ACTIVATION_EMAIL_COOLDOWN_SECONDS * 1000),
+  );
+  let delivery: DealerNotificationDelivery;
+  try {
+    ({ delivery } = await deliverDealerActivation({
+      eventKey: `dealer-application:${applicationId}:activation-resend:${eventBucket}`,
+      target,
+      origin,
+    }));
+  } catch (error) {
+    await auditActivationResend(applicationId, target.memberId, "failed");
+    throw error;
+  }
+  await auditActivationResend(applicationId, target.memberId, delivery);
+  if (delivery !== "sent") throw new ActivationDeliveryError("RATE_LIMIT");
+  return { sent: true } as const;
+}
+
 export async function retryDealerNotification(eventId: string, origin: string) {
   const client = getSupabaseServiceClient();
   const { data: event, error } = await client
@@ -274,45 +492,31 @@ export async function retryDealerNotification(eventId: string, origin: string) {
     .single();
   if (error) throw error;
   if (event.status !== "failed") return { retried: false };
-  if (event.event_type === "ids_new_application" && event.application_id)
-    await notifyNewDealerApplication(
+  let delivery: DealerNotificationDelivery;
+  if (event.event_type === "ids_new_application" && event.application_id) {
+    delivery = await notifyNewDealerApplication(
       await readApplicationNotice(event.application_id),
     );
-  else if (
+  } else if (
     event.event_type === "applicant_activation" &&
     event.application_id &&
     event.member_id
   ) {
-    const application = await readApplicationNotice(event.application_id);
-    await deliverDealerNotification(
-      {
-        eventKey: event.event_key,
-        eventType: "applicant_activation",
-        applicationId: event.application_id,
-        memberId: event.member_id,
-      },
-      async () => {
-        const token = createOneTimeToken();
-        const { error: tokenError } = await client.rpc(
-          "dealer_network_replace_activation_token",
-          {
-            p_member_id: event.member_id,
-            p_token_hash: token.tokenHash,
-            p_expires_at: new Date(
-              Date.now() + 24 * 60 * 60 * 1000,
-            ).toISOString(),
-          },
-        );
-        if (tokenError) throw tokenError;
-        return sendDealerActivationEmail(application, token.token, origin);
-      },
+    const target = await readActivationDeliveryTarget(
+      event.application_id,
+      event.member_id,
     );
+    ({ delivery } = await deliverDealerActivation({
+      eventKey: event.event_key,
+      target,
+      origin,
+    }));
   } else if (
     (event.event_type === "applicant_denied" ||
       event.event_type === "applicant_more_information") &&
     event.application_id
   ) {
-    await notifyDealerDecision(
+    delivery = await notifyDealerDecision(
       await readApplicationNotice(event.application_id),
       event.event_type === "applicant_denied" ? "denied" : "more_information",
     );
@@ -323,7 +527,7 @@ export async function retryDealerNotification(eventId: string, origin: string) {
       .eq("id", event.member_id)
       .single();
     if (memberError) throw memberError;
-    await deliverDealerNotification(
+    delivery = await deliverDealerNotification(
       {
         eventKey: event.event_key,
         eventType: "member_pin_reset",
@@ -376,7 +580,7 @@ export async function retryDealerNotification(eventId: string, origin: string) {
       .eq("id", message.sender_member_id)
       .single();
     if (!sender) throw new Error("NOTIFICATION_CONTEXT_UNAVAILABLE");
-    await notifyNewDealerMessage({
+    delivery = await notifyNewDealerMessage({
       messageId: event.message_id,
       conversationId: event.conversation_id,
       recipientMemberId: event.member_id,
@@ -422,7 +626,7 @@ export async function retryDealerNotification(eventId: string, origin: string) {
       );
     }
 
-    await notifyDealerBroadcast({
+    delivery = await notifyDealerBroadcast({
       broadcastId:
         event.broadcast_id,
 
@@ -483,7 +687,7 @@ export async function retryDealerNotification(eventId: string, origin: string) {
       );
     }
 
-    await notifyDealerMemberInvitation({
+    delivery = await notifyDealerMemberInvitation({
       invitationId:
         invitation.id,
 
@@ -517,7 +721,7 @@ export async function retryDealerNotification(eventId: string, origin: string) {
       event.poll_id ? client.from("dealer_network_polls").select("question").eq("id", event.poll_id).eq("topic_id", event.topic_id).single() : Promise.resolve({ data: null, error: null }),
     ]);
     if (!memberResult.data || !topicResult.data || pollResult.error) throw new Error("NOTIFICATION_CONTEXT_UNAVAILABLE");
-    await deliverDealerNotification({ eventKey: event.event_key, eventType: event.event_type, memberId: event.member_id, topicId: event.topic_id, pollId: event.poll_id }, () => {
+    delivery = await deliverDealerNotification({ eventKey: event.event_key, eventType: event.event_type, memberId: event.member_id, topicId: event.topic_id, pollId: event.poll_id }, () => {
       const shared = { recipientName: memberResult.data.member_name, recipientEmail: memberResult.data.email, topicTitle: topicResult.data.title, origin };
       if (event.event_type === "member_board_poll_reminder") { if (!pollResult.data) throw new Error("NOTIFICATION_CONTEXT_UNAVAILABLE"); return sendBoardPollReminderEmail({ ...shared, pollQuestion: pollResult.data.question }, sendServerEmail); }
       if (event.event_type === "member_board_discussion") return sendBoardDiscussionEmail(shared, sendServerEmail);
@@ -528,7 +732,7 @@ export async function retryDealerNotification(eventId: string, origin: string) {
       "NOTIFICATION_CONTEXT_UNAVAILABLE",
     );
   }
-  return { retried: true };
+  return notificationRetryResult(delivery);
 }
 
 export async function saveDealerBrand(input: unknown, brandId?: string) {
