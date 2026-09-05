@@ -1,0 +1,3 @@
+import {isReviewAdmin} from "@/lib/reviews/admin-auth";
+import {approveInstallation,mutateInstallation} from "@/lib/installations/server";
+export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){if(!(await isReviewAdmin()))return Response.json({error:"Unauthorized"},{status:401});const{id}=await params,body=await request.json().catch(()=>null);try{if(body?.action==="approve")await approveInstallation(id);else await mutateInstallation(id,String(body?.action),body);return Response.json({ok:true})}catch(e){return Response.json({error:String((e as Error)?.message||"Update failed.")},{status:409})}}

@@ -1,0 +1,13 @@
+export const BUSINESS_TIME_ZONE = "America/Chicago";
+export type PricingSnapshot = {laborCents:number;materialsAllowanceCents:number;depositCents:number;includedLaborMinutes:number;additionalLaborHourlyCents:number;laborIncrementMinutes:number;undergroundPerSegmentCents:number;undergroundSegmentFeet:number;travelHourlyCents:number};
+export const DEFAULT_PRICING:PricingSnapshot={laborCents:80000,materialsAllowanceCents:20000,depositCents:25000,includedLaborMinutes:240,additionalLaborHourlyCents:12500,laborIncrementMinutes:15,undergroundPerSegmentCents:5000,undergroundSegmentFeet:10,travelHourlyCents:0};
+export const initialAmount=(p:PricingSnapshot)=>p.laborCents+p.materialsAllowanceCents;
+export const undergroundLabor=(feet:number,p:PricingSnapshot)=>feet<=0?0:Math.ceil(feet/p.undergroundSegmentFeet)*p.undergroundPerSegmentCents;
+export const additionalLabor=(minutes:number,p:PricingSnapshot)=>Math.ceil(Math.max(0,minutes-p.includedLaborMinutes)/p.laborIncrementMinutes)*(p.additionalLaborHourlyCents*p.laborIncrementMinutes/60);
+export const travelCharge=(minutes:number,p:PricingSnapshot)=>Math.round(minutes*p.travelHourlyCents/60);
+export const balanceDueAt=(appointment:string)=>new Date(new Date(appointment).getTime()-72*60*60*1000);
+export const approvalPaymentPurpose=(appointment:string,now=new Date())=>new Date(appointment).getTime()-now.getTime()<=72*60*60*1000?"initial":"deposit" as const;
+export const cancellationDepositRefund=(depositCents:number,appointment:string,now=new Date())=>{const h=(new Date(appointment).getTime()-now.getTime())/3600000;return h>48?depositCents:h>=24?Math.round(depositCents/2):0};
+export const locationRefusalLaborRefund=(laborCents:number,cumulativeMinutes:number)=>cumulativeMinutes<=60?Math.round(laborCents*.5):cumulativeMinutes<=120?Math.round(laborCents*.25):0;
+export const authoritativeTotal=(p:PricingSnapshot,adjustments:number[])=>initialAmount(p)+adjustments.reduce((a,b)=>a+b,0);
+export const remainingBalance=(total:number,payments:number[],refunds:number[]=[])=>Math.max(0,total-payments.reduce((a,b)=>a+b,0)+refunds.reduce((a,b)=>a+b,0));

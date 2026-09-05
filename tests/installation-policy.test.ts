@@ -1,0 +1,8 @@
+import test from "node:test";import assert from "node:assert/strict";
+import {DEFAULT_PRICING,additionalLabor,approvalPaymentPurpose,cancellationDepositRefund,locationRefusalLaborRefund,remainingBalance,undergroundLabor} from "../lib/installations/policy";
+test("deposit is applied to the $1,000 initial amount",()=>assert.equal(remainingBalance(100000,[25000]),75000));
+test("underground price bills every started ten feet",()=>{assert.equal(undergroundLabor(1,DEFAULT_PRICING),5000);assert.equal(undergroundLabor(10,DEFAULT_PRICING),5000);assert.equal(undergroundLabor(11,DEFAULT_PRICING),10000)});
+test("additional labor starts after cumulative four hours in 15-minute increments",()=>{assert.equal(additionalLabor(240,DEFAULT_PRICING),0);assert.equal(additionalLabor(241,DEFAULT_PRICING),3125);assert.equal(additionalLabor(270,DEFAULT_PRICING),6250)});
+test("72-hour server boundary requires full initial payment",()=>{const now=new Date("2026-01-01T00:00:00Z");assert.equal(approvalPaymentPurpose("2026-01-04T00:00:00Z",now),"initial");assert.equal(approvalPaymentPurpose("2026-01-04T00:00:01Z",now),"deposit")});
+test("deposit cancellation refund boundaries",()=>{const now=new Date("2026-01-01T00:00:00Z");assert.equal(cancellationDepositRefund(25000,"2026-01-03T00:00:01Z",now),25000);assert.equal(cancellationDepositRefund(25000,"2026-01-03T00:00:00Z",now),12500);assert.equal(cancellationDepositRefund(25000,"2026-01-02T00:00:00Z",now),12500);assert.equal(cancellationDepositRefund(25000,"2026-01-01T23:59:59Z",now),0)});
+test("location refusal labor refund uses saved labor",()=>{assert.equal(locationRefusalLaborRefund(90000,60),45000);assert.equal(locationRefusalLaborRefund(90000,61),22500);assert.equal(locationRefusalLaborRefund(90000,121),0)});

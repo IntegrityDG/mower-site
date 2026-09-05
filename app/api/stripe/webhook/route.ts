@@ -14,6 +14,7 @@ import { DemoPaymentReconciliationError, isDemoPaymentMetadata, reconcileDemoChe
 import { portalTokenIsWellFormed } from "@/lib/demo-party/security";
 import { readDemoRequest } from "@/lib/demo-scheduling/server";
 import { notifyDemoPaymentConfirmed } from "@/lib/demo-scheduling/notifications";
+import { applyInstallationRefund, applyInstallationStripeSession } from "@/lib/installations/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,6 +83,7 @@ async function applyWireIntent(record: CheckoutRecord, intent: Stripe.PaymentInt
 }
 
 async function handleSession(eventType: string, session: Stripe.Checkout.Session, eventId: string, expectedLivemode: boolean) {
+  if (await applyInstallationStripeSession(session)) return;
   const record = await findBySessionId(session.id);
   if (!record) throw new Error("session not linked");
   const method = paymentMethod(record);
@@ -154,6 +156,7 @@ async function handleFinancial(event: Stripe.Event, expectedLivemode: boolean) {
     await reconcileDemoRefund(paymentIntentId, charge.amount_refunded, event.id);
     return;
   }
+  if (event.type === "charge.refunded" && await applyInstallationRefund(paymentIntentId, (stripeObject as Stripe.Charge).amount_refunded)) return;
   const record = await findByPaymentIntentId(paymentIntentId); if (!record) throw new Error("PaymentIntent not linked yet");
   reconcileFinancialObject({ livemode: stripeObject.livemode, amount: stripeObject.amount, currency: stripeObject.currency }, record, event.type === "charge.dispute.created", expectedLivemode);
   const kind = event.type === "charge.refunded" ? "refund" : "dispute";

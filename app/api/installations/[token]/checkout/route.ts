@@ -1,0 +1,2 @@
+import {createInstallationCheckout} from "@/lib/installations/stripe";
+export async function POST(request:Request,{params}:{params:Promise<{token:string}>}){const body=await request.json().catch(()=>null),purpose=body?.purpose; if(!["deposit","balance"].includes(purpose))return Response.json({error:"Invalid payment purpose."},{status:400});try{return Response.json({checkoutUrl:await createInstallationCheckout((await params).token,purpose)})}catch{return Response.json({error:"Payment is not currently available."},{status:409})}}

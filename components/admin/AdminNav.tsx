@@ -6,6 +6,7 @@ const links = [
   ["Featured Businesses", "/admin/featured-businesses"],
   ["Dealer Network", "/admin/dealer-network"],
   ["Services & Scheduling", "/admin/demo-scheduling"],
+  ["Installations", "/admin/installations"],
   ["Sales & Specials", "/admin/sales-specials"],
   ["Meet or Beat", "/admin/price-match"],
   ["Referrals", "/admin/referrals"],
