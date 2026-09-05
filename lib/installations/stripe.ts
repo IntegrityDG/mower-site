@@ -2,10 +2,11 @@ import "server-only";
 import type Stripe from "stripe";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { getStripeServerClient } from "@/lib/stripe/server";
-import { getStripeConfiguration } from "@/lib/stripe/config";
+import { getStripeConfiguration, getStripeMode } from "@/lib/stripe/config";
 import { authoritativeTotal, remainingBalance, type PricingSnapshot } from "./policy";
 
 export async function createInstallationCheckout(token: string, purpose: "deposit" | "balance") {
+ if(getStripeMode()!=="test")throw new Error("installation_checkout_requires_test_mode");
  const db=getSupabaseServiceClient(),{data:i,error}=await db.from("installations").select("*").eq("public_token",token).single();if(error||!i.pricing_snapshot)throw error??new Error("not_approved");
  const p=i.pricing_snapshot as PricingSnapshot,[{data:a},{data:paid}]=await Promise.all([db.from("installation_adjustments").select("amount_cents").eq("installation_id",i.id),db.from("installation_payments").select("amount_cents,refunded_cents").eq("installation_id",i.id).eq("status","paid")]);
  const total=authoritativeTotal(p,(a??[]).map(x=>x.amount_cents)),remaining=remainingBalance(total,(paid??[]).map(x=>x.amount_cents),(paid??[]).map(x=>x.refunded_cents)),amount=purpose==="deposit"?Math.min(i.deposit_due_cents??p.depositCents,remaining):remaining;if(amount<=0)throw new Error("nothing_due");if(purpose==="balance"&&i.cash_status==="approved")throw new Error("cash_approved");

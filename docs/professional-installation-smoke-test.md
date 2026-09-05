@@ -1,25 +1,30 @@
 # Professional Installation local smoke test
 
-## Configuration and migration
+## Setup
 
-Apply `supabase/migrations/20260904204800_professional_installations.sql` to the development Supabase project. It adds installation settings, requests, immutable pricing snapshots, adjustments, payments/refunds, auditable work sessions, audit events, RLS/grants, and shared scheduler conflict triggers. No existing rows are modified. New public tables are deliberately service-role only.
+Apply `supabase/migrations/20260904204800_professional_installations.sql` to the development Supabase project. It adds service-role-only installation settings, requests, immutable pricing snapshots, adjustments, payment/refund records, work sessions, audit events, acknowledgements, travel data, safety/remediation state, RLS/grants, and shared demo/installation conflict triggers. No existing rows are modified.
 
-Use the existing `NEXT_PUBLIC_SUPABASE_URL`, server-only Supabase service key, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_MODE=test`, application base URL, Resend configuration, and `REVIEWS_ADMIN_PASSWORD`. Stripe must be in test mode. Forward Stripe events to `/api/stripe/webhook`.
+Configure existing Supabase variables, `REVIEWS_ADMIN_PASSWORD`, application base URL, and Stripe test keys/webhook secret. `STRIPE_MODE` must be `test`; installation checkout refuses live mode. Forward test events to `/api/stripe/webhook`. Do not enable real email delivery.
 
-## Manual smoke test
+## A–AL verification matrix
 
-1. Open `/professional-installation`; confirm the $1,000 breakdown and that the $250 deposit is clearly applied, not added.
-2. Submit with Internet = No or Unsure; confirm it is accepted and flagged in `/admin/installations`.
-3. Submit underground work; confirm 811 acknowledgement and estimated feet are required.
-4. Attempt a time occupied by a demo and confirm the shared conflict is rejected.
-5. Admin-approve the request; confirm a pricing snapshot and server-calculated 72-hour due date are saved. An approval at or inside 72 hours requires the full initial amount.
-6. Follow the customer status URL and pay with Stripe test card `4242 4242 4242 4242`; confirm webhook updates deposit/payment and installation state.
-7. Test cash requested/approved/denied. For cash failure at arrival, confirm cancellation, cash revocation, and special one-reschedule condition persist.
-8. Begin, pause/suspend, and resume work twice; confirm cumulative minutes and session history. Travel must be entered as an adjustment and never a work session.
-9. Enter one-way road time: verify 120 minutes = $0, 121/150/180 = $70, 181 = $140, and 270 = $210. Verify overrides require a reason and are visible before approval.
-10. Exercise safety suspension, remediation pending/approved, weather postponement, and permanent termination. Confirm cumulative work time never resets, weather is not treated as customer cancellation, and unused materials remain reconcilable.
-11. Add underground, material, additional-labor, and credit adjustments; confirm the balance is derived from snapshot + adjustments − net payments.
-12. Mark cash paid before beginning work, complete work, and verify reconciliation. Exercise Stripe refund events and confirm payment/refund state.
-13. Run `npm test`, `npm run lint`, and `npm run build`.
+- **A–E — Standard request, approval, deposit, balance:** Submit `/professional-installation`, approve in `/admin/installations`, pay the $250 test deposit, verify it is credited—not added—and verify $750 remains on the standard $1,000 amount.
+- **F — Modified pricing:** Set one installation’s labor, materials, deposit, overtime, underground, and travel rate through the authenticated pricing action. Approve, change global defaults, and verify saved and historical snapshots remain unchanged. Deliberately edit one approved snapshot with a reason; verify audit history and cents-based balance recalculation.
+- **G–H — Travel:** Enter one-way road time. Verify 120 min = $0; 121/150/180 = $70; 181 = $140; 270 = $210 at $35. Confirm both directions, started hours, no proration/mileage/labor time. Override charge, require a reason, inspect audit. Verify $1,000 + $70 − $250 = $820.
+- **I–J — 72 hours:** Pay more than 72 hours before. Approve at exactly/under 72 hours and verify full approved initial charges are due immediately; more than 72 hours requires the saved deposit first.
+- **K–M — Cash:** Customer requests cash and cannot approve it. Admin approves and denies separate cases; approved cash is not an ordinary overdue online balance.
+- **N–P — Cash failure:** Mark cash unavailable before work; verify no session starts, cash is revoked, and exactly one reschedule exists. Reschedule over 72 hours away; exactly 72 hours is rejected. Miss prepayment and forfeit the whole saved deposit, superseding cancellation refunds.
+- **Q–S — Connectivity:** Submit Yes, No, Unsure. Verify persistence; No/Unsure is visible and not auto-rejected.
+- **T–V — Acknowledgements:** Grounding/terms are always required; 811 is required for underground work. Confirm grounding, responsibilities, terms, and 811 timestamps in admin.
+- **W–AA — Time:** Start at zero; work 90 minutes, pause/suspend, return another day, resume from 90. Return travel creates no labor or fee. Exactly 240 minutes has no overtime; 255/270/285/300 produce 1/2/3/4 saved-rate increments. Correct time through the authenticated action and verify the original is superseded.
+- **AB — Overtime:** Change one saved overtime rate/increment; verify future overtime uses it without changing history.
+- **AC–AE — Safety/weather:** Record suspension, notes/evidence, remediation pending/approved, one continuation, and customer-controlled termination. Verify no automatic labor refund/return fee, time persists, and unused materials remain reconcilable. Weather postponement must preserve job/payment state and apply no cancellation penalty.
+- **AF — Placement refusal:** At cumulative minute 60, 61–120, and 121+, use the authenticated placement-refusal action. Verify 50%, 25%, and 0% labor credits using saved labor—not the deposit—with materials separate.
+- **AG–AH — Materials/refunds:** Reconcile unused versus used/cut/opened/non-reusable materials with auditable entries. Verify unused allowance credit. Issue partial/full Stripe test refunds; refunded funds no longer count as fully paid.
+- **AI — Webhook replay:** Replay deposit, balance, refund events. Confirm signature validation, metadata, stable payment rows, no duplicate credit, and no redirect-only payment success.
+- **AJ–AK — Mobile:** At narrow viewport complete customer request/status/payment and admin travel/safety/payment/time flows without inaccessible controls.
+- **AL — Scheduling regression:** Create demo/installation conflicts both ways and valid separate slots. Confirm existing demo approval, denial, blackouts, calendar, and area planning still work.
 
-Production deployment is intentionally excluded.
+Run `npm test`, `npx tsc --noEmit`, `npm run lint`, and `npm run build`. Existing unrelated `no-img-element` warnings are expected; new errors are not.
+
+Production deployment, live Stripe mode, real payment methods, and real customer emails are outside this smoke test.
