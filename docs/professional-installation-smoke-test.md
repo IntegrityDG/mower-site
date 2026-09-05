@@ -16,8 +16,10 @@ Use the existing `NEXT_PUBLIC_SUPABASE_URL`, server-only Supabase service key, `
 6. Follow the customer status URL and pay with Stripe test card `4242 4242 4242 4242`; confirm webhook updates deposit/payment and installation state.
 7. Test cash requested/approved/denied. For cash failure at arrival, confirm cancellation, cash revocation, and special one-reschedule condition persist.
 8. Begin, pause/suspend, and resume work twice; confirm cumulative minutes and session history. Travel must be entered as an adjustment and never a work session.
-9. Add underground, travel, material, additional-labor, and credit adjustments through the API; confirm the balance is derived from snapshot + adjustments − net payments.
-10. Mark cash paid before beginning work, complete work, and verify reconciliation. Exercise Stripe refund events and confirm payment/refund state.
-11. Run `npm test`, `npm run lint`, and `npm run build`.
+9. Enter one-way road time: verify 120 minutes = $0, 121/150/180 = $70, 181 = $140, and 270 = $210. Verify overrides require a reason and are visible before approval.
+10. Exercise safety suspension, remediation pending/approved, weather postponement, and permanent termination. Confirm cumulative work time never resets, weather is not treated as customer cancellation, and unused materials remain reconcilable.
+11. Add underground, material, additional-labor, and credit adjustments; confirm the balance is derived from snapshot + adjustments − net payments.
+12. Mark cash paid before beginning work, complete work, and verify reconciliation. Exercise Stripe refund events and confirm payment/refund state.
+13. Run `npm test`, `npm run lint`, and `npm run build`.
 
 Production deployment is intentionally excluded.
