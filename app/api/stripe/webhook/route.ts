@@ -156,8 +156,12 @@ async function handleFinancial(event: Stripe.Event, expectedLivemode: boolean) {
     await reconcileDemoRefund(paymentIntentId, charge.amount_refunded, event.id);
     return;
   }
-  if (event.type === "charge.refunded" && await applyInstallationRefund(paymentIntentId, (stripeObject as Stripe.Charge).amount_refunded)) return;
-  const record = await findByPaymentIntentId(paymentIntentId); if (!record) throw new Error("PaymentIntent not linked yet");
+  // Existing order refunds must not depend on installation schema availability.
+  const record = await findByPaymentIntentId(paymentIntentId);
+  if (!record) {
+    if (event.type === "charge.refunded" && await applyInstallationRefund(paymentIntentId, (stripeObject as Stripe.Charge).amount_refunded)) return;
+    throw new Error("PaymentIntent not linked yet");
+  }
   reconcileFinancialObject({ livemode: stripeObject.livemode, amount: stripeObject.amount, currency: stripeObject.currency }, record, event.type === "charge.dispute.created", expectedLivemode);
   const kind = event.type === "charge.refunded" ? "refund" : "dispute";
   const cumulativeRefunded = event.type === "charge.refunded" ? (stripeObject as Stripe.Charge).amount_refunded : null;
