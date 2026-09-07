@@ -337,9 +337,14 @@ test("obscure honeypot and unknown sources remain rejected", () => {
   assert.doesNotMatch(modal, /name="company"|form\.get\("company"\)/);
 });
 
-test("legacy scheduler CTA now routes into the permanent service hub", () => {
-  assert.match(schedulingCta, /href=\{`\/services-scheduling\?service=demo&source=/);
-  assert.match(schedulingCta, /#request-demo/);
+test("homepage scheduler CTA targets the service hub top and preserves its query parameters", () => {
+  const servicesPage = source("app/services-scheduling/page.tsx");
+  assert.match(schedulingCta, /href=\{`\/services-scheduling\?service=demo&source=\$\{encodeURIComponent\(source\)\}#services-top`\}/);
+  assert.doesNotMatch(schedulingCta, /#request-demo/);
+  assert.equal(servicesPage.match(/id="services-top"/g)?.length, 1);
+  assert.match(servicesPage, /<main id="services-top"[^>]*>\s*<header/);
+  assert.match(servicesPage, /<a href="#request-demo"/);
+  assert.match(servicesPage, /<section id="request-demo"/);
   assert.match(schedulingCta, />Schedule Service\/Demo<\/Link>/);
   assert.doesNotMatch(schedulingCta, /createPortal|role="dialog"/);
 });

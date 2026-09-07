@@ -8,5 +8,5 @@ export default function ScheduleDemoModal({
   source: DemoSource;
   triggerClassName?: string;
 }) {
-  return <Link href={`/services-scheduling?service=demo&source=${encodeURIComponent(source)}#request-demo`} className={triggerClassName}>Schedule Service/Demo</Link>;
+  return <Link href={`/services-scheduling?service=demo&source=${encodeURIComponent(source)}#services-top`} className={triggerClassName}>Schedule Service/Demo</Link>;
 }

@@ -96,7 +96,7 @@ test("shared public calendar keeps availability backgrounds and adds markers, le
   const requestForm = source("components/services-scheduling/DemoRequestForm.tsx");
   const availabilityRoute = source("app/api/demo-scheduling/availability/route.ts");
   const schedulingShortcut = source("components/demo-scheduling/ScheduleDemoModal.tsx");
-  assert.match(schedulingShortcut, /\/services-scheduling\?service=demo&source=\$\{encodeURIComponent\(source\)\}#request-demo/);
+  assert.match(schedulingShortcut, /\/services-scheduling\?service=demo&source=\$\{encodeURIComponent\(source\)\}#services-top/);
   assert.match(requestForm, /available \? "border-emerald-500 bg-emerald-50 text-emerald-900" : "border-slate-100 bg-slate-100 text-slate-400"/);
   assert.match(requestForm, /DEMO_REGION_MARKER_CLASSES\[areaPlan\.color\]/);
   assert.match(requestForm, /publicDemoAreaLegend\(areaPlanning\)/);
