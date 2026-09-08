@@ -14,7 +14,7 @@ import { DemoPaymentReconciliationError, isDemoPaymentMetadata, reconcileDemoChe
 import { portalTokenIsWellFormed } from "@/lib/demo-party/security";
 import { readDemoRequest } from "@/lib/demo-scheduling/server";
 import { notifyDemoPaymentConfirmed } from "@/lib/demo-scheduling/notifications";
-import { applyInstallationRefund, applyInstallationStripeSession } from "@/lib/installations/stripe";
+import { applyInstallationRefund, applyInstallationStripeSession, handleInstallationWebhook, installationEventContext } from "@/lib/installations/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -159,7 +159,7 @@ async function handleFinancial(event: Stripe.Event, expectedLivemode: boolean) {
   // Existing order refunds must not depend on installation schema availability.
   const record = await findByPaymentIntentId(paymentIntentId);
   if (!record) {
-    if (event.type === "charge.refunded" && await applyInstallationRefund(paymentIntentId, (stripeObject as Stripe.Charge).amount_refunded)) return;
+    if (event.type === "charge.refunded" && await applyInstallationRefund(paymentIntentId, (stripeObject as Stripe.Charge).amount_refunded, installationEventContext(event))) return;
     throw new Error("PaymentIntent not linked yet");
   }
   reconcileFinancialObject({ livemode: stripeObject.livemode, amount: stripeObject.amount, currency: stripeObject.currency }, record, event.type === "charge.dispute.created", expectedLivemode);
@@ -186,6 +186,10 @@ export async function POST(request: Request) {
   try { const signature=request.headers.get("stripe-signature"); if(!signature)return NextResponse.json({error:"Invalid webhook."},{status:400}); event=getStripeServerClient().webhooks.constructEvent(await request.text(),signature,getStripeWebhookSecret()); expectedLivemode=getStripeMode()==="live"; }
   catch(error){return NextResponse.json({error:error instanceof StripeConfigurationError?"Webhook unavailable.":"Invalid webhook."},{status:error instanceof StripeConfigurationError?503:400});}
   try { assertStripeEventMode(event.livemode, expectedLivemode); } catch { return NextResponse.json({error:"Invalid webhook."},{status:400}); }
+  // Affirmative installation metadata routes to its own atomic receipt/ledger.
+  // Other order and demo dispatch remains below, including order-first refunds.
+  try { if(await handleInstallationWebhook(event)) return ok(); }
+  catch { return NextResponse.json({error:"Installation reconciliation temporarily unavailable."},{status:503}); }
   const object=event.data.object as {id?:string}; let receiptState:string;
   try { receiptState=await recordWebhookReceipt({id:event.id,type:event.type,objectId:object.id??null,livemode:event.livemode,apiVersion:event.api_version}); } catch { return NextResponse.json({error:"Webhook temporarily unavailable."},{status:503}); }
   if (["processed", "ignored"].includes(receiptState)) return ok();
@@ -202,6 +206,10 @@ export async function POST(request: Request) {
       else await handleIntent(intent,event.id,expectedLivemode);
     }
     else if (event.type==="charge.refunded"||event.type==="charge.dispute.created") await handleFinancial(event,expectedLivemode);
+    else if (["refund.created","refund.updated","refund.failed"].includes(event.type)) {
+      const refund=event.data.object as Stripe.Refund,intentId=objectId(refund.payment_intent);
+      if(!intentId||await findByPaymentIntentId(intentId)||await readDemoPaymentByIntent(intentId)||!await applyInstallationRefund(intentId,undefined,installationEventContext(event))){await finishWebhook(event.id,"ignored");return ok();}
+    }
     else if (event.type==="cash_balance.funds_available") await handleCashBalance(event,expectedLivemode);
     else { await finishWebhook(event.id,"ignored"); return ok(); }
     await finishWebhook(event.id,"processed"); return ok();

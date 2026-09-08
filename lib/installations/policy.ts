@@ -12,5 +12,3 @@ export const locationRefusalLaborRefund=(laborCents:number,cumulativeMinutes:num
 export const cashFailureState=(depositCents:number)=>({cashStatus:"revoked" as const,rescheduleOpportunityUsed:true,requiresPrepayment:true,depositForfeitCents:depositCents});
 export const mayRescheduleCashFailure=(alreadyUsed:boolean,newAppointment:string,now=new Date())=>!alreadyUsed&&new Date(newAppointment).getTime()-now.getTime()>72*3600000;
 export const safetyTerminationLaborRefund=()=>0;
-export const authoritativeTotal=(p:PricingSnapshot,adjustments:number[])=>initialAmount(p)+adjustments.reduce((a,b)=>a+b,0);
-export const remainingBalance=(total:number,payments:number[],refunds:number[]=[])=>Math.max(0,total-payments.reduce((a,b)=>a+b,0)+refunds.reduce((a,b)=>a+b,0));

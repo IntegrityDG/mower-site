@@ -1,13 +1,74 @@
+import { executeInstallationAdmin, pricingFromRow } from "./operations";
+import { validateInstallationIntake } from "./validation";
+import { installationBalance } from "./accounting";
+import { requireInstallationIntake } from "./controls";
 import "server-only";
-import {getSupabaseServiceClient} from "@/lib/supabase";
-import {DEFAULT_PRICING,balanceDueAt,initialAmount,mayRescheduleCashFailure,travelQuote,type PricingSnapshot} from "./policy";
-import type {InstallationIntake} from "./validation";
-const c=()=>getSupabaseServiceClient();
-export async function pricingSettings():Promise<PricingSnapshot>{const{data,error}=await c().from("installation_pricing_settings").select("*").eq("id",true).single();if(error)throw error;return{laborCents:data.labor_cents,materialsAllowanceCents:data.materials_allowance_cents,depositCents:data.deposit_cents,includedLaborMinutes:data.included_labor_minutes,additionalLaborHourlyCents:data.additional_labor_hourly_cents,laborIncrementMinutes:data.labor_increment_minutes,undergroundPerSegmentCents:data.underground_per_segment_cents,undergroundSegmentFeet:data.underground_segment_feet,includedOneWayTravelMinutes:data.included_one_way_travel_minutes,travelHourlyCents:data.travel_hourly_cents}}
-export async function createInstallation(v:InstallationIntake){const db=c(),now=new Date().toISOString(),end=new Date(new Date(v.startAt).getTime()+4*3600000).toISOString(),{data:existing}=await db.from("installations").select("id,public_token").eq("idempotency_key",v.idempotencyKey).maybeSingle();if(existing)return existing;const{data,error}=await db.from("installations").insert({customer_name:v.name,customer_email:v.email,customer_phone:v.phone,property_address:v.address,equipment:v.equipment,preferred_location:v.preferredLocation,internet_availability:v.internetAvailability,underground_requested:v.undergroundRequested,estimated_underground_feet:v.estimatedUndergroundFeet,requested_start_at:new Date(v.startAt).toISOString(),requested_end_at:end,cash_status:v.cashRequested?"requested":"not_requested",grounding_acknowledged_at:now,responsibilities_acknowledged_at:now,terms_acknowledged_at:now,underground_acknowledged_at:v.undergroundRequested?now:null,idempotency_key:v.idempotencyKey}).select("id,public_token").single();if(error)throw error;await db.from("installation_audit_events").insert({installation_id:data.id,event_type:"customer_request",actor:"customer",details:{internet:v.internetAvailability,undergroundRequested:v.undergroundRequested,cashRequested:v.cashRequested}});return data}
-export async function adminInstallations(){const db=c(),[{data:i,error},{data:s},{data:p},{data:a}]=await Promise.all([db.from("installations").select("*").order("requested_start_at"),db.from("installation_work_sessions").select("*").order("started_at"),db.from("installation_payments").select("*").order("created_at"),db.from("installation_adjustments").select("*").order("created_at")]);if(error)throw error;return{installations:i??[],sessions:s??[],payments:p??[],adjustments:a??[],pricing:await pricingSettings()}}
-export async function approveInstallation(id:string,actor="admin"){const db=c(),defaults=await pricingSettings(),{data:i,error}=await db.from("installations").select("*").eq("id",id).single();if(error||i.status!=="requested")throw error??new Error("invalid_transition");const snapshot=(i.draft_pricing??defaults) as PricingSnapshot,now=new Date(),inside72=new Date(i.requested_start_at).getTime()-now.getTime()<=72*3600000,travel=i.approved_travel_charge_cents||0;const{error:u}=await db.from("installations").update({status:"deposit_due",approved_at:now.toISOString(),pricing_snapshot:snapshot,deposit_due_cents:inside72?initialAmount(snapshot)+travel:snapshot.depositCents,balance_due_at:balanceDueAt(i.requested_start_at).toISOString(),updated_at:now.toISOString()}).eq("id",id).eq("status","requested");if(u)throw u;if(travel>0)await db.from("installation_adjustments").insert({installation_id:id,kind:"travel_time",description:"Approved round-trip excess drive-time charge",amount_cents:travel,quantity:i.total_billable_travel_hours,unit:"started hours",created_by:actor});await db.from("installation_audit_events").insert({installation_id:id,event_type:"approved",actor,details:{inside72,pricing:snapshot,approvedTravelCents:travel}})}
-export async function installationByToken(token:string){const db=c(),{data:i,error}=await db.from("installations").select("*").eq("public_token",token).single();if(error)throw error;const[{data:p},{data:a},{data:s}]=await Promise.all([db.from("installation_payments").select("*").eq("installation_id",i.id),db.from("installation_adjustments").select("*").eq("installation_id",i.id),db.from("installation_work_sessions").select("*").eq("installation_id",i.id).order("started_at")]);return{installation:i,payments:p??[],adjustments:a??[],sessions:s??[]}}
-export async function savePricing(p:PricingSnapshot){const{error}=await c().from("installation_pricing_settings").update({labor_cents:p.laborCents,materials_allowance_cents:p.materialsAllowanceCents,deposit_cents:p.depositCents,included_labor_minutes:p.includedLaborMinutes,additional_labor_hourly_cents:p.additionalLaborHourlyCents,labor_increment_minutes:p.laborIncrementMinutes,underground_per_segment_cents:p.undergroundPerSegmentCents,underground_segment_feet:p.undergroundSegmentFeet,included_one_way_travel_minutes:p.includedOneWayTravelMinutes,travel_hourly_cents:p.travelHourlyCents,updated_at:new Date().toISOString()}).eq("id",true);if(error)throw error}
-export async function mutateInstallation(id:string,action:string,body:Record<string,unknown>,actor="admin"){const db=c(),now=new Date(),audit:Record<string,unknown>={...body};if(action==="cash"){if(!["approved","denied","revoked"].includes(String(body.status)))throw new Error("invalid");await db.from("installations").update({cash_status:body.status,updated_at:now.toISOString()}).eq("id",id)}else if(action==="cash_failure"){await db.from("installations").update({status:"cancelled",cash_status:"revoked",special_cash_failure_reschedule:true,reschedule_opportunity_used:false,updated_at:now.toISOString()}).eq("id",id)}else if(action==="cash_reschedule"){const start=String(body.startAt);const{data:i,error}=await db.from("installations").select("reschedule_opportunity_used").eq("id",id).single();if(error||!mayRescheduleCashFailure(i.reschedule_opportunity_used,start,now))throw error??new Error("reschedule_requires_more_than_72_hours");await db.from("installations").update({requested_start_at:start,requested_end_at:new Date(new Date(start).getTime()+4*3600000).toISOString(),status:"balance_due",reschedule_opportunity_used:true,balance_due_at:new Date(new Date(start).getTime()-72*3600000).toISOString(),updated_at:now.toISOString()}).eq("id",id)}else if(action==="forfeit_deposit"){await db.from("installations").update({payment_status:"forfeited",status:"terminated",updated_at:now.toISOString()}).eq("id",id)}else if(action==="travel"){const p=await pricingSettings(),minutes=Number(body.oneWayMinutes),approved=body.approvedChargeCents===undefined?undefined:Number(body.approvedChargeCents),q=travelQuote(minutes,p,approved);await db.from("installations").update({estimated_one_way_drive_minutes:q.estimatedOneWayMinutes,included_one_way_drive_minutes:q.includedOneWayMinutes,excess_one_way_drive_minutes:q.excessOneWayMinutes,billable_travel_hours_per_direction:q.billableHoursPerDirection,total_billable_travel_hours:q.totalBillableHours,calculated_travel_charge_cents:q.calculatedChargeCents,approved_travel_charge_cents:q.approvedChargeCents,travel_manually_overridden:q.manuallyOverridden,travel_override_reason:q.manuallyOverridden?body.reason:null,updated_at:now.toISOString()}).eq("id",id)}else if(action==="pricing"){const p=body.pricing as PricingSnapshot,{data:old}=await db.from("installations").select("draft_pricing,pricing_snapshot").eq("id",id).single();audit.previous=old?.pricing_snapshot??old?.draft_pricing;await db.from("installations").update({draft_pricing:p,pricing_snapshot:old?.pricing_snapshot?p:old?.pricing_snapshot,updated_at:now.toISOString()}).eq("id",id)}else if(action==="safety"){if(!["suspended","remediation_pending","remediation_approved","terminated","weather_postponed","clear"].includes(String(body.status)))throw new Error("invalid_safety_status");await db.from("installations").update({safety_status:body.status,status:body.status==="terminated"?"terminated":"suspended",safety_notes:body.notes??null,remediation_evidence_notes:body.evidence??null,safety_reschedule_used:Boolean(body.rescheduleUsed),updated_at:now.toISOString()}).eq("id",id)}else if(action==="status")await db.from("installations").update({status:body.status,admin_notes:body.notes??null,completed_at:body.status==="completed"?now.toISOString():null,updated_at:now.toISOString()}).eq("id",id);else if(action==="session_start"){await db.from("installation_work_sessions").insert({installation_id:id,technician:String(body.technician||actor),started_at:now.toISOString(),notes:body.notes??null});await db.from("installations").update({status:"in_progress",updated_at:now.toISOString()}).eq("id",id)}else if(action==="session_stop"){const{data:s,error}=await db.from("installation_work_sessions").select("*").eq("installation_id",id).eq("status","running").single();if(error)throw error;const minutes=Math.max(0,Math.ceil((now.getTime()-new Date(s.started_at).getTime())/60000)),status=body.status==="suspended"?"suspended":body.status==="completed"?"completed":"paused";await db.from("installation_work_sessions").update({ended_at:now.toISOString(),duration_minutes:minutes,status,notes:body.notes??s.notes}).eq("id",s.id);await db.from("installations").update({status:status==="paused"?"suspended":status,updated_at:now.toISOString()}).eq("id",id)}else if(action==="adjustment")await db.from("installation_adjustments").insert({installation_id:id,kind:body.kind,description:body.description,amount_cents:body.amountCents,quantity:body.quantity??null,unit:body.unit??null,created_by:actor});else if(action==="cash_paid"){await db.from("installation_payments").insert({installation_id:id,purpose:"cash",method:"cash",status:"paid",amount_cents:body.amountCents,idempotency_key:`cash:${id}:${crypto.randomUUID()}`,paid_at:now.toISOString(),notes:body.notes??null});await db.from("installations").update({payment_status:"paid",status:"ready",updated_at:now.toISOString()}).eq("id",id)}else throw new Error("invalid_action");await db.from("installation_audit_events").insert({installation_id:id,event_type:action,actor,details:audit})}
+import { getSupabaseServiceClient } from "@/lib/supabase";
+import { DEFAULT_PRICING, type PricingSnapshot } from "./policy";
+import type { InstallationIntake } from "./validation";
+const c = () => getSupabaseServiceClient();
+export async function pricingSettings(): Promise<PricingSnapshot> {
+  const {data,error}=await c().from("installation_pricing_settings").select("*").eq("id",true).single();
+  if(error)throw error;if(!data)throw new Error("installation_read_incomplete");return pricingFromRow(data);
+}
+export async function createInstallation(value: InstallationIntake) {
+  requireInstallationIntake();const parsed=validateInstallationIntake(value);if(!parsed.ok)throw new Error("invalid_intake");
+  const {data,error}=await c().rpc("ids_create_installation",{p_payload:parsed.value});
+  if(error)throw error;if(!data?.id||!data.public_token)throw new Error("installation_response_incomplete");return data;
+}
+export async function adminInstallations() {
+    const db = c();
+    const results = await Promise.all([
+        db.from("installations").select("*").order("requested_start_at"),
+        db.from("installation_work_sessions").select("*").order("started_at"),
+        db.from("installation_payments").select("*").order("created_at"),
+        db.from("installation_adjustments").select("*").order("created_at"),
+        db.from("installation_cash_corrections").select("*").order("created_at"),
+        db.from("installation_cash_refunds").select("*").order("created_at"),
+        db.from("installation_audit_events").select("*").order("created_at"),
+        db.from("installation_pricing_history").select("*").order("created_at"),
+    ]);
+    for (const result of results) {
+        if (result.error)
+            throw result.error;
+        if (!result.data)
+            throw new Error("installation_read_incomplete");
+    }
+    // Preserve readable receipts and confirmation controls if one ledger cannot be calculated.
+    const balances: Record<string, ReturnType<typeof installationBalance> | null> = {};
+    for (const i of results[0].data!) {
+        try { balances[i.id] = i.pricing_snapshot ? installationBalance(i.pricing_snapshot, results[3].data!.filter(a => a.installation_id === i.id), results[2].data!.filter(p => p.installation_id === i.id), results[4].data!.filter(c => c.installation_id === i.id), results[5].data!.filter(r => r.installation_id === i.id)) : null; }
+        catch { balances[i.id] = null; }
+    }
+    return { balances, installations: results[0].data!, sessions: results[1].data!, payments: results[2].data!, adjustments: results[3].data!, corrections: results[4].data!, cashRefunds: results[5].data!, audits: results[6].data!, pricingHistory: results[7].data!, pricing: await pricingSettings() };
+}
+export const approveInstallation=(id:string,body:Record<string,unknown>)=>executeInstallationAdmin(id,{...body,action:"approve"});
+export async function installationByToken(token: string) {
+    const db = c(), { data: i, error } = await db.from("installations").select("*").eq("public_token", token).single().throwOnError();
+    if (error)
+        throw error;
+    if (!i)
+        throw new Error("installation_read_incomplete");
+    const results = await Promise.all([
+        db.from("installation_payments").select("*").eq("installation_id", i.id),
+        db.from("installation_adjustments").select("*").eq("installation_id", i.id),
+        db.from("installation_work_sessions").select("*").eq("installation_id", i.id).order("started_at"),
+        db.from("installation_cash_corrections").select("id,installation_id,original_payment_id,amount_cents,created_at").eq("installation_id", i.id),
+        db.from("installation_cash_refunds").select("id,installation_id,original_payment_id,amount_cents,returned_at,created_at").eq("installation_id", i.id),
+    ]);
+    for (const result of results) {
+        if (result.error)
+            throw result.error;
+        if (!result.data)
+            throw new Error("installation_read_incomplete");
+    }
+    if (i.pricing_snapshot)
+        installationBalance(i.pricing_snapshot, results[1].data!, results[0].data!, results[3].data!, results[4].data!);
+    return { installation: i, payments: results[0].data!.map(p=>({id:p.id,purpose:p.purpose,method:p.method,status:p.status,amount_cents:p.amount_cents,refunded_cents:p.refunded_cents,paid_at:p.paid_at,original_payment_id:p.original_payment_id??null})), adjustments: results[1].data!, sessions: results[2].data!, corrections: results[3].data!, cashRefunds: results[4].data! };
+}
+export {saveInstallationDefaults as savePricing} from "./operations";
+export async function mutateInstallation(id:string,action:string,body:Record<string,unknown>){
+  if(action==="cash_paid")throw new Error("Use the authorized cash receipt endpoint with a stable operation key.");
+  return executeInstallationAdmin(id,{...body,action});
+}
 export {DEFAULT_PRICING};

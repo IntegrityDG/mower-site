@@ -135,6 +135,8 @@ function harness(options: Options = {}) {
     "@/lib/demo-scheduling/server": {},
     "@/lib/demo-scheduling/notifications": {},
     "@/lib/installations/stripe": {
+      handleInstallationWebhook: async () => false,
+      installationEventContext: (event: {id:string;type:string;created?:number}) => ({id:event.id,type:event.type,created:event.created??null}),
       applyInstallationRefund: async (...args: unknown[]) => {
         record("installation", args);
         if (options.installationError) throw options.installationError;
@@ -228,7 +230,8 @@ test("installation refund fallback runs only after both lookups return no match"
   const h = harness({ order: null, installationResult: true });
   assert.equal((await h.post()).status, 200);
   assert.deepEqual(h.calls.map(call => call.name), ["signature", "receipt", "demoRead", "orderRead", "installation", "finish"]);
-  assert.deepEqual(h.named("installation"), [[paymentIntentId, 25_000]]);
+  assert.deepEqual(h.named("installation").map(args => args.slice(0,2)), [[paymentIntentId, 25_000]]);
+  assert.equal((h.named("installation")[0][2] as {id:string}).id, "evt_synthetic_refund");
   assertFinished(h, "processed");
 });
 

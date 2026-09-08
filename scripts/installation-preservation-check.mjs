@@ -1,0 +1,20 @@
+// Read-only Git/filesystem audit; writes only the resulting worktree evidence.
+import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';import {createHash} from 'node:crypto';import assert from 'node:assert/strict';
+const root=process.cwd(),original=path.resolve(root,'../..'),dir='docs/review/installation-readiness';
+assert.equal(path.basename(root),'ids-installation-controls');assert.equal(path.basename(original),'mower-site');
+const start=JSON.parse(fs.readFileSync(`${dir}/start.json`,'utf8'));
+const hash=f=>createHash('sha256').update(fs.readFileSync(f)).digest('hex');
+const git=(cwd,args)=>execFileSync('git',['--no-optional-locks',...args],{cwd,encoding:'utf8',windowsHide:true,maxBuffer:8*1024*1024});
+const index=cwd=>hash(path.resolve(cwd,git(cwd,['rev-parse','--git-path','index']).trim()));
+const differences=Object.entries(start.originalHashes).filter(([file,sha])=>!fs.existsSync(path.join(original,file))||hash(path.join(original,file))!==sha).map(([file])=>file);
+assert.deepEqual(differences,[],'Original files changed');
+assert.equal(git(original,['rev-parse','HEAD']).trim(),start.originalHead);
+assert.equal(git(root,['rev-parse','HEAD']).trim(),start.head);
+assert.equal(git(original,['status','--porcelain']),start.originalStatus);
+assert.equal(index(original),start.originalIndex);assert.equal(index(root),start.implementationIndex);
+git(root,['diff','--cached','--quiet']);
+assert.equal(hash('supabase/migrations/20260904204800_professional_installations.sql'),'01543ab2b5eaffc97dcd96c8e9253a307f9511a60cdf42652d11ba145efaafef');
+assert.ok(!fs.existsSync(path.join(original,'supabase/migrations/20260907233602_installation_cash_safeguards.sql')));
+assert.deepEqual(fs.readdirSync(root).filter(name=>/^\.env($|\.(local|development|production|test))/.test(name)),[]);
+const result={passed:true,checkedAt:new Date().toISOString(),worktree:root,baseline:start.head,originalHead:start.originalHead,originalFilesVerified:Object.keys(start.originalHashes).length,originalStatusUnchanged:true,originalIndexUnchanged:true,implementationIndexUnchanged:true,implementationStagedChanges:false,originalEnvironmentAndBackupsUnchanged:true,pendingInstallationMigrationUnchanged:true,worktreeEnvironmentFilesAbsent:true};
+fs.writeFileSync(`${dir}/preservation-final.json`,JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));

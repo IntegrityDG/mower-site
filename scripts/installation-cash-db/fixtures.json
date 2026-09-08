@@ -1,0 +1,15 @@
+{
+  "syntheticOnly": true,
+  "database": "ids_installation_cash_review_20260907",
+  "installationIds": { "prefix": "a1000000-0000-4000-8000-", "first": 1, "last": 20 },
+  "publicTokens": { "prefix": "a2000000-0000-4000-8000-", "first": 1, "last": 20 },
+  "intakeKeys": { "prefix": "a3000000-0000-4000-8000-", "first": 1, "last": 20 },
+  "depositIds": { "prefix": "a4000000-0000-4000-8000-", "first": 1, "last": 20 },
+  "workSessionId": "a5000000-0000-4000-8000-000000000001",
+  "operationKeys": { "prefix": "b1000000-0000-4000-8000-", "first": 1, "last": 999 },
+  "otherFixtureIds": { "prefix": "c1000000-0000-4000-8000-", "first": 1, "last": 999 },
+  "generatedRecordIds": "Every accepted RPC result is appended to database-run.json. Failed/rollback-only rows do not survive.",
+  "objects": ["public.demo_requests", "public.installation_pricing_settings", "public.installations", "public.installation_payments", "public.installation_adjustments", "public.installation_work_sessions", "public.installation_audit_events", "public.installation_cash_corrections", "ids_cash_review.run_manifest"],
+  "schemaManifest": "All created relation/index/sequence names are captured after setup. Functions, constraints and triggers are defined in the hash-approved SQL files.",
+  "fixtureLimits": "Minimal demo timestamp/status interface only. Does not certify production scheduling, PostgREST, webhooks, customers or external payments."
+}

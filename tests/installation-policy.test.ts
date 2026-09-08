@@ -1,6 +1,7 @@
+import {installationBalance} from "../lib/installations/accounting";
 import test from "node:test";import assert from "node:assert/strict";
-import {DEFAULT_PRICING,additionalLabor,approvalPaymentPurpose,cancellationDepositRefund,cashFailureState,locationRefusalLaborRefund,mayRescheduleCashFailure,remainingBalance,safetyTerminationLaborRefund,travelQuote,undergroundLabor} from "../lib/installations/policy";
-test("deposit is applied to the $1,000 initial amount",()=>assert.equal(remainingBalance(100000,[25000]),75000));
+import {DEFAULT_PRICING,additionalLabor,approvalPaymentPurpose,cancellationDepositRefund,cashFailureState,locationRefusalLaborRefund,mayRescheduleCashFailure,safetyTerminationLaborRefund,travelQuote,undergroundLabor} from "../lib/installations/policy";
+test("deposit is applied to the $1,000 initial amount",()=>assert.equal(installationBalance(DEFAULT_PRICING,[],[{id:"deposit",method:"stripe",purpose:"deposit",status:"paid",amount_cents:25000,refunded_cents:0,paid_at:"2026-09-01T12:00:00Z"}]).balanceDueCents,75000));
 test("underground price bills every started ten feet",()=>{assert.equal(undergroundLabor(1,DEFAULT_PRICING),5000);assert.equal(undergroundLabor(10,DEFAULT_PRICING),5000);assert.equal(undergroundLabor(11,DEFAULT_PRICING),10000)});
 test("additional labor starts after cumulative four hours in 15-minute increments",()=>{assert.equal(additionalLabor(240,DEFAULT_PRICING),0);assert.equal(additionalLabor(241,DEFAULT_PRICING),3125);assert.equal(additionalLabor(270,DEFAULT_PRICING),6250)});
 test("72-hour server boundary requires full initial payment",()=>{const now=new Date("2026-01-01T00:00:00Z");assert.equal(approvalPaymentPurpose("2026-01-04T00:00:00Z",now),"initial");assert.equal(approvalPaymentPurpose("2026-01-04T00:00:01Z",now),"deposit")});

@@ -13,6 +13,11 @@ export function appointmentRangesOverlap(aStart: string, aEnd: string, bStart: s
   return Date.parse(aStart) < Date.parse(bEnd) && Date.parse(bStart) < Date.parse(aEnd);
 }
 
+export function excludeInstallationConflicts<T extends {startAt:string;endAt:string}>(slots:T[],installations:{requested_start_at:string;requested_end_at:string;status:string}[]){
+  const blocking=new Set(["requested","approved","deposit_due","scheduled","balance_due","ready","in_progress","suspended"]);
+  return slots.filter(slot=>!installations.some(i=>blocking.has(i.status)&&appointmentRangesOverlap(slot.startAt,slot.endAt,i.requested_start_at,i.requested_end_at)));
+}
+
 export function appointmentRangesConflict(
   aStart: string,
   aEnd: string,

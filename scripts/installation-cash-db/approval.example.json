@@ -1,0 +1,19 @@
+{
+  "approved": false,
+  "containerId": "REPLACE_WITH_REVIEWED_64_CHARACTER_LOCAL_CONTAINER_ID",
+  "database": "ids_installation_cash_review_20260907",
+  "project": "mower-site-installation-smoke",
+  "hashes": {
+    "scripts/installation-cash-db/00-demo-prerequisite.sql": "17e80183e381895fc931b51164e2d29e2aa42c19f271f522bb7068aa9d37f799",
+    "supabase/migrations/20260904204800_professional_installations.sql": "01543ab2b5eaffc97dcd96c8e9253a307f9511a60cdf42652d11ba145efaafef",
+    "docs/review/installation-cash-proposed.sql": "636d3f0f95139de3e9824d015324a53382ed959b283f9345ba39dda82da6051c",
+    "scripts/installation-cash-db/10-fixtures.sql": "5c9b09822028f0f6eae3a967e5e50d4f0ec72ba93f4536c4039baa597f27d9c1",
+    "scripts/installation-cash-db/guards.ts": "896f8790994d0afdf7d1f5bf2cb097c36929223aa09755d7dbfd682e44c2a9c9",
+    "scripts/installation-cash-db/psql.ts": "3c2179317781691246febbd40279ca9dc42bab1548b90561abbe59a4cba1750c",
+    "scripts/installation-cash-db/runner.ts": "18e6e67431977142ea62a916ded9a02bca7795b5fd404c7ba135b660bcd4a13c",
+    "scripts/installation-cash-db/tests.ts": "c44bbed8c26be8be23605260f2727ecf6b03b30534f42b83dc6f395c1f1ab988",
+    "scripts/installation-cash-db/fixtures.json": "ca6c0240063a11a0452d0c0d7a89f7a756a57d112de1f0961313a0d94c3c4663",
+    "lib/installations/accounting.ts": "0d695f23575a6c5659921e2b4ab8447ff72119c9daeffa3e3e45d63d7f75c6c6",
+    "lib/installations/policy.ts": "43e9061e17ad4c02a7dea8b9b6c32388a8089a52593d11724c06da7f683c4e58"
+  }
+}

@@ -4,7 +4,7 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import type Stripe from "stripe";
 
-import ServicesSchedulingPage from "../app/services-scheduling/page";
+import { servicesSchedulingPage } from "./helpers/installation-service-page";
 import HostPortal from "../components/services-scheduling/HostPortal";
 import { APPOINTMENT_TYPE_CONFIG, APPOINTMENT_TYPES_IN_ORDER, DEMO_APPOINTMENT_BUFFER_MINUTES } from "../lib/scheduling/config";
 import { appointmentRangesConflict, generateAppointmentSlots } from "../lib/scheduling/availability";
@@ -42,6 +42,7 @@ const webhook = source("app/api/stripe/webhook/route.ts");
 const portalServer = source("lib/demo-party/server.ts");
 const portalPage = source("app/services-scheduling/manage/[token]/page.tsx");
 const servicePage = source("app/services-scheduling/page.tsx");
+const ServicesSchedulingPage = servicesSchedulingPage(false);
 const hostPortal = source("components/services-scheduling/HostPortal.tsx");
 const requestForm = source("components/services-scheduling/DemoRequestForm.tsx");
 const notifications = source("lib/demo-scheduling/notifications.ts");

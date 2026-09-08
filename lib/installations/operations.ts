@@ -1,10 +1,48 @@
 import "server-only";
-import {getSupabaseServiceClient} from "@/lib/supabase";
-import {DEFAULT_PRICING,locationRefusalLaborRefund,travelQuote,type PricingSnapshot} from "./policy";
+import { isReviewAdmin } from "@/lib/reviews/admin-auth";
+import { getSupabaseServiceClient } from "@/lib/supabase";
+import { approvedPricing, operationKey, prepareAdminOperation, validateAdminInput, type AdminState } from "./admin-policy";
+import type { PricingSnapshot } from "./policy";
 
-const db=()=>getSupabaseServiceClient();
-async function audit(id:string,eventType:string,details:Record<string,unknown>){await db().from("installation_audit_events").insert({installation_id:id,event_type:eventType,actor:"admin",details})}
-export async function saveInstallationTravel(id:string,body:Record<string,unknown>){const c=db(),{data:i,error}=await c.from("installations").select("draft_pricing,pricing_snapshot").eq("id",id).single();if(error)throw error;const pricing=(i.pricing_snapshot??i.draft_pricing??DEFAULT_PRICING) as PricingSnapshot;const oneWayMinutes=Number(body.oneWayMinutes),approved=body.approvedChargeCents===undefined?undefined:Number(body.approvedChargeCents);if(!Number.isSafeInteger(oneWayMinutes)||oneWayMinutes<0||approved!==undefined&&(!Number.isSafeInteger(approved)||approved<0))throw new Error("invalid_travel");const q=travelQuote(oneWayMinutes,pricing,approved);if(q.manuallyOverridden&&!String(body.reason??"").trim())throw new Error("travel_override_reason_required");await c.from("installations").update({estimated_one_way_drive_minutes:q.estimatedOneWayMinutes,included_one_way_drive_minutes:q.includedOneWayMinutes,excess_one_way_drive_minutes:q.excessOneWayMinutes,billable_travel_hours_per_direction:q.billableHoursPerDirection,total_billable_travel_hours:q.totalBillableHours,calculated_travel_charge_cents:q.calculatedChargeCents,approved_travel_charge_cents:q.approvedChargeCents,travel_manually_overridden:q.manuallyOverridden,travel_override_reason:q.manuallyOverridden?String(body.reason):null,updated_at:new Date().toISOString()}).eq("id",id);await audit(id,"travel",{...q,reason:body.reason??null})}
-export async function startAuthorizedWork(id:string,body:Record<string,unknown>){const c=db(),{data:i,error}=await c.from("installations").select("status,payment_status,cash_status,special_cash_failure_reschedule").eq("id",id).single();if(error)throw error;if(i.special_cash_failure_reschedule||["cancelled","terminated"].includes(i.status))throw new Error("work_cannot_begin");if(!["paid"].includes(i.payment_status)&&i.cash_status!=="approved")throw new Error("required_payment_not_confirmed");await c.from("installation_work_sessions").insert({installation_id:id,technician:String(body.technician||"IDS technician"),started_at:new Date().toISOString(),notes:body.notes??null});await c.from("installations").update({status:"in_progress",updated_at:new Date().toISOString()}).eq("id",id);await audit(id,"session_start",{technician:body.technician||"IDS technician"})}
-export async function correctWorkSession(id:string,body:Record<string,unknown>){const c=db(),sessionId=String(body.sessionId??""),minutes=Number(body.durationMinutes),reason=String(body.reason??"").trim();if(!sessionId||!Number.isSafeInteger(minutes)||minutes<0||!reason)throw new Error("invalid_time_correction");const{data:s,error}=await c.from("installation_work_sessions").select("*").eq("id",sessionId).eq("installation_id",id).single();if(error||s.status==="running")throw error??new Error("running_session_cannot_be_corrected");await c.from("installation_work_sessions").insert({installation_id:id,technician:s.technician,started_at:s.started_at,ended_at:s.ended_at,duration_minutes:minutes,status:"corrected",notes:reason,corrected_from_id:s.id});await c.from("installation_work_sessions").update({duration_minutes:0,status:"corrected",notes:`Superseded: ${reason}`}).eq("id",s.id);await audit(id,"session_correct",{sessionId,previousMinutes:s.duration_minutes,newMinutes:minutes,reason})}
-export async function recordPlacementRefusal(id:string,body:Record<string,unknown>){const c=db(),{data:i,error}=await c.from("installations").select("pricing_snapshot").eq("id",id).single();if(error||!i.pricing_snapshot)throw error??new Error("missing_pricing_snapshot");const{data:s,error:sessionError}=await c.from("installation_work_sessions").select("duration_minutes").eq("installation_id",id);if(sessionError)throw sessionError;const minutes=(s??[]).reduce((sum,row)=>sum+(row.duration_minutes??0),0),refund=locationRefusalLaborRefund((i.pricing_snapshot as PricingSnapshot).laborCents,minutes);if(refund>0)await c.from("installation_adjustments").insert({installation_id:id,kind:"credit",description:"Labor refund: customer refused technically acceptable placement",amount_cents:-refund,created_by:"admin"});await c.from("installations").update({status:"terminated",updated_at:new Date().toISOString()}).eq("id",id);await audit(id,"placement_refusal",{cumulativeMinutes:minutes,laborRefundCents:refund,materialsReconciliationRequired:true,notes:body.notes??null})}
+export function pricingFromRow(data: Record<string, number>): PricingSnapshot {
+  return {laborCents:data.labor_cents,materialsAllowanceCents:data.materials_allowance_cents,depositCents:data.deposit_cents,
+    includedLaborMinutes:data.included_labor_minutes,additionalLaborHourlyCents:data.additional_labor_hourly_cents,laborIncrementMinutes:data.labor_increment_minutes,
+    undergroundPerSegmentCents:data.underground_per_segment_cents,undergroundSegmentFeet:data.underground_segment_feet,includedOneWayTravelMinutes:data.included_one_way_travel_minutes,travelHourlyCents:data.travel_hourly_cents};
+}
+export async function executeInstallationAdmin(id: string, raw: unknown) {
+  if(!(await isReviewAdmin()))throw new Error("Unauthorized");
+  const validate=()=>{try {operationKey(id);return validateAdminInput(raw);}catch(error){throw Object.assign(error as Error,{safeToEdit:true});}};
+  const body=validate(),db=getSupabaseServiceClient();
+  const {data:existing,error:existingError}=await db.from("installation_admin_operations").select("installation_id,payload,result").eq("operation_key",body.operationKey).maybeSingle();
+  if(existingError)throw existingError;
+  if(existing){
+    const {isDeepStrictEqual}=await import("node:util");
+    if(existing.installation_id!==id||!isDeepStrictEqual(existing.payload,body))throw new Error("admin_operation_conflict");
+    return {...existing.result,replayed:true};
+  }
+  const [{data:state,error:stateError},{data:defaults,error:defaultsError}]=await Promise.all([
+    db.rpc("ids_installation_admin_state",{p_id:id}),db.from("installation_pricing_settings").select("*").eq("id",true).single(),
+  ]);
+  if(stateError||defaultsError)throw stateError??defaultsError;if(!state||!defaults)throw new Error("installation_read_incomplete");
+  const plan=()=>{try{return prepareAdminOperation(state as AdminState,body,pricingFromRow(defaults));}catch(error){throw Object.assign(error as Error,{safeToEdit:true});}};
+  const op=plan();
+  const {data,error}=await db.rpc("ids_apply_installation_admin",{p_id:id,p_key:body.operationKey,p_payload:op.body,p_expected:state,p_patch:op.patch,
+    p_adjustments:op.adjustments,p_sessions:op.sessions,p_stop_session:op.stopSession,p_balance_before:op.balanceBefore,p_balance_after:op.balanceAfter});
+  if(error)throw error;if(!data?.ok)throw new Error("admin_operation_response_incomplete");return data;
+}
+export async function saveInstallationDefaults(raw: unknown) {
+  if(!(await isReviewAdmin()))throw new Error("Unauthorized");
+  if(!raw||typeof raw!=="object"||Array.isArray(raw))throw new Error("invalid_pricing");
+  const body=raw as Record<string,unknown>;
+  if(Object.keys(body).some(k=>!["operationKey","pricing","reason"].includes(k)))throw new Error("invalid_pricing");
+  const key=operationKey(body.operationKey),pricing=approvedPricing(body.pricing);
+  if(typeof body.reason!=="string"||!body.reason.trim()||body.reason.length>2000)throw new Error("recorded_reason_required");
+  const db=getSupabaseServiceClient(),{data:current,error:readError}=await db.from("installation_pricing_settings").select("*").eq("id",true).single();
+  if(readError)throw readError;
+  const {data,error}=await db.rpc("ids_save_installation_pricing",{p_key:key,p_pricing:pricing,p_expected:current,p_reason:body.reason.trim()});
+  if(error)throw error;if(!data?.ok)throw new Error("pricing_response_incomplete");return data;
+}
+export const saveInstallationTravel=(id:string,body:Record<string,unknown>)=>executeInstallationAdmin(id,{...body,action:"travel"});
+export const startAuthorizedWork=(id:string,body:Record<string,unknown>)=>executeInstallationAdmin(id,{...body,action:"session_start"});
+export const correctWorkSession=(id:string,body:Record<string,unknown>)=>executeInstallationAdmin(id,{...body,action:"session_correct"});
+export const recordPlacementRefusal=(id:string,body:Record<string,unknown>)=>executeInstallationAdmin(id,{...body,action:"placement_refusal"});
