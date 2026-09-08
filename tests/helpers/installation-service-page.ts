@@ -1,3 +1,4 @@
+import EquipmentReturnPolicyModal from "../../components/policies/EquipmentReturnPolicyModal";
 import * as runtime from "react/jsx-runtime";
 import Link from "next/link";
 import Image from "next/image";
@@ -15,7 +16,7 @@ export function servicesSchedulingPage(intakeEnabled: boolean) {
     "@/lib/stripe/config-values": stripeConfig,
   }, { INSTALLATION_INTAKE_ENABLED: String(intakeEnabled) });
   return load<typeof import("../../app/services-scheduling/page")>("app/services-scheduling/page.tsx", {
-    "react/jsx-runtime": runtime, "next/link": Link, "next/image": Image,
+    "@/components/policies/EquipmentReturnPolicyModal": EquipmentReturnPolicyModal, "react/jsx-runtime": runtime, "next/link": Link, "next/image": Image,
     "@/components/services-scheduling/DemoRequestForm": DemoRequestForm,
     "@/lib/demo-party/disclaimer": disclaimer, "@/lib/demo-scheduling/types": types,
     "@/lib/scheduling/config": config, "@/lib/installations/controls": controls,

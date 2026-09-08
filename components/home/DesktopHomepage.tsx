@@ -1,5 +1,6 @@
 "use client";
 
+import EquipmentReturnPolicyModal from "@/components/policies/EquipmentReturnPolicyModal";
 import { useCallback, useEffect, useState } from "react";
 import HomepageContactSection from "@/components/contact/HomepageContactSection";
 import NationwidePurchaseFlow from "@/components/customer-paths/purchase/NationwidePurchaseFlow";
@@ -23,7 +24,7 @@ function DesktopHero() {
 }
 
 function DesktopFooter() {
-  return <footer className="border-t border-slate-800 bg-slate-950 text-slate-300"><div className="mx-auto grid max-w-7xl gap-8 px-10 py-12 md:grid-cols-2"><div><p className="text-lg font-black text-white">Integrity Distribution Systems</p><p className="mt-3 max-w-xl text-sm leading-6">Nationwide autonomous mower sales with professional installation, setup, and ongoing support available throughout the IDS regional service area.</p></div><div className="text-right"><p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-400">Regional Service Coverage</p><p className="mt-3 text-sm leading-6">Southern Missouri &bull; Northern Arkansas &bull; Western Kentucky<br />Western Tennessee &bull; Southern Illinois</p></div></div></footer>;
+  return <footer className="border-t border-slate-800 bg-slate-950 text-slate-300"><div className="mx-auto grid max-w-7xl gap-8 px-10 py-12 md:grid-cols-2"><div><p className="text-lg font-black text-white">Integrity Distribution Systems</p><p className="mt-3 max-w-xl text-sm leading-6">Nationwide autonomous mower sales with professional installation, setup, and ongoing support available throughout the IDS regional service area.</p></div><div className="text-right"><p className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-400">Regional Service Coverage</p><p className="mt-3 text-sm leading-6">Southern Missouri &bull; Northern Arkansas &bull; Western Kentucky<br />Western Tennessee &bull; Southern Illinois</p></div><div className="md:col-span-2"><EquipmentReturnPolicyModal /></div></div></footer>;
 }
 
 export default function DesktopHomepage() {

@@ -64,7 +64,9 @@ export async function installationByToken(token: string) {
     }
     if (i.pricing_snapshot)
         installationBalance(i.pricing_snapshot, results[1].data!, results[0].data!, results[3].data!, results[4].data!);
-    return { installation: i, payments: results[0].data!.map(p=>({id:p.id,purpose:p.purpose,method:p.method,status:p.status,amount_cents:p.amount_cents,refunded_cents:p.refunded_cents,paid_at:p.paid_at,original_payment_id:p.original_payment_id??null})), adjustments: results[1].data!, sessions: results[2].data!, corrections: results[3].data!, cashRefunds: results[4].data! };
+    const publicFields=["id","public_token","status","requested_start_at","requested_end_at","internet_availability","pricing_snapshot","deposit_due_cents","balance_due_at","cash_status","payment_status","installation_selected","setup_selected","approved_travel_charge_cents","travel_policy"];
+    const publicInstallation=Object.fromEntries(publicFields.filter(k=>k in i).map(k=>[k,i[k]]));
+    return { installation: publicInstallation, payments: results[0].data!.map(p=>({id:p.id,purpose:p.purpose,method:p.method,status:p.status,amount_cents:p.amount_cents,refunded_cents:p.refunded_cents,paid_at:p.paid_at,original_payment_id:p.original_payment_id??null})), adjustments: results[1].data!.map(a=>({id:a.id,amount_cents:a.amount_cents,reconciliation_kind:a.reconciliation_kind})), sessions: results[2].data!.map(s=>({id:s.id,status:s.status,duration_minutes:s.duration_minutes,duration_seconds:s.duration_seconds,started_at:s.started_at,ended_at:s.ended_at,corrected_from_id:s.corrected_from_id,service_type:s.service_type})), corrections: results[3].data!, cashRefunds: results[4].data! };
 }
 export {saveInstallationDefaults as savePricing} from "./operations";
 export async function mutateInstallation(id:string,action:string,body:Record<string,unknown>){

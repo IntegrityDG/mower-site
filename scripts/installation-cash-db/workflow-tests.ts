@@ -7,8 +7,8 @@ import {PsqlConnection,literal,jsonLiteral} from "./psql";
 
 const rpc=(name:string,args:Record<string,unknown>)=>`select public.${name}(${Object.entries(args).map(([k,v])=>`${k}=>${v===null?"null":typeof v==="object"?jsonLiteral(v):typeof v==="number"||typeof v==="boolean"?String(v):literal(v)}`).join(",")})`;
 export const adminState=(c:PsqlConnection,id:string)=>c.json<AdminState>(`select public.ids_installation_admin_state(${literal(id)})`);
-export async function adminArgs(c:PsqlConnection,id:string,body:Record<string,unknown>){
-  const state=await adminState(c,id),op=prepareAdminOperation(state,body,DEFAULT_PRICING);
+export async function adminArgs(c:PsqlConnection,id:string,body:Record<string,unknown>,syntheticEligibility=false){
+  const state=await adminState(c,id),op=prepareAdminOperation(state,body,DEFAULT_PRICING,new Date(),syntheticEligibility);
   return {p_id:id,p_key:op.body.operationKey,p_payload:op.body,p_expected:state,p_patch:op.patch,p_adjustments:op.adjustments,p_sessions:op.sessions,p_stop_session:op.stopSession,p_balance_before:op.balanceBefore,p_balance_after:op.balanceAfter};
 }
 export const adminSql=(args:Record<string,unknown>)=>rpc("ids_apply_installation_admin",args);

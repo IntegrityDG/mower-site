@@ -27,7 +27,13 @@ export function installationHarness(options: { authorized?: boolean; installatio
   const processor=processorFixture((options.payments?.[0]?.amount_cents)??25000,options.payments?.[0]);
   const processorRefunds: any[]=[];
   const processorSessions: any[]=[processor.session];
-  const adminState=()=>({installation:structuredClone(state.installations[0]),payments:structuredClone(state.installation_payments),adjustments:structuredClone(state.installation_adjustments),corrections:structuredClone(state.installation_cash_corrections),cashRefunds:structuredClone(state.installation_cash_refunds),sessions:structuredClone(state.installation_work_sessions),ledger:accounting.ledgerSnapshot(state.installations[0].pricing_snapshot,state.installation_adjustments,state.installation_payments,state.installation_cash_corrections,state.installation_cash_refunds)});
+  const adminState=()=>{
+    const pricing=state.installations[0].pricing_snapshot;
+    const ledger=accounting.ledgerSnapshot(pricing??{laborCents:0,materialsAllowanceCents:0},state.installation_adjustments,state.installation_payments,state.installation_cash_corrections,state.installation_cash_refunds);
+    // SQL returns nullable pricing for an unapproved request. Keep that RPC
+    // shape while using the shared normalizer for the ledger's record arrays.
+    return {installation:structuredClone(state.installations[0]),payments:structuredClone(state.installation_payments),adjustments:structuredClone(state.installation_adjustments),corrections:structuredClone(state.installation_cash_corrections),cashRefunds:structuredClone(state.installation_cash_refunds),sessions:structuredClone(state.installation_work_sessions),ledger:pricing?ledger:{...ledger,pricing:{laborCents:null,materialsAllowanceCents:null}}};
+  };
   let failure: { table: string; verb: string; error: any } | null = null;
   let incompleteRpc = false;
   const auth = { isReviewAdmin: async () => options.authorized !== false };
@@ -117,7 +123,8 @@ export function installationHarness(options: { authorized?: boolean; installatio
   };
   const controls = load<typeof import("../../lib/installations/controls")>("lib/installations/controls.ts", { "@/lib/stripe/config-values": stripeConfig }, options.env ?? {});
   const ledger = load<typeof import("../../lib/installations/ledger")>("lib/installations/ledger.ts", { "@/lib/supabase": { getSupabaseServiceClient: () => db }, "./accounting": accounting });
-  const modules = { "node:crypto":nodeCrypto,"node:util":nodeUtil,"./admin-policy":adminPolicy,"./stripe-policy":stripePolicy,"./validation":intakeValidation,"@/lib/supabase": { getSupabaseServiceClient: () => db }, "@/lib/reviews/admin-auth": auth, "./accounting": accounting, "./cash-validation": validation, "./ledger": ledger, "./policy": policy, "./controls": controls };
+  const subscriberEligibility = load<typeof import("../../lib/installations/subscriber-eligibility")>("lib/installations/subscriber-eligibility.ts", {}, options.env ?? {});
+  const modules = { "./subscriber-eligibility":subscriberEligibility, "node:crypto":nodeCrypto,"node:util":nodeUtil,"./admin-policy":adminPolicy,"./stripe-policy":stripePolicy,"./validation":intakeValidation,"@/lib/supabase": { getSupabaseServiceClient: () => db }, "@/lib/reviews/admin-auth": auth, "./accounting": accounting, "./cash-validation": validation, "./ledger": ledger, "./policy": policy, "./controls": controls };
   const cash = load<typeof import("../../lib/installations/cash")>("lib/installations/cash.ts", modules);
   const operations = load<typeof import("../../lib/installations/operations")>("lib/installations/operations.ts", modules);
   const server = load<typeof import("../../lib/installations/server")>("lib/installations/server.ts", { ...modules, "./operations": operations });

@@ -1,5 +1,6 @@
 "use client";
 
+import EquipmentReturnPolicyModal from "@/components/policies/EquipmentReturnPolicyModal";
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import HomepageContactSection from "@/components/contact/HomepageContactSection";
@@ -52,7 +53,7 @@ function MobileHero() {
 }
 
 function MobileFooter() {
-  return <footer className="border-t border-slate-800 bg-slate-950 px-5 py-8 text-slate-300"><p className="text-lg font-black text-white">Integrity Distribution Systems</p><p className="mt-2 text-sm leading-6">Nationwide autonomous mower sales with professional installation, setup, and ongoing support available throughout the IDS regional service area.</p><p className="mt-5 text-sm font-bold uppercase tracking-[0.2em] text-emerald-400">Regional Service Coverage</p><p className="mt-2 text-sm leading-6">Southern Missouri &bull; Northern Arkansas &bull; Western Kentucky<br />Western Tennessee &bull; Southern Illinois</p></footer>;
+  return <footer className="border-t border-slate-800 bg-slate-950 px-5 py-8 text-slate-300"><p className="text-lg font-black text-white">Integrity Distribution Systems</p><p className="mt-2 text-sm leading-6">Nationwide autonomous mower sales with professional installation, setup, and ongoing support available throughout the IDS regional service area.</p><p className="mt-5 text-sm font-bold uppercase tracking-[0.2em] text-emerald-400">Regional Service Coverage</p><p className="mt-2 text-sm leading-6">Southern Missouri &bull; Northern Arkansas &bull; Western Kentucky<br />Western Tennessee &bull; Southern Illinois</p><div className="mt-5"><EquipmentReturnPolicyModal /></div></footer>;
 }
 
 export default function MobileHomepage() {

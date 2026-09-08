@@ -10,18 +10,21 @@ import { PsqlConnection, literal } from "./psql";
 import { runDatabaseTests } from "./tests";
 import { runWorkflowTests } from "./workflow-tests";
 import { runStripeDatabaseTests } from "./stripe-tests";
+import { runSetupDatabaseTests } from "./setup-tests";
 
 export const SQL_FILES = [
   "scripts/installation-cash-db/00-demo-prerequisite.sql", "scripts/installation-cash-db/01-admin-login-prerequisite.sql", "supabase/migrations/20260904204800_professional_installations.sql",
   "supabase/migrations/20260907233602_installation_cash_safeguards.sql",
   "supabase/migrations/20260907234000_installation_workflow_scheduling.sql",
   "supabase/migrations/20260907235702_installation_stripe_reconciliation.sql", "scripts/installation-cash-db/10-fixtures.sql",
+  "supabase/migrations/20260908152507_professional_setup_addon.sql",
 ];
 export const HASH_FILES = [ ...SQL_FILES,
   "scripts/installation-cash-db/guards.ts", "scripts/installation-cash-db/psql.ts", "scripts/installation-cash-db/runner.ts",
   "scripts/installation-cash-db/tests.ts", "scripts/installation-cash-db/fixtures.json", "lib/installations/accounting.ts", "lib/installations/policy.ts",
   "scripts/installation-cash-db/workflow-tests.ts", "lib/installations/admin-policy.ts", "lib/installations/stripe-policy.ts",
   "scripts/installation-cash-db/stripe-tests.ts", "tests/helpers/installation-stripe-fixtures.ts", "tests/helpers/installation-fixtures.ts",
+  "scripts/installation-cash-db/setup-tests.ts", "lib/installations/setup.ts", "lib/installations/subscriber-eligibility.ts",
 ];
 export function sourceHashes(root: string) {
   return Object.fromEntries(HASH_FILES.map(file => [file, createHash("sha256").update(fs.readFileSync(path.join(root, file))).digest("hex")]));
@@ -149,9 +152,10 @@ export async function main(argv = process.argv.slice(2), root = process.cwd()) {
     const results = await runDatabaseTests(connect, record => { manifest.records.push({ observedOperation: record }); save(manifest); }, verifySession);
     const workflow = await runWorkflowTests(connect, verifySession);
     const stripe = await runStripeDatabaseTests(connect,verifySession);
+    const setup = await runSetupDatabaseTests(connect,verifySession);
     manifest.records = inventory(); save(manifest);
-    fs.writeFileSync(manifestPath.replace(/\.json$/, "-results.json"), JSON.stringify({ ...results, workflow, stripe, databaseOid: manifest.databaseOid, containerId: manifest.containerId }, null, 2) + "\n");
-    console.log(JSON.stringify({ ...results, workflow, stripe }));
+    fs.writeFileSync(manifestPath.replace(/\.json$/, "-results.json"), JSON.stringify({ ...results, workflow, stripe, setup, databaseOid: manifest.databaseOid, containerId: manifest.containerId }, null, 2) + "\n");
+    console.log(JSON.stringify({ ...results, workflow, stripe, setup }));
   } finally { for (const connection of connections) connection.close(); }
   // No database cleanup in finally, on success, or on error.
 }

@@ -3,9 +3,10 @@ import { isReviewAdmin } from "@/lib/reviews/admin-auth";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { approvedPricing, operationKey, prepareAdminOperation, validateAdminInput, type AdminState } from "./admin-policy";
 import type { PricingSnapshot } from "./policy";
+import { getRemoteSupportEligibility } from "./subscriber-eligibility";
 
 export function pricingFromRow(data: Record<string, number>): PricingSnapshot {
-  return {laborCents:data.labor_cents,materialsAllowanceCents:data.materials_allowance_cents,depositCents:data.deposit_cents,
+  return {setupLaborCents:data.setup_labor_cents??50000,laborCents:data.labor_cents,materialsAllowanceCents:data.materials_allowance_cents,depositCents:data.deposit_cents,
     includedLaborMinutes:data.included_labor_minutes,additionalLaborHourlyCents:data.additional_labor_hourly_cents,laborIncrementMinutes:data.labor_increment_minutes,
     undergroundPerSegmentCents:data.underground_per_segment_cents,undergroundSegmentFeet:data.underground_segment_feet,includedOneWayTravelMinutes:data.included_one_way_travel_minutes,travelHourlyCents:data.travel_hourly_cents};
 }
@@ -24,7 +25,8 @@ export async function executeInstallationAdmin(id: string, raw: unknown) {
     db.rpc("ids_installation_admin_state",{p_id:id}),db.from("installation_pricing_settings").select("*").eq("id",true).single(),
   ]);
   if(stateError||defaultsError)throw stateError??defaultsError;if(!state||!defaults)throw new Error("installation_read_incomplete");
-  const plan=()=>{try{return prepareAdminOperation(state as AdminState,body,pricingFromRow(defaults));}catch(error){throw Object.assign(error as Error,{safeToEdit:true});}};
+  const eligible=await getRemoteSupportEligibility(id);
+  const plan=()=>{try{return prepareAdminOperation(state as AdminState,body,pricingFromRow(defaults),new Date(),eligible);}catch(error){throw Object.assign(error as Error,{safeToEdit:true});}};
   const op=plan();
   const {data,error}=await db.rpc("ids_apply_installation_admin",{p_id:id,p_key:body.operationKey,p_payload:op.body,p_expected:state,p_patch:op.patch,
     p_adjustments:op.adjustments,p_sessions:op.sessions,p_stop_session:op.stopSession,p_balance_before:op.balanceBefore,p_balance_after:op.balanceAfter});
