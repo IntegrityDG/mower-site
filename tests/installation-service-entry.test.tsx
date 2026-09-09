@@ -3,7 +3,7 @@ import test from "node:test";
 import { createElement } from "react";
 import * as runtime from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
-import EquipmentReturnPolicyModal from "../components/policies/EquipmentReturnPolicyModal";
+import FooterActions from "../components/footer/FooterActions";
 import * as config from "../lib/scheduling/config";
 import * as types from "../lib/demo-scheduling/types";
 import * as disclaimer from "../lib/demo-party/disclaimer";
@@ -12,7 +12,7 @@ import { loadInstallationModule as load } from "./helpers/installation-module";
 for (const intakeEnabled of [false, true]) test(`service entry reflects server intake=${intakeEnabled}, retains information and demo`, async () => {
   const page = load<typeof import("../app/services-scheduling/page")>("app/services-scheduling/page.tsx", {
     "react/jsx-runtime": runtime,
-    "@/components/policies/EquipmentReturnPolicyModal": EquipmentReturnPolicyModal,
+    "@/components/footer/FooterActions": FooterActions,
     "next/link": (props: object) => createElement("a", props), "next/image": () => null,
     "@/components/services-scheduling/DemoRequestForm": () => createElement("div", null, "Synthetic demo form"),
     "@/lib/demo-party/disclaimer": disclaimer, "@/lib/demo-scheduling/types": types, "@/lib/scheduling/config": config,

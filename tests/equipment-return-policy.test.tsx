@@ -6,6 +6,7 @@ import * as runtime from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 import Image from "next/image";
 import EquipmentReturnPolicyModal from "../components/policies/EquipmentReturnPolicyModal";
+import FooterActions from "../components/footer/FooterActions";
 import InstallationRefundNotice from "../components/installations/InstallationRefundNotice";
 import { loadInstallationModule as load } from "./helpers/installation-module";
 import { servicesSchedulingPage } from "./helpers/installation-service-page";
@@ -15,6 +16,10 @@ const footer = (html: string) => {
   const match = html.match(/<footer\b[\s\S]*?<\/footer>/);
   assert.ok(match, "Public footer is rendered");
   assert.equal((match[0].match(/>Returns &amp; Refunds<\/button>/g) ?? []).length, 1);
+  const actions = [...match[0].matchAll(/<(button|a)\b[^>]*>([^<]+)<\/\1>/g)].map(action => text(action[2]));
+  assert.deepEqual(actions.filter(label => ["Contact Us", "Schedule Service/Demo", "Troubleshoot Your Robot", "Returns & Refunds"].includes(label)), ["Contact Us", "Schedule Service/Demo", "Troubleshoot Your Robot", "Returns & Refunds"]);
+  assert.match(match[0], /href="\/services-scheduling\?service=demo&amp;source=contact_ids#services-top"/);
+  assert.match(match[0], /href="\/troubleshoot-your-robot"/);
   return text(match[0]);
 };
 
@@ -23,7 +28,7 @@ for (const variant of ["Desktop", "Mobile"] as const) test(`${variant} public fo
   // content panels/navigation are omitted (including their network/CSS imports).
   const modules: Record<string, unknown> = {
     react: React, "react/jsx-runtime": runtime, "next/image": Image,
-    "@/components/policies/EquipmentReturnPolicyModal": EquipmentReturnPolicyModal,
+    "@/components/footer/FooterActions": FooterActions,
     "@/lib/homepage-navigation": {},
     [`./${variant}HomeNavigation`]: () => null,
   };
