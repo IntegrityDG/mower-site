@@ -28,6 +28,7 @@ test("direct disabled intake POST rejects before parsing or accessing installati
   const route = load<typeof import("../app/api/installations/route")>("app/api/installations/route.ts", {
     "@/lib/installations/controls": controls(), "@/lib/installations/server": { createInstallation: forbidden },
     "@/lib/installations/validation": { validateInstallationIntake: forbidden },
+    "@/lib/service/validation": { ServiceError: class ServiceError extends Error { constructor(message: string, public status=400){super(message);} } },
   });
   assert.equal((await route.POST(new Request("http://localhost/api/installations", { method: "POST", body: "malformed" }))).status, 503);
 });

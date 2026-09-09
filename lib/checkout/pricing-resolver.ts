@@ -8,7 +8,7 @@ import { applyActivePriceSchedule, selectActivePriceSchedule } from "@/lib/catal
 import { operationalPriceCents } from "./operational-price";
 import { readPricingProgramSettingsFailSafe } from "@/lib/pricing-program/server";
 import { addOptionalServices } from "./optional-services";
-import { serviceControls } from "@/lib/service/controls";
+import { readPublicServiceAvailability } from "@/lib/service/availability";
 
 function currentPrice(
   row: PriceableRow,
@@ -122,5 +122,10 @@ async function resolveEquipmentPricing(input: CheckoutRequest): Promise<OrderPri
 }
 
 export async function resolveAuthoritativeOrderPricing(input: CheckoutRequest): Promise<OrderPriceSnapshot> {
-  return addOptionalServices(await resolveEquipmentPricing(input), input, serviceControls().remoteSupport && serviceControls().payments);
+  const availability = await readPublicServiceAvailability();
+  return addOptionalServices(await resolveEquipmentPricing(input), input, {
+    install: { available: availability.professional_installation.available, message: availability.professional_installation.public_message },
+    setup: { available: availability.professional_setup.available, message: availability.professional_setup.public_message },
+    remoteSupport: { available: availability.new_remote_support_subscriptions.available, message: availability.new_remote_support_subscriptions.public_message },
+  });
 }

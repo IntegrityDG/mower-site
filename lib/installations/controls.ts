@@ -1,7 +1,8 @@
 import "server-only";
 import { getStripeMode } from "@/lib/stripe/config-values";
 
-// Only the exact value "true" opts in. Never query a table to check activation.
+// Only the exact value "true" opts in to the production capability foundation.
+// Persisted Master Admin availability is enforced separately for every new intake.
 export function installationControls() {
   return {
     intakeEnabled: process.env.INSTALLATION_INTAKE_ENABLED === "true",

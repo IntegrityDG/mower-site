@@ -18,6 +18,7 @@ test("Setup-only service authenticates first, validates strictly, and persists a
   for(const authorized of [false,true]){
     const calls:unknown[]=[];const service=load<typeof import("../lib/installations/setup-server")>("lib/installations/setup-server.ts",{
       "@/lib/reviews/admin-auth":{isReviewAdmin:async()=>authorized},"./admin-policy":policy,"./validation":validation,
+      "@/lib/service/availability":{requireServiceAvailability:async()=>{}},
       "@/lib/supabase":{getSupabaseServiceClient:()=>({rpc:async(name:string,args:unknown)=>{calls.push({name,args});return{data:{ok:true,id:installationId,public_token:installationId},error:null};}})},
     });
     if(!authorized){await assert.rejects(service.createSetupOnlyJob(input()),/Unauthorized/);assert.equal(calls.length,0);continue;}

@@ -8,6 +8,7 @@ import { activationDate, failureDeadline, nextBillingDate, SERVICE_POLICY_VERSIO
 import { serviceDatabase, serviceRpc, databaseError } from "./repository";
 import { serviceToken, tokenHash } from "./security";
 import { requireServiceControl, serviceControls } from "./controls";
+import { requireServiceAvailability } from "./availability";
 import { parseSupportPurchase, ServiceError } from "./validation";
 import { serviceRateLimit } from "./auth";
 import { caseByToken, readCases, subscriptionByToken } from "./server";
@@ -36,6 +37,7 @@ export async function supportRecord(subscriptionId: string): Promise<StripeSuppo
 }
 export async function startSupportCheckout(request: Request, value: unknown) {
   requireServiceControl("remoteSupport"); requireServiceControl("payments");
+  await requireServiceAvailability("new_remote_support_subscriptions");
   await serviceRateLimit(request, "subscribe", 10);
   const input = parseSupportPurchase(value); const token = serviceToken("support", input.key);
   const record = await serviceRpc<StripeSupportRecord>("ids_support_checkout_draft", { p_key: input.key, p_fingerprint: requestFingerprint(input), p_token_hash: tokenHash(token), p_customer: { ...input, origin: dealerNetworkOrigin(request) }, p_live: live(), p_order: null });

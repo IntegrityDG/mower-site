@@ -6,6 +6,7 @@ import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { DEFAULT_PRICING, type PricingSnapshot } from "./policy";
 import type { InstallationIntake } from "./validation";
+import { requireServiceAvailability } from "@/lib/service/availability";
 const c = () => getSupabaseServiceClient();
 export async function pricingSettings(): Promise<PricingSnapshot> {
   const {data,error}=await c().from("installation_pricing_settings").select("*").eq("id",true).single();
@@ -13,6 +14,8 @@ export async function pricingSettings(): Promise<PricingSnapshot> {
 }
 export async function createInstallation(value: InstallationIntake) {
   requireInstallationIntake();const parsed=validateInstallationIntake(value);if(!parsed.ok)throw new Error("invalid_intake");
+  await requireServiceAvailability("professional_installation");
+  if(parsed.value.setupSelected)await requireServiceAvailability("professional_setup");
   const {data,error}=await c().rpc("ids_create_installation",{p_payload:parsed.value});
   if(error)throw error;if(!data?.id||!data.public_token)throw new Error("installation_response_incomplete");return data;
 }

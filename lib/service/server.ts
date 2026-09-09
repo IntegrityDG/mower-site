@@ -11,6 +11,7 @@ import type { CaseDetail, ServiceCase, StaffActor, Subscription, WorkSheet } fro
 import { DEFAULT_SERVICE_PRICING } from "./policy";
 import { serviceControls } from "./controls";
 import { parsePricing } from "./validation";
+import { requireServiceAvailability } from "./availability";
 
 export async function publicServicePricing() {
   if (!serviceControls().serviceIntake) return DEFAULT_SERVICE_PRICING;
@@ -36,6 +37,8 @@ export async function verifiedSupportCustomer() {
 export async function createServiceCase(request: Request, value: unknown) {
   const input = parseIntake(value);
   requireServiceControl(input.kind === "included_support" ? "remoteSupport" : "serviceIntake");
+  if (input.kind === "included_support") await requireServiceAvailability("existing_subscriber_assistance");
+  else if (input.warranty === "no") await requireServiceAvailability(input.kind === "remote_service" ? "paid_remote_service" : "onsite_service");
   await serviceRateLimit(request, "intake", 10);
   const token = serviceToken("case", input.key);
   const result = await serviceRpc<{ id: string; caseNumber: string }>("ids_service_intake", {

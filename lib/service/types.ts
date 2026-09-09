@@ -7,6 +7,35 @@ export type WarrantyStatus = "not_requested" | "verification" | "verified" | "no
 export type TripCategory = "initial" | "legitimate_return" | "hazard_return";
 
 export type StaffActor = { id: string | null; role: "master" | "technician"; name: string; canCollectPayments: boolean; canRecordCash: boolean };
+export const SERVICE_AVAILABILITY_KEYS = [
+  "professional_installation",
+  "professional_setup",
+  "new_remote_support_subscriptions",
+  "existing_subscriber_assistance",
+  "paid_remote_service",
+  "onsite_service",
+] as const;
+export type ServiceAvailabilityKey = (typeof SERVICE_AVAILABILITY_KEYS)[number];
+export const SERVICE_AVAILABILITY_LABELS: Record<ServiceAvailabilityKey, string> = {
+  professional_installation: "Professional Installation",
+  professional_setup: "Professional Setup & Optimization",
+  new_remote_support_subscriptions: "New Remote Support subscriptions",
+  existing_subscriber_assistance: "Existing-subscriber Remote Support assistance",
+  paid_remote_service: "Paid Remote Service",
+  onsite_service: "On-Site Service",
+};
+export type ServiceAvailabilityStatus = "available" | "currently_unavailable";
+export type ServiceAvailabilitySetting = {
+  service_key: ServiceAvailabilityKey; status: ServiceAvailabilityStatus; public_message: string;
+  changed_at: string; changed_by: string | null; changed_by_name: string;
+};
+export type PublicServiceAvailabilitySetting = ServiceAvailabilitySetting & { available: boolean };
+export type ServiceAvailabilityEvent = {
+  id: string; operation_key: string; service_key: ServiceAvailabilityKey;
+  previous_status: ServiceAvailabilityStatus; status: ServiceAvailabilityStatus;
+  previous_public_message: string; public_message: string; changed_by: string | null;
+  changed_by_name: string; changed_at: string;
+};
 export type StaffProfile = { id: string; name: string; email: string; phone: string; enabled: boolean; can_collect_payments: boolean; can_record_cash: boolean; created_at: string };
 export type Subscription = {
   id: string; customer_id: string; stripe_customer_id: string | null; stripe_subscription_id: string | null;

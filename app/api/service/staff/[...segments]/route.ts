@@ -7,6 +7,8 @@ import { readWarrantySnapshot, runServiceMaintenance, wakeServiceMaintenance } f
 import { serviceRpc } from "@/lib/service/repository";
 import { warrantyPdf } from "@/lib/service/warranty-pdf";
 import { exact, object, text, uuid, integer, parsePricing, ServiceError } from "@/lib/service/validation";
+import { readAvailabilityHistory, readServiceAvailability, saveServiceAvailability } from "@/lib/service/availability";
+import { SERVICE_AVAILABILITY_KEYS, type ServiceAvailabilityKey, type ServiceAvailabilityStatus } from "@/lib/service/types";
 type Context = { params: Promise<{ segments: string[] }> };
 export const runtime = "nodejs";
 const missing = () => serviceResponse({ error: "Service endpoint not found." }, 404);
@@ -16,6 +18,7 @@ export async function GET(request: Request, context: Context) {
     const parts = (await context.params).segments;
     if (parts.length === 1 && parts[0] === "session") { const actor = await currentStaff(); return serviceResponse({ actor }, actor ? 200 : 401); }
     const actor = await requireStaff();
+    if (parts.length === 1 && parts[0] === "availability") { await requireStaff(true); return serviceResponse({ settings: await readServiceAvailability(), history: await readAvailabilityHistory() }); }
     if (parts.length === 1 && parts[0] === "accounts") return serviceResponse({ staff: await staffProfiles() });
     if (parts[0] !== "cases") return missing();
     if (parts.length === 1) return serviceResponse(await readCases(actor));
@@ -36,6 +39,13 @@ export async function POST(request: Request, context: Context) {
     if (parts.length === 1 && parts[0] === "activate") { exact(body, ["token", "password"]); await serviceRateLimit(request, "activate", 10); await activateStaff(body.token, body.password); return serviceResponse({ ok: true }); }
     const actor = await requireStaff();
     wakeServiceMaintenance();
+    if (parts.length === 1 && parts[0] === "availability") {
+      await requireStaff(true); exact(body, ["operationKey", "serviceKey", "status", "publicMessage"]);
+      const serviceKey = text(body.serviceKey, "service", 100, true) as ServiceAvailabilityKey;
+      const status = text(body.status, "availability status", 50, true) as ServiceAvailabilityStatus;
+      if (!SERVICE_AVAILABILITY_KEYS.includes(serviceKey) || !["available", "currently_unavailable"].includes(status)) throw new ServiceError("Choose a valid Service availability setting.");
+      return serviceResponse(await saveServiceAvailability(actor, { operationKey: uuid(body.operationKey), serviceKey, status, publicMessage: text(body.publicMessage, "public message", 500) }));
+    }
     if (parts.length === 1 && parts[0] === "accounts") return serviceResponse(await manageStaff(request, body));
     if (parts.length === 1 && parts[0] === "pricing") {
       await requireStaff(true); exact(body, ["key", "version", "pricing", "reason"]);

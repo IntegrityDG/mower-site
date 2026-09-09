@@ -50,7 +50,7 @@ function harness() {
     "@/lib/dealer-network/api": { dealerNetworkOrigin: () => "https://example.invalid" }, "@/lib/dealer-network/security": { requestFingerprint: () => "fingerprint" },
     "./policy": policy, "./repository": { serviceDatabase: () => database, serviceRpc: rpc, databaseError: (error: Error) => { throw error; } },
     "./security": { serviceToken: () => "synthetic", tokenHash: () => "synthetic_hash" },
-    "./controls": { requireServiceControl: () => {}, serviceControls: () => ({}) }, "./validation": validation,
+    "./controls": { requireServiceControl: () => {}, serviceControls: () => ({}) }, "./availability": { requireServiceAvailability: async () => {} }, "./validation": validation,
     "./auth": { serviceRateLimit: async () => {} }, "./server": { subscriptionByToken: async () => record },
   });
   const event = (type: string, object: any) => ({ id: "evt_test", type, livemode: false, created: now, data: { object } } as any);

@@ -17,11 +17,15 @@ for (const intakeEnabled of [false, true]) test(`service entry reflects server i
     "@/components/services-scheduling/DemoRequestForm": () => createElement("div", null, "Synthetic demo form"),
     "@/lib/demo-party/disclaimer": disclaimer, "@/lib/demo-scheduling/types": types, "@/lib/scheduling/config": config,
     "@/lib/installations/controls": { installationControls: () => ({ intakeEnabled, onlinePaymentsEnabled: false }) },
-    "@/lib/service/controls": { serviceControls: () => ({ serviceIntake: false, remoteSupport: false }) },
+    "@/lib/service/availability": { readPublicServiceAvailability: async () => ({
+      professional_installation: { available: intakeEnabled, public_message: "" }, professional_setup: { available: intakeEnabled, public_message: "" },
+      paid_remote_service: { available: false, public_message: "" }, onsite_service: { available: false, public_message: "" },
+      new_remote_support_subscriptions: { available: false, public_message: "" }, existing_subscriber_assistance: { available: false, public_message: "" },
+    }) },
   });
   const html = renderToStaticMarkup(await page.default({ searchParams: Promise.resolve({}) }));
   const card = html.match(/<article[\s\S]*?<\/article>/g)!.find(card => card.includes('href="/professional-installation"'))!;
-  assert.match(card, intakeEnabled ? /Available/ : /Coming soon/);
+  assert.match(card, intakeEnabled ? /Available/ : /CURRENTLY UNAVAILABLE/);
   assert.match(card, intakeEnabled ? /Request installation/ : /Installation information/);
   assert.match(html, /href="#request-demo"/); assert.match(html, /id="services-top"/);
 });

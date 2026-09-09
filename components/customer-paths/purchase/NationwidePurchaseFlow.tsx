@@ -45,7 +45,7 @@ import ProductSelection from "./ProductSelection";
 import PurchaseMethod from "./PurchaseMethod";
 import PurchaseSummary from "./PurchaseSummary";
 import OptionalServices from "./OptionalServices";
-import { EMPTY_OPTIONAL_SERVICES } from "@/lib/checkout/optional-services";
+import { EMPTY_OPTIONAL_SERVICES, type MachineServiceAvailability } from "@/lib/checkout/optional-services";
 
 type NationwidePurchaseFlowProps = {
   selectedState?: string;
@@ -66,6 +66,7 @@ type SubmitStatus = "idle" | "submitting" | "success" | "error";
 
 const hearthFinancingUrl =
   "https://app.gethearth.com/requests/930af233-2a7b-4f52-a836-bd11173d6fee";
+const unavailableMachineServices: MachineServiceAvailability = { install: { available: false, message: "" }, setup: { available: false, message: "" }, remoteSupport: { available: false, message: "" } };
 
 const stages: { key: StageKey }[] = [
   { key: "product" },
@@ -228,7 +229,7 @@ export default function NationwidePurchaseFlow({
   const [catalogReloadKey, setCatalogReloadKey] = useState(0);
   const [stageIndex, setStageIndex] = useState(0);
   const [optionalServices, setOptionalServices] = useState(EMPTY_OPTIONAL_SERVICES);
-  const [supportAvailable, setSupportAvailable] = useState(false);
+  const [serviceAvailability, setServiceAvailability] = useState<MachineServiceAvailability>(unavailableMachineServices);
   const checkoutOperation = useRef<{ fingerprint: string; key: string } | null>(null);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [buildSelection, setBuildSelection] =
@@ -254,7 +255,7 @@ export default function NationwidePurchaseFlow({
   const submissionInProgress = useRef(false);
   const urlPreselectionApplied = useRef(false);
 
-  useEffect(() => { let alive = true; fetch("/api/service/availability", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(value => { if (alive) setSupportAvailable(value?.remoteSupport === true); }).catch(() => { if (alive) setSupportAvailable(false); }); return () => { alive = false; }; }, []);
+  useEffect(() => { let alive = true; fetch("/api/service/availability", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(value => { if (alive) setServiceAvailability(value?.machine ?? unavailableMachineServices); }).catch(() => { if (alive) setServiceAvailability(unavailableMachineServices); }); return () => { alive = false; }; }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -415,7 +416,7 @@ export default function NationwidePurchaseFlow({
     (activeStage.key === "review" && buildComplete) ||
     (activeStage.key === "location" && locationComplete) ||
     (activeStage.key === "purchase" && Boolean(selectedPurchaseMethod)) ||
-    (activeStage.key === "optionalServices" && (accessoryMode || !optionalServices.remoteSupport || (optionalServices.acceptedSupportTerms && supportAvailable && submissionKind !== "quote"))) ||
+    (activeStage.key === "optionalServices" && (accessoryMode || ((!optionalServices.install || serviceAvailability.install.available) && (!optionalServices.setup || serviceAvailability.setup.available) && (!optionalServices.remoteSupport || (optionalServices.acceptedSupportTerms && serviceAvailability.remoteSupport.available && submissionKind !== "quote"))))) ||
     (activeStage.key === "customer" &&
       customerInformationComplete &&
       locationComplete) ||
@@ -932,7 +933,7 @@ export default function NationwidePurchaseFlow({
 
     if (activeStage.key === "optionalServices") {
       if (accessoryMode) return <p>Optional Services are offered with a machine purchase.</p>;
-      return <OptionalServices value={optionalServices} onChange={setOptionalServices} supportAvailable={supportAvailable} eligibleCheckout={submissionKind !== "quote" && Boolean(selectedProduct)} />;
+      return <OptionalServices value={optionalServices} onChange={setOptionalServices} availability={serviceAvailability} eligibleCheckout={submissionKind !== "quote" && Boolean(selectedProduct)} />;
     }
     if (activeStage.key === "customer") {
       return (

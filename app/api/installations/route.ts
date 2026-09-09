@@ -1,4 +1,58 @@
-import {installationControls} from "@/lib/installations/controls";
-import {createInstallation} from "@/lib/installations/server";
-import {validateInstallationIntake} from "@/lib/installations/validation";
-export async function POST(request:Request){if(!installationControls().intakeEnabled)return Response.json({error:"New installation requests are not yet open."},{status:503});const raw=await request.text();if(new TextEncoder().encode(raw).byteLength>16000)return Response.json({error:"Request too large."},{status:413});let body:unknown;try{body=JSON.parse(raw)}catch{body=null}const parsed=validateInstallationIntake(body);if(!parsed.ok)return Response.json({errors:parsed.errors},{status:400});try{const saved=await createInstallation(parsed.value);return Response.json({id:saved.id,token:saved.public_token},{status:201})}catch(e){const m=String((e as Error)?.message??"");return Response.json({code:/slot_conflict|slot_unavailable|exclusion/i.test(m)?"slot_unavailable":/invalid_intake/.test(m)?"invalid_intake":undefined,error:/slot_conflict|slot_unavailable|exclusion/i.test(m)?"That time is no longer available.":"Installation request could not be submitted."},{status:/slot_conflict|slot_unavailable|exclusion|idempotency_conflict/i.test(m)?409:503})}}
+import { installationControls } from "@/lib/installations/controls";
+import { createInstallation } from "@/lib/installations/server";
+import { validateInstallationIntake } from "@/lib/installations/validation";
+import { ServiceError } from "@/lib/service/validation";
+export async function POST(request: Request) {
+  if (!installationControls().intakeEnabled)
+    return Response.json(
+      { error: "New installation requests are not yet open." },
+      { status: 503 },
+    );
+  const raw = await request.text();
+  if (new TextEncoder().encode(raw).byteLength > 16000)
+    return Response.json({ error: "Request too large." }, { status: 413 });
+  let body: unknown;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    body = null;
+  }
+  const parsed = validateInstallationIntake(body);
+  if (!parsed.ok)
+    return Response.json({ errors: parsed.errors }, { status: 400 });
+  try {
+    const saved = await createInstallation(parsed.value);
+    return Response.json(
+      { id: saved.id, token: saved.public_token },
+      { status: 201 },
+    );
+  } catch (e) {
+    const m = String((e as Error)?.message ?? "");
+    const unavailable = e instanceof ServiceError && e.status === 503;
+    return Response.json(
+      {
+        code: unavailable
+          ? "currently_unavailable"
+          : /slot_conflict|slot_unavailable|exclusion/i.test(m)
+            ? "slot_unavailable"
+            : /invalid_intake/.test(m)
+              ? "invalid_intake"
+              : undefined,
+        error: unavailable
+          ? e.message
+          : /slot_conflict|slot_unavailable|exclusion/i.test(m)
+            ? "That time is no longer available."
+            : "Installation request could not be submitted.",
+      },
+      {
+        status: unavailable
+          ? 503
+          : /slot_conflict|slot_unavailable|exclusion|idempotency_conflict/i.test(
+                m,
+              )
+            ? 409
+            : 503,
+      },
+    );
+  }
+}

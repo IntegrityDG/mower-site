@@ -4,6 +4,7 @@ import { ServiceError } from "./validation";
 
 export const serviceDatabase = () => getSupabaseServiceClient();
 export function databaseError(error: { code?: string; message: string }): never {
+  if (error.message.includes("service_currently_unavailable")) throw new ServiceError("CURRENTLY UNAVAILABLE", 503);
   const messages: Record<string, string> = {
     service_forbidden: "You do not have access to this Service record.",
     service_version_conflict: "This record changed. Refresh it before saving.",
