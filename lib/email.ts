@@ -49,14 +49,14 @@ export async function sendIdsNotification({ subject, text, to, replyTo }: { subj
   return result;
 }
 
-export type ServerEmailOptions = {to:string;subject:string;text:string;replyTo?:string;html?:string;attachments?:{filename:string;content:string;contentType?:string}[]};
+export type ServerEmailOptions = {to:string;subject:string;text:string;replyTo?:string;html?:string;attachments?:{filename:string;content:string;contentType?:string}[];idempotencyKey?:string};
 
-export async function sendServerEmail({to,subject,text,replyTo,html,attachments}: ServerEmailOptions) {
+export async function sendServerEmail({to,subject,text,replyTo,html,attachments,idempotencyKey}: ServerEmailOptions) {
   const from=process.env.DEMO_FROM_EMAIL?.trim();
   if(!from)throw new Error("DEMO_FROM_EMAIL is missing.");
   let result;
   try {
-    result=await getResendClient().emails.send({from,to,...(replyTo?{replyTo}:{}),subject,text,html,attachments});
+    result=await getResendClient().emails.send({from,to,...(replyTo?{replyTo}:{}),subject,text,html,attachments},idempotencyKey?{idempotencyKey}:undefined);
   } catch(error) {
     throw new Error(sanitizeEmailFailure(error));
   }

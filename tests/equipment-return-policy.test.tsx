@@ -5,6 +5,7 @@ import * as React from "react";
 import * as runtime from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 import Image from "next/image";
+import Link from "next/link";
 import EquipmentReturnPolicyModal from "../components/policies/EquipmentReturnPolicyModal";
 import FooterActions from "../components/footer/FooterActions";
 import InstallationRefundNotice from "../components/installations/InstallationRefundNotice";
@@ -27,7 +28,7 @@ for (const variant of ["Desktop", "Mobile"] as const) test(`${variant} public fo
   // Render the actual homepage shell and policy component. Only unrelated
   // content panels/navigation are omitted (including their network/CSS imports).
   const modules: Record<string, unknown> = {
-    react: React, "react/jsx-runtime": runtime, "next/image": Image,
+    react: React, "react/jsx-runtime": runtime, "next/image": Image, "next/link": Link,
     "@/components/footer/FooterActions": FooterActions,
     "@/lib/homepage-navigation": {},
     [`./${variant}HomeNavigation`]: () => null,

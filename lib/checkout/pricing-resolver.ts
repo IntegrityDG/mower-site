@@ -7,6 +7,8 @@ import { resolvePaymentAdjustments } from "./payment-pricing";
 import { applyActivePriceSchedule, selectActivePriceSchedule } from "@/lib/catalog/active-price-schedule";
 import { operationalPriceCents } from "./operational-price";
 import { readPricingProgramSettingsFailSafe } from "@/lib/pricing-program/server";
+import { addOptionalServices } from "./optional-services";
+import { serviceControls } from "@/lib/service/controls";
 
 function currentPrice(
   row: PriceableRow,
@@ -68,7 +70,7 @@ async function resolveAccessoryOnlyPricing(input: CheckoutRequest): Promise<Orde
   return Object.freeze({ currency: "usd", product: { id: anchor.id, slug: "accessories", name: "Accessories & Parts" }, variant: null, purchaseMode: "accessories", chargeableItems: Object.freeze(chargeable), includedPackageComponents: Object.freeze([]), subtotalCents: subtotal, discountCents: adjustments.discountCents, feeCents: 0, shippingCents: 0, taxCents: 0, totalCents: adjustments.totalCents, paymentMethod: input.paymentMethod, pricedAt: new Date(now).toISOString(), catalogSources: Object.freeze(sources), warnings: Object.freeze([]), safeMetadata: { phase: "4B2B" as const, discountPolicy: adjustments.discountPolicy } });
 }
 
-export async function resolveAuthoritativeOrderPricing(input: CheckoutRequest): Promise<OrderPriceSnapshot> {
+async function resolveEquipmentPricing(input: CheckoutRequest): Promise<OrderPriceSnapshot> {
   if (input.selection.purchaseMode === "accessories") return resolveAccessoryOnlyPricing(input);
   const supabase = getSupabaseServiceClient();
   const { everydayLowPriceEnabled } =
@@ -117,4 +119,8 @@ export async function resolveAuthoritativeOrderPricing(input: CheckoutRequest): 
   const subtotal = chargeable.reduce((sum, item) => sum + item.extendedAmountCents, 0);
   const adjustments = resolvePaymentAdjustments(subtotal, input.paymentMethod);
   return Object.freeze({ currency: "usd", product: { id: product.id, slug: product.slug, name: product.name }, variant: eligibility.variant ? { id: eligibility.variant.id, slug: eligibility.variant.variant_slug, name: eligibility.variant.name, sku: eligibility.variant.sku } : null, purchaseMode: input.selection.purchaseMode, chargeableItems: Object.freeze(chargeable), includedPackageComponents: Object.freeze(included), subtotalCents: subtotal, discountCents: adjustments.discountCents, feeCents: 0, shippingCents: 0, taxCents: 0, totalCents: adjustments.totalCents, paymentMethod: input.paymentMethod, pricedAt: new Date(now).toISOString(), catalogSources: Object.freeze(sources), warnings: Object.freeze(eligibility.moduleOnlyWarning ? [eligibility.moduleOnlyWarning] : []), safeMetadata: { phase: "4B2B" as const, discountPolicy: adjustments.discountPolicy } });
+}
+
+export async function resolveAuthoritativeOrderPricing(input: CheckoutRequest): Promise<OrderPriceSnapshot> {
+  return addOptionalServices(await resolveEquipmentPricing(input), input, serviceControls().remoteSupport && serviceControls().payments);
 }

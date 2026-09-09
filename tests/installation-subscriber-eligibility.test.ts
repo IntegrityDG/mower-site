@@ -14,11 +14,27 @@ const body=(action:string,extra={})=>({action,operationKey:randomUUID(),reason:"
 const job=()=>installationHarness({installation:{status:"requested",pricing_snapshot:null,setup_selected:true,internet_availability:"yes"},payments:[]});
 const totals=(h:ReturnType<typeof job>)=>installationBalance(h.state.installations[0].pricing_snapshot,h.state.installation_adjustments,h.state.installation_payments);
 
-test("the actual server-only eligibility provider always returns false until website subscriptions exist",async()=>{
-  // The loader rejects any unexpected dependency; no subscription query or
-  // external system is invented, and environment flags cannot grant eligibility.
-  const provider=load<Provider>("lib/installations/subscriber-eligibility.ts",{}, {REMOTE_SUPPORT_ELIGIBLE:"true",REMOTE_SUPPORT_SUBSCRIBER:"true"});
-  for(const id of [installationId,randomUUID(),""])assert.equal(await provider.getRemoteSupportEligibility(id),false);
+function eligibilityProvider(binding: { customer_id: string } | null, eligible: unknown, error: { code: string } | null = null) {
+  const lookups: unknown[] = [];
+  const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: binding, error }) };
+  const provider = load<Provider>("lib/installations/subscriber-eligibility.ts", { "@/lib/supabase": { getSupabaseServiceClient: () => ({ from: (table: string) => { assert.equal(table, "service_installation_customers"); return query; }, rpc: async (name: string, args: unknown) => { assert.equal(name, "ids_support_eligible"); lookups.push(args); return { data: eligible, error: null }; } }) } }, { REMOTE_SUPPORT_ELIGIBLE: "true", REMOTE_SUPPORT_SUBSCRIBER: "true" });
+  return { provider, lookups };
+}
+test("missing/unlinked authoritative subscription identity defaults false; environment flags do not grant discounts", async () => {
+  for (const error of [null, { code: "42P01" }, { code: "PGRST205" }]) {
+    const { provider, lookups } = eligibilityProvider(null, true, error);
+    for (const id of [installationId, randomUUID(), ""]) assert.equal(await provider.getRemoteSupportEligibility(id), false);
+    assert.equal(lookups.length, 0);
+  }
+});
+test("linked Setup uses only the authoritative subscription RPC and strictly requires boolean true", async () => {
+  const customer = randomUUID();
+  for (const value of [true, false, null, "true", 1]) {
+    const { provider, lookups } = eligibilityProvider({ customer_id: customer }, value);
+    assert.equal(await provider.getRemoteSupportEligibility(installationId), value === true);
+    assert.equal(JSON.stringify(lookups), JSON.stringify([{ p_customer: customer }]));
+  }
+  await assert.rejects(eligibilityProvider(null, true, { code: "08006" }).provider.getRemoteSupportEligibility(installationId));
 });
 test("authorization precedes the eligibility provider and database access",async()=>{
   const forbidden=()=>{throw Error("must not access provider/database");};

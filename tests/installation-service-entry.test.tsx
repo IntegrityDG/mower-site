@@ -17,6 +17,7 @@ for (const intakeEnabled of [false, true]) test(`service entry reflects server i
     "@/components/services-scheduling/DemoRequestForm": () => createElement("div", null, "Synthetic demo form"),
     "@/lib/demo-party/disclaimer": disclaimer, "@/lib/demo-scheduling/types": types, "@/lib/scheduling/config": config,
     "@/lib/installations/controls": { installationControls: () => ({ intakeEnabled, onlinePaymentsEnabled: false }) },
+    "@/lib/service/controls": { serviceControls: () => ({ serviceIntake: false, remoteSupport: false }) },
   });
   const html = renderToStaticMarkup(await page.default({ searchParams: Promise.resolve({}) }));
   const card = html.match(/<article[\s\S]*?<\/article>/g)!.find(card => card.includes('href="/professional-installation"'))!;

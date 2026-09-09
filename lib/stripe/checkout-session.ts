@@ -3,6 +3,7 @@ import { PAYMENT_SECURITY_NOTICE, PAYMENT_SECURITY_POLICY_VERSION } from "@/lib/
 import { CHECKOUT_POLICY_VERSION } from "@/lib/checkout/idempotency";
 import { signCancelState } from "@/lib/checkout/signed-state";
 import type { OrderPriceSnapshot } from "@/lib/checkout/types";
+import { SUPPORT_CHECKOUT_NOTICE } from "@/lib/checkout/optional-services";
 
 type Input = { snapshot: OrderPriceSnapshot; orderId: string; attemptId: string; publicReference: string; customerEmail: string | null; appBaseUrl: string; signingSecret: string; returnPath: string; cancelExpiresAt: number; serverDiscount?: { couponId: string; amountCents: number } };
 export function buildCardCheckoutSession(input: Input): Stripe.Checkout.SessionCreateParams {
@@ -17,5 +18,5 @@ export function buildCardCheckoutSession(input: Input): Stripe.Checkout.SessionC
   const validEmail = input.customerEmail?.trim();
   const customerEmail = validEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(validEmail) ? validEmail : null;
   const metadata = { order_id:input.orderId, attempt_id:input.attemptId, public_reference:input.publicReference, payment_method:"card", checkout_policy:CHECKOUT_POLICY_VERSION, security_policy:PAYMENT_SECURITY_POLICY_VERSION };
-  return { mode:"payment", payment_method_types:["card"], line_items:lines, ...(input.serverDiscount ? { discounts: [{ coupon: input.serverDiscount.couponId }] } : {}), customer_creation:"always", ...(customerEmail ? { customer_email: customerEmail } : {}), phone_number_collection:{enabled:true}, billing_address_collection:"required", shipping_address_collection:{allowed_countries:["US"]}, saved_payment_method_options:{payment_method_save:"enabled"}, custom_text:{submit:{message:PAYMENT_SECURITY_NOTICE}}, payment_intent_data:{metadata}, client_reference_id:input.orderId, metadata, success_url:`${input.appBaseUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url:`${input.appBaseUrl}/checkout/cancel?token=${encodeURIComponent(token)}` };
+  return { mode:"payment", payment_method_types:["card"], line_items:lines, ...(input.serverDiscount ? { discounts: [{ coupon: input.serverDiscount.couponId }] } : {}), customer_creation:"always", ...(customerEmail ? { customer_email: customerEmail } : {}), phone_number_collection:{enabled:true}, billing_address_collection:"required", shipping_address_collection:{allowed_countries:["US"]}, saved_payment_method_options:{payment_method_save:"enabled"}, custom_text:{submit:{message:input.snapshot.optionalServices?.remoteSupport ? `${PAYMENT_SECURITY_NOTICE} ${SUPPORT_CHECKOUT_NOTICE}` : PAYMENT_SECURITY_NOTICE}}, payment_intent_data:{metadata,...(input.snapshot.optionalServices?.remoteSupport ? {setup_future_usage:"off_session" as const} : {})}, client_reference_id:input.orderId, metadata, success_url:`${input.appBaseUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`, cancel_url:`${input.appBaseUrl}/checkout/cancel?token=${encodeURIComponent(token)}` };
 }

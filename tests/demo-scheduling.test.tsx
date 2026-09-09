@@ -937,7 +937,7 @@ test("Resend diagnostics classify useful failure reasons without returning raw m
 test("server email requires DEMO_FROM_EMAIL and never falls back after failure", () => {
   const serverEmail = emailSource.slice(emailSource.indexOf("export async function sendServerEmail"));
   assert.match(serverEmail, /DEMO_FROM_EMAIL\?\.trim\(\)/);
-  assert.match(serverEmail, /emails\.send\(\{from,to,\.\.\.\(replyTo\?\{replyTo\}:\{\}\),subject,text,html,attachments\}\)/);
+  assert.match(serverEmail, /emails\.send\(\{from,to,\.\.\.\(replyTo\?\{replyTo\}:\{\}\),subject,text,html,attachments\},idempotencyKey\?\{idempotencyKey\}:undefined\)/);
   assert.match(serverEmail, /sanitizeEmailFailure\(result\.error\)/);
   assert.doesNotMatch(serverEmail, /onboarding@resend\.dev/);
 });

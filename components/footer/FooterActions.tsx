@@ -15,6 +15,7 @@ export default function FooterActions({ className = "" }: { className?: string }
       <Link href="/troubleshoot-your-robot" className={secondaryClassName}>
         Troubleshoot Your Robot
       </Link>
+      <Link href="/remote-assistance" className={secondaryClassName}>Remote Assistance</Link>
       <EquipmentReturnPolicyModal />
     </div>
   );

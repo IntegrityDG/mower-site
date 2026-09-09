@@ -27,10 +27,11 @@ export async function POST(request: Request) {
   if (input.paymentMethod !== "ach_debit") return jsonError("ACH checkout requires ach_debit.", 400);
   try {
     const config = getStripeConfiguration();
-    const snapshot = await resolveAuthoritativeOrderPricing(input);
+    let snapshot = await resolveAuthoritativeOrderPricing(input);
     const fingerprint = checkoutRequestFingerprint(input);
     const idempotencyKey = checkoutAttemptIdempotencyKey(input.requestId, "ach_debit");
     const draft = await createAchCheckoutDraft(input, snapshot, idempotencyKey, fingerprint);
+    snapshot = draft.snapshot ?? snapshot;
     const createdAt = new Date(draft.attemptCreatedAt).getTime();
     if (!Number.isFinite(createdAt)) throw new CheckoutRepositoryError("UNAVAILABLE");
     const parameters = buildAchCheckoutSession({ snapshot, orderId: draft.orderId, attemptId: draft.attemptId, publicReference: draft.publicReference, customerEmail: input.customer.email, appBaseUrl: config.appBaseUrl, signingSecret: config.checkoutSigningSecret, returnPath: `/equipment/${snapshot.product.slug}`, cancelExpiresAt: createdAt + 30 * 60_000 });

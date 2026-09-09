@@ -13,10 +13,13 @@ import {
 import type { CustomerInformationValues } from "@/lib/products/types";
 import type { CheckoutSubmissionKind } from "@/lib/checkout/handoff";
 import { calculateAchDiscount } from "@/lib/checkout/payment-methods";
+import type { MachineOptionalServices } from "@/lib/checkout/types";
+import { EMPTY_OPTIONAL_SERVICES } from "@/lib/checkout/optional-services";
 
 type SubmitStatus = "idle" | "submitting" | "success" | "error";
 
 type PurchaseSummaryProps = {
+  optionalServices?: MachineOptionalServices;
   selectedProduct: CatalogProduct;
   buildSelection: ProductBuildSelection;
   purchaseMethodLabel: string;
@@ -40,6 +43,7 @@ function optionLinePrice(
 }
 
 export default function PurchaseSummary({
+  optionalServices = EMPTY_OPTIONAL_SERVICES,
   selectedProduct,
   buildSelection,
   purchaseMethodLabel,
@@ -56,6 +60,7 @@ export default function PurchaseSummary({
   const isQuote = submissionKind === "quote";
   const isAch = submissionKind === "ach_debit";
   const achDisplay = calculateAchDiscount(configuredTotalCents);
+  const supportCents = optionalServices.remoteSupport && !isQuote ? 10000 : 0;
   const heading = isQuote ? "Review and submit your equipment request." : "Review and Pay";
   const intro =
     submissionKind === "card"
@@ -100,6 +105,7 @@ export default function PurchaseSummary({
         />
       )}
 
+      <section className="mt-6 space-y-2 rounded-2xl border bg-white p-5"><h4 className="text-xl font-bold">Optional Services</h4><p>Install: {optionalServices.install ? "$0 at checkout — requested under separate terms" : "Not selected"}</p><p>Setup: {optionalServices.setup ? "$0 at checkout — requested under separate terms" : "Not selected"}</p><p>Remote Support: {optionalServices.remoteSupport ? "$100 at checkout; $100/month after the first paid month" : "Not selected"}</p>{optionalServices.remoteSupport && <p className="text-sm">Activates 10 days after payment confirmation. The equipment bank discount does not reduce the $100 subscription charge.</p>}</section>
       <section className="mt-6 rounded-[2rem] bg-slate-950 p-6 text-white md:p-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="w-full">
@@ -124,13 +130,13 @@ export default function PurchaseSummary({
                     Discounted ACH total
                   </p>
                   <p className="mt-1 text-4xl font-black text-emerald-400">
-                    {achDisplay.formattedDiscountedAchTotal}
+                    {formatCents(achDisplay.discountedAchTotalCents + supportCents)}
                   </p>
                 </div>
               </div>
             ) : (
               <p className="mt-2 text-4xl font-black">
-                {formatCents(configuredTotalCents)}
+                {formatCents(configuredTotalCents + supportCents)}
                 {hasUnpricedItems ? " + items requiring a quote" : ""}
               </p>
             )}

@@ -1,3 +1,4 @@
+import { wakeServiceMaintenance } from "@/lib/service/outbox";
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { applyAchEventV1, applyCardEventV2, applyWireEventV1, findActiveWireByStripeCustomerId, findByPaymentIntentId, findBySessionId, finishWebhook, linkPaymentIntentByIdentity, recordWebhookReceipt, type CheckoutRecord } from "@/lib/checkout/order-repository";
@@ -15,6 +16,7 @@ import { portalTokenIsWellFormed } from "@/lib/demo-party/security";
 import { readDemoRequest } from "@/lib/demo-scheduling/server";
 import { notifyDemoPaymentConfirmed } from "@/lib/demo-scheduling/notifications";
 import { applyInstallationRefund, applyInstallationStripeSession, handleInstallationWebhook, installationEventContext } from "@/lib/installations/stripe";
+import { handleServiceStripeWebhook } from "@/lib/service/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -188,6 +190,8 @@ export async function POST(request: Request) {
   try { assertStripeEventMode(event.livemode, expectedLivemode); } catch { return NextResponse.json({error:"Invalid webhook."},{status:400}); }
   // Affirmative installation metadata routes to its own atomic receipt/ledger.
   // Other order and demo dispatch remains below, including order-first refunds.
+  try { if(await handleServiceStripeWebhook(event)) { wakeServiceMaintenance(); return ok(); } }
+  catch { return NextResponse.json({error:"Service reconciliation temporarily unavailable."},{status:503}); }
   try { if(await handleInstallationWebhook(event)) return ok(); }
   catch { return NextResponse.json({error:"Installation reconciliation temporarily unavailable."},{status:503}); }
   const object=event.data.object as {id?:string}; let receiptState:string;
@@ -212,7 +216,7 @@ export async function POST(request: Request) {
     }
     else if (event.type==="cash_balance.funds_available") await handleCashBalance(event,expectedLivemode);
     else { await finishWebhook(event.id,"ignored"); return ok(); }
-    await finishWebhook(event.id,"processed"); return ok();
+    await finishWebhook(event.id,"processed"); wakeServiceMaintenance(); return ok();
   } catch(error) {
     if(error instanceof WebhookReconciliationError||error instanceof DemoPaymentReconciliationError){await finishWebhook(event.id,"ignored","RECONCILIATION_REJECTED").catch(()=>undefined);return ok();}
     console.error("Stripe webhook processing failed", { eventId: event.id, eventType: event.type, objectId: object.id ?? null, errorName: error instanceof Error ? error.name : "UnknownError" });

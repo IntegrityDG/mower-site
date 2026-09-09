@@ -1,4 +1,5 @@
 import type { CheckoutRequest } from "./types";
+import { parseOptionalServices } from "./optional-services";
 
 export const MAX_CHECKOUT_REQUEST_BYTES = 16_384;
 export const MAX_CHECKOUT_OPTIONS = 60;
@@ -28,7 +29,7 @@ const record = (value: unknown): value is Record<string, unknown> => Boolean(val
 const nullableString = (value: unknown) => value === null || typeof value === "string";
 
 export function parseCheckoutRequest(value: unknown): CheckoutRequest {
-  if (!record(value) || !allowed(value, ["requestId", "paymentMethod", "selection", "customer", "referral", "shippingAddress"])) throw new Error("Invalid or unknown checkout request properties.");
+  if (!record(value) || !allowed(value, ["requestId", "paymentMethod", "selection", "customer", "referral", "shippingAddress", "optionalServices"])) throw new Error("Invalid or unknown checkout request properties.");
   if (typeof value.requestId !== "string" || !uuid.test(value.requestId)) throw new Error("Invalid request UUID.");
   if (value.paymentMethod !== "card" && value.paymentMethod !== "ach_debit" && value.paymentMethod !== "wire_transfer") throw new Error("Unsupported payment method.");
   if (!record(value.selection) || !allowed(value.selection, ["productId", "variantId", "purchaseMode", "packageId", "options", "includeBaseProduct"])) throw new Error("Invalid or unknown selection properties.");
@@ -65,5 +66,5 @@ export function parseCheckoutRequest(value: unknown): CheckoutRequest {
   if ([address.line1, address.city, address.state, address.postalCode].some((part) => typeof part !== "string") || !nullableString(address.line2) || address.country !== "US") throw new Error("Only structured US shipping addresses are supported.");
   const shipping = { line1: (address.line1 as string).trim(), line2: typeof address.line2 === "string" ? address.line2.trim() || null : null, city: (address.city as string).trim(), state: (address.state as string).trim().toUpperCase(), postalCode: (address.postalCode as string).trim(), country: "US" as const };
   if (!shipping.line1 || !shipping.city || !shipping.state || !shipping.postalCode || shipping.line1.length > 200 || (shipping.line2?.length ?? 0) > 200 || shipping.city.length > 100 || shipping.state.length > 50 || shipping.postalCode.length > 20) throw new Error("Invalid shipping address.");
-  return { requestId: value.requestId, paymentMethod: value.paymentMethod, selection: { productId: selection.productId, variantId: selection.variantId as string | null, purchaseMode: selection.purchaseMode as CheckoutRequest["selection"]["purchaseMode"], packageId: selection.packageId as string | null, options, includeBaseProduct: selection.includeBaseProduct }, customer: { name: customerName, email: customerEmail, phone: customerPhone }, referral, shippingAddress: shipping };
+  return { ...(value.optionalServices === undefined ? {} : { optionalServices: parseOptionalServices(value.optionalServices) }), requestId: value.requestId, paymentMethod: value.paymentMethod, selection: { productId: selection.productId, variantId: selection.variantId as string | null, purchaseMode: selection.purchaseMode as CheckoutRequest["selection"]["purchaseMode"], packageId: selection.packageId as string | null, options, includeBaseProduct: selection.includeBaseProduct }, customer: { name: customerName, email: customerEmail, phone: customerPhone }, referral, shippingAddress: shipping };
 }

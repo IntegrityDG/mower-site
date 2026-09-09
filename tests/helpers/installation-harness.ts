@@ -17,6 +17,7 @@ import {processorFixture} from './installation-stripe-fixtures';
 // cannot prove PostgreSQL permissions, atomicity, locking, or concurrency.
 export function installationHarness(options: { authorized?: boolean; installation?: Record<string, unknown>; payments?: any[]; adjustments?: any[]; corrections?: any[]; env?: Record<string, string>; stripeMode?: string } = {}) {
   const state: Record<string, any[]> = {
+    service_installation_customers: [],
     installations: [installation(options.installation)], installation_payments: options.payments ?? [{ ...payment(), installation_id: installationId, created_at: receivedAt }],
     installation_cash_corrections: options.corrections ?? [], installation_cash_refunds: [], installation_adjustments: options.adjustments ?? [], installation_work_sessions: [], installation_audit_events: [],
     installation_admin_operations:[],installation_pricing_history:[],installation_processor_events:[],
@@ -123,7 +124,7 @@ export function installationHarness(options: { authorized?: boolean; installatio
   };
   const controls = load<typeof import("../../lib/installations/controls")>("lib/installations/controls.ts", { "@/lib/stripe/config-values": stripeConfig }, options.env ?? {});
   const ledger = load<typeof import("../../lib/installations/ledger")>("lib/installations/ledger.ts", { "@/lib/supabase": { getSupabaseServiceClient: () => db }, "./accounting": accounting });
-  const subscriberEligibility = load<typeof import("../../lib/installations/subscriber-eligibility")>("lib/installations/subscriber-eligibility.ts", {}, options.env ?? {});
+  const subscriberEligibility = load<typeof import("../../lib/installations/subscriber-eligibility")>("lib/installations/subscriber-eligibility.ts", { "@/lib/supabase": { getSupabaseServiceClient: () => db } }, options.env ?? {});
   const modules = { "./subscriber-eligibility":subscriberEligibility, "node:crypto":nodeCrypto,"node:util":nodeUtil,"./admin-policy":adminPolicy,"./stripe-policy":stripePolicy,"./validation":intakeValidation,"@/lib/supabase": { getSupabaseServiceClient: () => db }, "@/lib/reviews/admin-auth": auth, "./accounting": accounting, "./cash-validation": validation, "./ledger": ledger, "./policy": policy, "./controls": controls };
   const cash = load<typeof import("../../lib/installations/cash")>("lib/installations/cash.ts", modules);
   const operations = load<typeof import("../../lib/installations/operations")>("lib/installations/operations.ts", modules);

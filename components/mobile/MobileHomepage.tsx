@@ -3,6 +3,7 @@
 import FooterActions from "@/components/footer/FooterActions";
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import HomepageContactSection from "@/components/contact/HomepageContactSection";
 import NationwidePurchaseFlow from "@/components/customer-paths/purchase/NationwidePurchaseFlow";
 import EquipmentCatalog from "@/components/equipment/EquipmentCatalog";
@@ -32,6 +33,7 @@ function MobileHeader({ menuOpen, onOpen }: { menuOpen: boolean; onOpen: () => v
           <span className="h-0.5 w-6 bg-slate-900" /><span className="h-0.5 w-6 bg-slate-900" /><span className="h-0.5 w-6 bg-slate-900" />
         </button>
       </div>
+      <div className="px-3 pb-2"><Link href="/remote-assistance" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-emerald-800 px-4 py-2 text-sm font-bold text-emerald-900">Remote Assistance</Link></div>
     </header>
   );
 }

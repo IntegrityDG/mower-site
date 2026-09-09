@@ -28,10 +28,11 @@ export async function POST(request: Request) {
   if (input.paymentMethod !== "wire_transfer") return jsonError("Wire checkout requires wire_transfer.", 400);
   try {
     const config = getStripeConfiguration();
-    const snapshot = await resolveAuthoritativeOrderPricing(input);
+    let snapshot = await resolveAuthoritativeOrderPricing(input);
     const fingerprint = checkoutRequestFingerprint(input);
     const idempotencyKey = checkoutAttemptIdempotencyKey(input.requestId, "wire_transfer");
     const draft = await createWireCheckoutDraft(input, snapshot, idempotencyKey, fingerprint);
+    snapshot = draft.snapshot ?? snapshot;
     const createdAt = new Date(draft.attemptCreatedAt).getTime();
     if (!Number.isFinite(createdAt)) throw new CheckoutRepositoryError("UNAVAILABLE");
     const stripeCustomerId = await resolveWireStripeCustomer({ internalCustomerId: draft.customerId, existingStripeCustomerId: draft.stripeCustomerId, name: input.customer.name, email: input.customer.email, idempotencyKey: draft.stripeIdempotencyKey });

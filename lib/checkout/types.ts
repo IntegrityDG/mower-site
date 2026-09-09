@@ -55,19 +55,22 @@ export type CheckoutRequest = {
   customer: { name: string; email: string | null; phone: string | null };
   referral?: { referrerName: string; referrerEmail: string } | null;
   shippingAddress: StructuredShippingAddress;
+  optionalServices?: MachineOptionalServices;
 };
+export type MachineOptionalServices = { install: boolean; setup: boolean; remoteSupport: boolean; acceptedSupportTerms: boolean };
 
 export type NormalizedSelection = CheckoutRequest["selection"];
 export type CatalogSourceReference = { table: "catalog_products" | "catalog_product_variants" | "catalog_options" | "catalog_packages" | "catalog_package_items" | "catalog_variant_options" | "catalog_price_schedules"; id: string };
 
 export type OrderPriceItem = {
-  itemType: "product" | "variant" | "option" | "package" | "package_component";
+  itemType: "product" | "variant" | "option" | "package" | "package_component" | "fee";
   sourceId: string; sku: string | null; name: string; description: string | null;
   quantity: number; unitAmountCents: number; extendedAmountCents: number;
   includedInPackagePrice: boolean; parentSourceId: string | null;
 };
 
 export type OrderPriceSnapshot = {
+  optionalServices?: MachineOptionalServices;
   currency: "usd";
   product: { id: string; slug: string; name: string };
   variant: { id: string; slug: string; name: string; sku: string | null } | null;

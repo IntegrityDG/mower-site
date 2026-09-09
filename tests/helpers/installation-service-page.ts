@@ -20,5 +20,6 @@ export function servicesSchedulingPage(intakeEnabled: boolean) {
     "@/components/services-scheduling/DemoRequestForm": DemoRequestForm,
     "@/lib/demo-party/disclaimer": disclaimer, "@/lib/demo-scheduling/types": types,
     "@/lib/scheduling/config": config, "@/lib/installations/controls": controls,
+    "@/lib/service/controls": { serviceControls: () => ({ serviceIntake: false, remoteSupport: false }) },
   }).default;
 }

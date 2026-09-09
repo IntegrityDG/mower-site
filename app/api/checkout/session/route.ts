@@ -48,10 +48,11 @@ export async function POST(request: Request) {
 
   try {
     const config = getStripeConfiguration();
-    const snapshot = await resolveAuthoritativeOrderPricing(input);
+    let snapshot = await resolveAuthoritativeOrderPricing(input);
     const fingerprint = checkoutRequestFingerprint(input);
     const idempotencyKey = checkoutAttemptIdempotencyKey(input.requestId);
     const draft = await createCardCheckoutDraft(input, snapshot, idempotencyKey, fingerprint);
+    snapshot = draft.snapshot ?? snapshot;
     const attemptCreatedAt = new Date(draft.attemptCreatedAt).getTime();
     if (!Number.isFinite(attemptCreatedAt)) throw new CheckoutRepositoryError("UNAVAILABLE");
     const parameters = buildCardCheckoutSession({ snapshot, orderId: draft.orderId, attemptId: draft.attemptId, publicReference: draft.publicReference, customerEmail: input.customer.email, appBaseUrl: config.appBaseUrl, signingSecret: config.checkoutSigningSecret, returnPath: `/equipment/${snapshot.product.slug}`, cancelExpiresAt: attemptCreatedAt + 30 * 60_000 });

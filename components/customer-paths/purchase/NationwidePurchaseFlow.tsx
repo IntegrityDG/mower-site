@@ -44,6 +44,8 @@ import ProductConfiguration from "./ProductConfiguration";
 import ProductSelection from "./ProductSelection";
 import PurchaseMethod from "./PurchaseMethod";
 import PurchaseSummary from "./PurchaseSummary";
+import OptionalServices from "./OptionalServices";
+import { EMPTY_OPTIONAL_SERVICES } from "@/lib/checkout/optional-services";
 
 type NationwidePurchaseFlowProps = {
   selectedState?: string;
@@ -56,6 +58,7 @@ type StageKey =
   | "review"
   | "location"
   | "purchase"
+  | "optionalServices"
   | "customer"
   | "summary";
 
@@ -70,6 +73,7 @@ const stages: { key: StageKey }[] = [
   { key: "review" },
   { key: "location" },
   { key: "purchase" },
+  { key: "optionalServices" },
   { key: "customer" },
   { key: "summary" },
 ];
@@ -78,6 +82,7 @@ export const purchaseProgressSteps = [
   { label: "Make Your Selections", stageKeys: ["product", "configuration"] },
   { label: "Review Selections", stageKeys: ["review"] },
   { label: "Pricing & Financing", stageKeys: ["location", "purchase"] },
+  { label: "Optional Services", stageKeys: ["optionalServices"] },
   { label: "Delivery & Contact", stageKeys: ["customer"] },
   { label: "Checkout", stageKeys: ["summary"] },
 ] as const satisfies readonly {
@@ -222,6 +227,9 @@ export default function NationwidePurchaseFlow({
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogReloadKey, setCatalogReloadKey] = useState(0);
   const [stageIndex, setStageIndex] = useState(0);
+  const [optionalServices, setOptionalServices] = useState(EMPTY_OPTIONAL_SERVICES);
+  const [supportAvailable, setSupportAvailable] = useState(false);
+  const checkoutOperation = useRef<{ fingerprint: string; key: string } | null>(null);
   const [selectedProductId, setSelectedProductId] = useState("");
   const [buildSelection, setBuildSelection] =
     useState<ProductBuildSelection>(emptyBuildSelection);
@@ -245,6 +253,8 @@ export default function NationwidePurchaseFlow({
   const [submitError, setSubmitError] = useState("");
   const submissionInProgress = useRef(false);
   const urlPreselectionApplied = useRef(false);
+
+  useEffect(() => { let alive = true; fetch("/api/service/availability", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(value => { if (alive) setSupportAvailable(value?.remoteSupport === true); }).catch(() => { if (alive) setSupportAvailable(false); }); return () => { alive = false; }; }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -394,6 +404,7 @@ export default function NationwidePurchaseFlow({
   const customerInformationComplete = Boolean(
     customerInformation.fullName.trim() &&
       (customerInformation.email.trim() || customerInformation.phone.trim()) &&
+      (!optionalServices.remoteSupport || (customerInformation.email.trim() && customerInformation.phone.trim())) &&
       (Boolean(customerInformation.referrerName.trim()) ===
         Boolean(customerInformation.referrerEmail.trim()))
   );
@@ -404,6 +415,7 @@ export default function NationwidePurchaseFlow({
     (activeStage.key === "review" && buildComplete) ||
     (activeStage.key === "location" && locationComplete) ||
     (activeStage.key === "purchase" && Boolean(selectedPurchaseMethod)) ||
+    (activeStage.key === "optionalServices" && (accessoryMode || !optionalServices.remoteSupport || (optionalServices.acceptedSupportTerms && supportAvailable && submissionKind !== "quote"))) ||
     (activeStage.key === "customer" &&
       customerInformationComplete &&
       locationComplete) ||
@@ -430,6 +442,7 @@ export default function NationwidePurchaseFlow({
   }
 
   function handleProductSelect(productId: string) {
+    setOptionalServices(EMPTY_OPTIONAL_SERVICES);
     if (productId === selectedProductId) return;
 
     if (productId === "accessories") {
@@ -565,6 +578,7 @@ export default function NationwidePurchaseFlow({
   }
 
   function handleSelectPurchaseMethod(method: PurchaseMethodKey) {
+    if (method === "hearth-financing") setOptionalServices(current => ({ ...current, remoteSupport: false, acceptedSupportTerms: false }));
     submissionInProgress.current = false;
     setSelectedPurchaseMethod(method);
     setSubmitStatus("idle");
@@ -572,13 +586,13 @@ export default function NationwidePurchaseFlow({
   }
 
   function goBack() {
-    setStageIndex((currentIndex) => Math.max(currentIndex - 1, 0));
+    setStageIndex((currentIndex) => Math.max(currentIndex - (accessoryMode && stages[currentIndex - 1]?.key === "optionalServices" ? 2 : 1), 0));
   }
 
   function goForward() {
     if (!currentStageComplete || isSummaryStage) return;
     setStageIndex((currentIndex) =>
-      Math.min(currentIndex + 1, stages.length - 1)
+      Math.min(currentIndex + (accessoryMode && stages[currentIndex + 1]?.key === "optionalServices" ? 2 : 1), stages.length - 1)
     );
   }
 
@@ -650,6 +664,7 @@ export default function NationwidePurchaseFlow({
     if (submissionKind !== "quote") {
       const checkoutRequest: CheckoutRequest = {
         requestId: crypto.randomUUID(),
+        optionalServices,
         paymentMethod: submissionKind,
         selection: {
           productId: selectedProduct.id,
@@ -690,6 +705,9 @@ export default function NationwidePurchaseFlow({
       };
 
       try {
+        const fingerprint = JSON.stringify({ ...checkoutRequest, requestId: undefined });
+        if (checkoutOperation.current?.fingerprint !== fingerprint) checkoutOperation.current = { fingerprint, key: checkoutRequest.requestId };
+        checkoutRequest.requestId = checkoutOperation.current.key;
         const response = await fetch(checkoutEndpoint(submissionKind), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -757,6 +775,7 @@ export default function NationwidePurchaseFlow({
           : "Added modules/accessories: None",
       yarboModulesWithoutCore ? YARBO_CORE_ABSENT_NOTICE : null,
       `Purchase preference: ${purchaseMethodLabel}`,
+      `Optional Services: Install ${optionalServices.install ? "requested ($0 at checkout; separate terms)" : "not selected"}; Setup ${optionalServices.setup ? "requested ($0 at checkout; separate terms)" : "not selected"}; Remote Support ${optionalServices.remoteSupport ? "selected; paid subscription required" : "not selected"}`,
       `Delivery or installation address: ${customerInformation.shippingAddress}`,
       `ZIP code: ${customerInformation.shippingZip}`,
       `Shipping location: ${customerInformation.shippingRegion}, ${customerInformation.shippingState}`,
@@ -911,6 +930,10 @@ export default function NationwidePurchaseFlow({
       );
     }
 
+    if (activeStage.key === "optionalServices") {
+      if (accessoryMode) return <p>Optional Services are offered with a machine purchase.</p>;
+      return <OptionalServices value={optionalServices} onChange={setOptionalServices} supportAvailable={supportAvailable} eligibleCheckout={submissionKind !== "quote" && Boolean(selectedProduct)} />;
+    }
     if (activeStage.key === "customer") {
       return (
         <CustomerInformation
@@ -927,6 +950,7 @@ export default function NationwidePurchaseFlow({
     if (selectedProduct) {
       return (
         <PurchaseSummary
+          optionalServices={optionalServices}
           selectedProduct={selectedProduct}
           buildSelection={buildSelection}
           purchaseMethodLabel={

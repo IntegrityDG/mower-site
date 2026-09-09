@@ -1009,18 +1009,19 @@ test("current Yarbo package records remain available after machine selection", (
   assert.match(html, /Individual Yarbo Equipment/);
 });
 
-test("purchase flow exposes the approved five progress steps", () => {
+test("purchase flow preserves equipment steps and includes Optional Services before customer information", () => {
   const labels: string[] = purchaseProgressSteps.map((step) => step.label);
 
   assert.deepEqual(labels, [
     "Make Your Selections",
     "Review Selections",
     "Pricing & Financing",
+    "Optional Services",
     "Delivery & Contact",
     "Checkout",
   ]);
 
-  assert.equal(labels.length, 5);
+  assert.equal(labels.length, 6);
   assert.ok(!labels.includes("Browse Equipment"));
   assert.ok(!labels.includes("Select Equipment"));
   assert.ok(!labels.includes("Availability"));
