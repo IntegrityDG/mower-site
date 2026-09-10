@@ -63,7 +63,9 @@ test("mobile machines view owns one section-level scheduler above the catalog", 
 
 test("shared financing preserves Hearth content, link, artwork, and disclaimer", () => {
   assert.match(financing, /app\.gethearth\.com\/requests\/930af233-2a7b-4f52-a836-bd11173d6fee/);
-  assert.match(financing, /hearth-financing-background\.png/);
+  assert.match(financing, /images\/site\/hearth-financing\.webp/);
+  assert.match(financing, /Check Financing Options/);
+  assert.match(financing, /\(512\) 607-5977/);
   assert.match(financing, /participating third-party lenders/);
 });
 

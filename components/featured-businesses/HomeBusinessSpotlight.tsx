@@ -56,7 +56,7 @@ export default function HomeBusinessSpotlight() {
   const hasRotation = businesses.length > 1;
 
   return (
-    <section aria-labelledby="business-spotlight-heading" className="bg-slate-100 px-5 py-10 md:px-10 md:py-14">
+    <section aria-labelledby="business-spotlight-heading" className="ids-community-background px-5 py-10 md:px-10 md:py-14">
       <div className="mx-auto max-w-5xl">
         <p className="text-sm font-black uppercase tracking-[.2em] text-emerald-700">Community Spotlight</p>
         <h2 id="business-spotlight-heading" className="mt-2 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">

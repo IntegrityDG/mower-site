@@ -14,7 +14,7 @@ export default async function FeaturedBusinessesPage({searchParams}:{searchParam
   const filtered=filterBusinesses(businesses,{q,state,county,areaCode:/^\d{3}$/.test(areaCode)?areaCode:undefined});
   const states=[...new Set(businesses.flatMap(item=>[item.businessState,...item.serviceAreas.map(area=>area.stateCode)]).filter((value):value is string=>!!value))].sort();
   const counties=[...new Set(businesses.flatMap(item=>[...(item.businessState===state&&item.businessCounty?[item.businessCounty]:[]),...item.serviceAreas.filter(area=>area.stateCode===state&&!area.statewide).map(area=>area.countyName).filter((value):value is string=>!!value)]))].sort();
-  return <main className="min-h-screen bg-slate-100 px-5 py-12 text-slate-950 md:px-10 md:py-16">
+  return <main className="ids-community-background min-h-screen px-5 py-12 text-slate-950 md:px-10 md:py-16">
     <div className="mx-auto max-w-7xl">
       <p className="text-sm font-black uppercase tracking-[.2em] text-emerald-700">Community Support</p>
       <h1 className="mt-2 text-4xl font-black tracking-tight md:text-6xl">Supporting Small Business Spotlight</h1>

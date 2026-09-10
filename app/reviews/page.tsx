@@ -84,8 +84,8 @@ export default function ReviewsPage() {
     "rounded-xl border border-slate-300 bg-white px-3 py-3 font-semibold focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200";
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-950">
-      <section className="bg-slate-950 px-6 py-16 text-white md:px-10">
+    <main className="ids-reviews-background min-h-screen text-slate-950">
+      <section className="bg-slate-950/35 px-6 py-16 text-white backdrop-blur-[1px] md:px-10">
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-400">
             Customer Experiences
@@ -110,7 +110,7 @@ export default function ReviewsPage() {
         </div>
       </section>
 
-      <section className="px-6 py-10 md:px-10">
+      <section className="bg-slate-950/20 px-6 py-10 md:px-10">
         <div className="mx-auto max-w-7xl">
           <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">

@@ -24,3 +24,60 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.ids-purpose-background {
+  background-color: #020617;
+  background-image:
+    linear-gradient(rgba(2, 6, 23, 0.62), rgba(2, 6, 23, 0.62)),
+    url("/images/site/purpose-background.webp");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.ids-community-background {
+  background-color: #f8fafc;
+  background-image:
+    linear-gradient(rgba(248, 250, 252, 0.82), rgba(248, 250, 252, 0.82)),
+    url("/images/site/community-flag-background.webp");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.ids-reviews-background {
+  background-color: #020617;
+  background-image:
+    linear-gradient(rgba(2, 6, 23, 0.68), rgba(2, 6, 23, 0.68)),
+    url("/images/site/reviews-background.webp");
+  background-attachment: fixed;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.ids-action-background {
+  background-color: #0f172a;
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.42), rgba(15, 23, 42, 0.42)),
+    url("/images/site/ids-in-action-background.webp");
+  background-attachment: fixed;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.ids-visual-copy-shadow {
+  text-shadow: 0 2px 18px rgba(2, 6, 23, 0.82);
+}
+
+@media (max-width: 767px) {
+  .ids-purpose-background {
+    background-position: 64% center;
+  }
+
+  .ids-reviews-background,
+  .ids-action-background {
+    background-position: center top;
+  }
+}

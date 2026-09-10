@@ -40,15 +40,14 @@ function MobileHeader({ menuOpen, onOpen }: { menuOpen: boolean; onOpen: () => v
 
 function MobileHero() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-5 py-10 text-white">
-      <div className="pointer-events-none absolute inset-0 opacity-20"><div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-emerald-400 blur-3xl" /><div className="absolute -bottom-32 -left-24 h-96 w-96 rounded-full bg-cyan-400 blur-3xl" /></div>
-      <div className="relative z-10 mx-auto text-center">
-        <Image src="/images/cartoon-mowers.png" alt="Autonomous mower lineup" width={1536} height={1024} className="mx-auto h-auto w-full max-w-[360px] object-contain drop-shadow-2xl" priority />
-        <p className="mt-3 text-xl font-bold uppercase leading-tight tracking-[0.02em] text-emerald-400"><span className="block">A SMALL BUSINESS</span><span className="block">WITH A SIMPLE PURPOSE</span></p>
+    <section className="ids-purpose-background relative overflow-hidden px-5 py-10 text-white">
+      <div className="ids-visual-copy-shadow relative z-10 mx-auto text-center">
+        <Image src="/images/cartoon-mowers.png" alt="Autonomous mower lineup" width={1536} height={1024} className="mx-auto h-auto w-full max-w-[280px] object-contain drop-shadow-2xl" priority />
+        <p className="mt-3 text-xl font-bold uppercase leading-tight tracking-[0.02em] text-emerald-300"><span className="block">A SMALL BUSINESS</span><span className="block">WITH A SIMPLE PURPOSE</span></p>
         <h1 className="mx-auto mt-4 text-3xl font-black leading-[1.08] tracking-tight">Helping people get more time back for what matters most.</h1>
-        <p className="mx-auto mt-5 text-base leading-7 text-slate-200">Integrity Distribution Systems is a small, Southeast Missouri&ndash;based business built around honesty, practical guidance, and doing right by the people we serve. We are not here to push the most expensive machine or chase the biggest sale. Our goal is to help each customer find a system that genuinely fits their property, needs, and budget.</p>
-        <p className="mx-auto mt-4 text-base leading-7 text-slate-200">After spending a great deal of my own life working away from home, I understand how valuable time can be. Autonomous lawn care can reduce the hours and expense tied up in routine property maintenance, giving people more time with family, more room in their budget, and a little more opportunity to slow down and enjoy life.</p>
-        <div className="mt-5 inline-flex rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-xs font-semibold text-slate-100 backdrop-blur">Southeast Missouri Based &bull; Nationwide Equipment Sales &bull; Regional Hands-On Support</div>
+        <p className="mx-auto mt-5 text-base leading-7 text-slate-100">Integrity Distribution Systems is a small, Southeast Missouri&ndash;based business built around honesty, practical guidance, and doing right by the people we serve. We are not here to push the most expensive machine or chase the biggest sale. Our goal is to help each customer find a system that genuinely fits their property, needs, and budget.</p>
+        <p className="mx-auto mt-4 text-base leading-7 text-slate-100">After spending a great deal of my own life working away from home, I understand how valuable time can be. Autonomous lawn care can reduce the hours and expense tied up in routine property maintenance, giving people more time with family, more room in their budget, and a little more opportunity to slow down and enjoy life.</p>
+        <div className="mt-5 inline-flex rounded-2xl border border-white/30 bg-slate-950/35 px-4 py-3 text-xs font-semibold text-white backdrop-blur-sm">Southeast Missouri Based &bull; Nationwide Equipment Sales &bull; Regional Hands-On Support</div>
       </div>
     </section>
   );
