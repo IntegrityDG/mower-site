@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { IDS_CANONICAL_ORIGIN } from "@/lib/site-origin";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -13,8 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(IDS_CANONICAL_ORIGIN),
   title: "Integrity Distribution Systems | Autonomous Lawn Care",
   description: "Browse autonomous mowers and build a property-specific robotic lawn care system with Integrity Distribution Systems.",
+  openGraph: {
+    type: "website",
+    siteName: "Integrity Distribution Systems",
+    title: "Integrity Distribution Systems | Autonomous Lawn Care",
+    description: "Browse autonomous mowers and build a property-specific robotic lawn care system with Integrity Distribution Systems.",
+  },
 };
 
 export default function RootLayout({

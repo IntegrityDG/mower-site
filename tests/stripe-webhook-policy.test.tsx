@@ -12,11 +12,12 @@ test("a signed paid completion is accepted", () => {
 });
 
 test("Stripe configuration defaults to test and requires a mode-matching secret key", () => {
-  const base = { STRIPE_WEBHOOK_SECRET: "whsec_x", APP_BASE_URL: "https://example.com", CHECKOUT_SIGNING_SECRET: "signing", NODE_ENV: "production" } as NodeJS.ProcessEnv;
+  const base = { STRIPE_WEBHOOK_SECRET: "whsec_x", APP_BASE_URL: "https://integrityautomowers.com", CHECKOUT_SIGNING_SECRET: "signing", NODE_ENV: "production" } as NodeJS.ProcessEnv;
   assert.equal(getStripeMode(base), "test");
   assert.equal(getStripeSecretKey({ ...base, STRIPE_SECRET_KEY: "sk_test_x" }), "sk_test_x");
   assert.equal(getStripeConfiguration({ ...base, STRIPE_MODE: "test", STRIPE_SECRET_KEY: "sk_test_x" }).livemode, false);
   assert.equal(getStripeConfiguration({ ...base, STRIPE_MODE: "live", STRIPE_SECRET_KEY: "sk_live_x" }).livemode, true);
+  assert.throws(() => getStripeConfiguration({ ...base, APP_BASE_URL: "https://www.integrityautomowers.com", STRIPE_SECRET_KEY: "sk_test_x" }), StripeConfigurationError);
   assert.throws(() => getStripeSecretKey({ ...base, STRIPE_MODE: "test", STRIPE_SECRET_KEY: "sk_live_x" }), StripeConfigurationError);
   assert.throws(() => getStripeSecretKey({ ...base, STRIPE_MODE: "live", STRIPE_SECRET_KEY: "sk_test_x" }), StripeConfigurationError);
   assert.throws(() => getStripeMode({ ...base, STRIPE_MODE: "staging" }), StripeConfigurationError);

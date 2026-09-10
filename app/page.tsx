@@ -1,19 +1,11 @@
-"use client";
+import type { Metadata } from "next";
+import Homepage from "@/components/home/Homepage";
 
-import { useSyncExternalStore } from "react";
-import DesktopHomepage from "@/components/home/DesktopHomepage";
-import MobileHomepage from "@/components/mobile/MobileHomepage";
-
-const mobileQuery = "(max-width: 767px)";
-const subscribeToMobile = (callback: () => void) => {
-  const query = window.matchMedia(mobileQuery);
-  query.addEventListener("change", callback);
-  return () => query.removeEventListener("change", callback);
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: { url: "/" },
 };
-const getMobileSnapshot = () => window.matchMedia(mobileQuery).matches;
-const getServerSnapshot = () => false;
 
 export default function Page() {
-  const isMobile = useSyncExternalStore(subscribeToMobile, getMobileSnapshot, getServerSnapshot);
-  return isMobile ? <MobileHomepage /> : <DesktopHomepage />;
+  return <Homepage />;
 }

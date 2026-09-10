@@ -22,7 +22,7 @@ export async function warrantyPdf(snapshot: WarrantyReportSnapshot): Promise<Uin
   function newPage() {
     page = pdf.addPage([width, height]); y = height - margin;
     page.drawText("INTEGRITY DISTRIBUTION SYSTEMS", { x: margin, y, size: 13, font: bold, color: green }); y -= 19;
-    page.drawText("www.integrityautomowers.com  |  Service.IDS@proton.me", { x: margin, y, size: 9, font: regular, color: muted }); y -= 18;
+    page.drawText("integrityautomowers.com  |  Service.IDS@proton.me", { x: margin, y, size: 9, font: regular, color: muted }); y -= 18;
     page.drawLine({ start: { x: margin, y }, end: { x: width - margin, y }, thickness: 1, color: green }); y -= 24;
   }
   function ensure(space = 18) { if (y - space < 58) newPage(); }

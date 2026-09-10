@@ -5,6 +5,7 @@ import { DEMO_PARTY_CONFIRMATION_SUMMARY } from "@/lib/demo-party/disclaimer";
 import { issuePortalToken } from "@/lib/demo-party/server";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { SITE_CONTACT } from "@/lib/site-contact";
+import { idsSiteOrigin } from "@/lib/site-origin";
 import { DEMO_EMAIL_ROUTING } from "./email-config";
 import { createDemoIcs } from "./ics";
 import { humanDemoTime } from "./time";
@@ -55,12 +56,7 @@ const attachment = (request: DemoRequest, attendeeEmail: string, attendeeName: s
   contentType: "text/calendar; method=REQUEST; charset=UTF-8",
 });
 
-const siteOrigin = () => {
-  const value = process.env.IDS_SITE_URL?.trim() || "http://localhost:3000";
-  const url = new URL(value);
-  if (process.env.NODE_ENV === "production" && url.protocol !== "https:") throw new Error("IDS_SITE_URL must use HTTPS in production.");
-  return url.origin;
-};
+const siteOrigin = () => idsSiteOrigin("http://localhost:3000");
 const portalUrl = (token: string) => `${siteOrigin()}/services-scheduling/manage/${encodeURIComponent(token)}`;
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
 const emailButton = (label: string, url: string) => `<a href="${escapeHtml(url)}" style="display:inline-block;padding:14px 20px;border-radius:10px;background:#047857;color:#fff;text-decoration:none;font-weight:700">${escapeHtml(label)}</a>`;

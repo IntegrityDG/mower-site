@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const mobile = readFileSync(new URL("../components/mobile/MobileHomepage.tsx", import.meta.url), "utf8");
 const navigation = readFileSync(new URL("../components/mobile/MobileHomeNavigation.tsx", import.meta.url), "utf8");
-const desktop = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
+const desktop = readFileSync(new URL("../components/home/Homepage.tsx", import.meta.url), "utf8");
 const desktopHome = readFileSync(new URL("../components/home/DesktopHomepage.tsx", import.meta.url), "utf8");
 const desktopNavigation = readFileSync(new URL("../components/home/DesktopHomeNavigation.tsx", import.meta.url), "utf8");
 const financing = readFileSync(new URL("../components/home/HomeFinancing.tsx", import.meta.url), "utf8");
