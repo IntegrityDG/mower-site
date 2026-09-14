@@ -9,6 +9,11 @@ export type PublicPaymentMethodAvailability = {
   hearthFinancing: boolean;
 };
 
+export type PaymentMethodAvailabilityLoadState =
+  | { status: "loading"; availability: null }
+  | { status: "ready"; availability: PublicPaymentMethodAvailability }
+  | { status: "error"; availability: null };
+
 export const FAIL_SAFE_PAYMENT_METHOD_SETTINGS: PaymentMethodSettings = {
   card: false,
   ach_debit: false,
@@ -23,6 +28,19 @@ export const SEEDED_PAYMENT_METHOD_SETTINGS: PaymentMethodSettings = {
 
 export function toPublicPaymentMethodAvailability(settings: PaymentMethodSettings, achEnvironmentEnabled: boolean): PublicPaymentMethodAvailability {
   return { card: settings.card, achDebit: settings.ach_debit && achEnvironmentEnabled, hearthFinancing: settings.hearth_financing };
+}
+
+export function isPublicPaymentMethodAvailability(
+  value: unknown,
+): value is PublicPaymentMethodAvailability {
+  if (!value || typeof value !== "object") return false;
+
+  const availability = value as Record<string, unknown>;
+  return (
+    typeof availability.card === "boolean" &&
+    typeof availability.achDebit === "boolean" &&
+    typeof availability.hearthFinancing === "boolean"
+  );
 }
 
 export function customerPurchaseMethodIsAvailable(method: "pay-in-full" | "ach" | "hearth-financing", availability: PublicPaymentMethodAvailability, checkoutAvailable: boolean) {

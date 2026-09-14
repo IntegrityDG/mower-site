@@ -1,7 +1,7 @@
 import type { PurchaseMethodKey } from "@/lib/products/types";
 import Link from "next/link";
 import { calculateAchDiscount } from "@/lib/checkout/payment-methods";
-import type { PublicPaymentMethodAvailability } from "@/lib/payment-method-settings/types";
+import type { PaymentMethodAvailabilityLoadState } from "@/lib/payment-method-settings/types";
 
 type PurchaseMethodProps = {
   selectedMethod: PurchaseMethodKey | "";
@@ -9,7 +9,8 @@ type PurchaseMethodProps = {
   configuredTotalCents: number;
   hearthUrl: string;
   onSelectMethod: (method: PurchaseMethodKey) => void;
-  availability: PublicPaymentMethodAvailability;
+  paymentMethods: PaymentMethodAvailabilityLoadState;
+  onRetry: () => void;
 };
 
 export default function PurchaseMethod({
@@ -18,13 +19,20 @@ export default function PurchaseMethod({
   configuredTotalCents,
   hearthUrl,
   onSelectMethod,
-  availability,
+  paymentMethods,
+  onRetry,
 }: PurchaseMethodProps) {
   const payInFullSelected = selectedMethod === "pay-in-full";
   const achSelected = selectedMethod === "ach";
   const hearthSelected = selectedMethod === "hearth-financing";
   const achDisplay = calculateAchDiscount(configuredTotalCents);
-  const noMethodsAvailable = !availability.card && !(checkoutAvailable && availability.achDebit) && !availability.hearthFinancing;
+  const availability =
+    paymentMethods.status === "ready" ? paymentMethods.availability : null;
+  const noMethodsAvailable =
+    availability !== null &&
+    !availability.card &&
+    !(checkoutAvailable && availability.achDebit) &&
+    !availability.hearthFinancing;
 
   return (
     <div>
@@ -42,8 +50,52 @@ export default function PurchaseMethod({
           : "This configuration requires final review. Choose a purchase preference to include with the request; no payment is collected here."}
       </p>
 
-      {noMethodsAvailable ? <div className="mt-7 rounded-[2rem] border border-amber-200 bg-amber-50 p-6"><h4 className="text-xl font-black text-amber-950">Online payment and financing options are temporarily unavailable.</h4><p className="mt-3 leading-7 text-amber-950">Contact the IDS team and we will help you with the next step.</p><Link href="/#contact-us" className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 font-black text-white">Contact IDS</Link></div> : <div className="mt-7 grid gap-5 md:grid-cols-2">
-        {availability.card && <button
+      {paymentMethods.status === "loading" ? (
+        <div
+          className="mt-7 rounded-[2rem] border border-slate-200 bg-slate-50 p-6"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-600" />
+          <h4 className="mt-4 text-xl font-black text-slate-950">
+            Loading payment options…
+          </h4>
+          <p className="mt-3 leading-7 text-slate-600">
+            Card, bank payment, and financing availability are being verified.
+          </p>
+        </div>
+      ) : paymentMethods.status === "error" ? (
+        <div
+          className="mt-7 rounded-[2rem] border border-red-200 bg-red-50 p-6"
+          role="alert"
+        >
+          <h4 className="text-xl font-black text-red-950">
+            We couldn&apos;t load payment options right now.
+          </h4>
+          <p className="mt-3 leading-7 text-red-950">
+            Try again to verify the payment methods currently available.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={onRetry}
+              className="rounded-xl bg-emerald-700 px-5 py-3 font-black text-white transition hover:bg-emerald-800"
+            >
+              Retry Payment Options
+            </button>
+            <Link
+              href="/#contact-us"
+              className="rounded-xl bg-slate-950 px-5 py-3 font-black text-white"
+            >
+              Contact IDS
+            </Link>
+          </div>
+        </div>
+      ) : noMethodsAvailable ? (
+        <div className="mt-7 rounded-[2rem] border border-amber-200 bg-amber-50 p-6"><h4 className="text-xl font-black text-amber-950">Online payment and financing options are temporarily unavailable.</h4><p className="mt-3 leading-7 text-amber-950">Contact the IDS team and we will help you with the next step.</p><Link href="/#contact-us" className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 font-black text-white">Contact IDS</Link></div>
+      ) : (
+        <div className="mt-7 grid gap-5 md:grid-cols-2">
+        {availability?.card && <button
           type="button"
           onClick={() => onSelectMethod("pay-in-full")}
           aria-pressed={payInFullSelected}
@@ -81,7 +133,7 @@ export default function PurchaseMethod({
           </p>
         </button>}
 
-        {checkoutAvailable && availability.achDebit && <button
+        {checkoutAvailable && availability?.achDebit && <button
           type="button"
           onClick={() => onSelectMethod("ach")}
           aria-pressed={achSelected}
@@ -126,7 +178,7 @@ export default function PurchaseMethod({
           </p>
         </button>}
 
-        {availability.hearthFinancing && <a
+        {availability?.hearthFinancing && <a
           href={hearthUrl}
           target="_blank"
           rel="noopener noreferrer"
@@ -154,7 +206,7 @@ export default function PurchaseMethod({
             {hearthSelected ? "Selected and opened in new tab" : "Open Hearth"}
           </p>
         </a>}
-      </div>}
+      </div>)}
     </div>
   );
 }

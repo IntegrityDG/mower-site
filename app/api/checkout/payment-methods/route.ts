@@ -1,11 +1,10 @@
-import { NextResponse } from "next/server";
 import { paymentMethodIsServerEnabled } from "@/lib/checkout/payment-method-availability";
-import { readPaymentMethodSettingsFailSafe } from "@/lib/payment-method-settings/server";
-import { toPublicPaymentMethodAvailability } from "@/lib/payment-method-settings/types";
+import { createPublicPaymentMethodAvailabilityHandler } from "@/lib/payment-method-settings/public-handler";
+import { readPaymentMethodSettings } from "@/lib/payment-method-settings/server";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const settings = await readPaymentMethodSettingsFailSafe();
-  return NextResponse.json(toPublicPaymentMethodAvailability(settings, paymentMethodIsServerEnabled("ach_debit")), { headers:{ "Cache-Control":"no-store" } });
-}
+export const GET = createPublicPaymentMethodAvailabilityHandler({
+  readSettings: readPaymentMethodSettings,
+  achEnvironmentEnabled: () => paymentMethodIsServerEnabled("ach_debit"),
+});

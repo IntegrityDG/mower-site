@@ -29,7 +29,11 @@ import type {
   CustomerInformationValues,
   PurchaseMethodKey,
 } from "@/lib/products/types";
-import { customerPurchaseMethodIsAvailable, type PublicPaymentMethodAvailability } from "@/lib/payment-method-settings/types";
+import {
+  loadPaymentMethodAvailability,
+  retainAvailablePurchaseMethod,
+} from "@/lib/payment-method-settings/client";
+import type { PaymentMethodAvailabilityLoadState } from "@/lib/payment-method-settings/types";
 import {
   YARBO_CORE_ABSENT_NOTICE,
   YARBO_INCLUDED_PLATFORM_EQUIPMENT,
@@ -240,7 +244,12 @@ export default function NationwidePurchaseFlow({
   const [selectedPurchaseMethod, setSelectedPurchaseMethod] = useState<
     PurchaseMethodKey | ""
   >("");
-  const [paymentMethodAvailability,setPaymentMethodAvailability]=useState<PublicPaymentMethodAvailability>({card:false,achDebit:false,hearthFinancing:false});
+  const [paymentMethods, setPaymentMethods] =
+    useState<PaymentMethodAvailabilityLoadState>({
+      status: "loading",
+      availability: null,
+    });
+  const [paymentMethodsReloadKey, setPaymentMethodsReloadKey] = useState(0);
   const [customerInformation, setCustomerInformation] =
     useState<CustomerInformationValues>({
       fullName: "",
@@ -257,6 +266,7 @@ export default function NationwidePurchaseFlow({
   const [submitError, setSubmitError] = useState("");
   const submissionInProgress = useRef(false);
   const urlPreselectionApplied = useRef(false);
+  const paymentMethodsRequestId = useRef(0);
 
   useEffect(() => { let alive = true; fetch("/api/service/availability", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(value => { if (alive) setServiceAvailability(value?.machine ?? unavailableMachineServices); }).catch(() => { if (alive) setServiceAvailability(unavailableMachineServices); }); return () => { alive = false; }; }, []);
 
@@ -291,7 +301,32 @@ export default function NationwidePurchaseFlow({
     };
   }, [catalogReloadKey]);
 
-  useEffect(()=>{let cancelled=false;fetch("/api/checkout/payment-methods",{cache:"no-store"}).then(async response=>response.ok?response.json():Promise.reject()).then(value=>{if(!cancelled)setPaymentMethodAvailability(value);}).catch(()=>{if(!cancelled)setPaymentMethodAvailability({card:false,achDebit:false,hearthFinancing:false});});return()=>{cancelled=true;};},[]);
+  useEffect(() => {
+    const requestId = paymentMethodsRequestId.current + 1;
+    paymentMethodsRequestId.current = requestId;
+    const controller = new AbortController();
+
+    setPaymentMethods({ status: "loading", availability: null });
+    void loadPaymentMethodAvailability({ signal: controller.signal })
+      .then((availability) => {
+        if (
+          !controller.signal.aborted &&
+          paymentMethodsRequestId.current === requestId
+        ) {
+          setPaymentMethods({ status: "ready", availability });
+        }
+      })
+      .catch(() => {
+        if (
+          !controller.signal.aborted &&
+          paymentMethodsRequestId.current === requestId
+        ) {
+          setPaymentMethods({ status: "error", availability: null });
+        }
+      });
+
+    return () => controller.abort();
+  }, [paymentMethodsReloadKey]);
 
 
   useEffect(() => {
@@ -346,7 +381,21 @@ export default function NationwidePurchaseFlow({
       resolveBuildSelection(selectedProduct, buildSelection)
         .hasUnpricedEquipment
   );
-  useEffect(()=>{if(selectedPurchaseMethod&&!customerPurchaseMethodIsAvailable(selectedPurchaseMethod,paymentMethodAvailability,!configurationRequiresQuote))setSelectedPurchaseMethod("");},[configurationRequiresQuote,paymentMethodAvailability,selectedPurchaseMethod]);
+  const selectedPurchaseMethodAvailable =
+    retainAvailablePurchaseMethod(
+      selectedPurchaseMethod,
+      paymentMethods,
+      !configurationRequiresQuote,
+    ) !== "";
+  useEffect(() => {
+    setSelectedPurchaseMethod((currentMethod) =>
+      retainAvailablePurchaseMethod(
+        currentMethod,
+        paymentMethods,
+        !configurationRequiresQuote,
+      ),
+    );
+  }, [configurationRequiresQuote, paymentMethods]);
   const submissionKind =
     accessoryMode && selectedPurchaseMethod
       ? selectedPurchaseMethod === "ach"
@@ -418,7 +467,7 @@ export default function NationwidePurchaseFlow({
     (activeStage.key === "configuration" && buildComplete) ||
     (activeStage.key === "review" && buildComplete) ||
     (activeStage.key === "location" && locationComplete) ||
-    (activeStage.key === "purchase" && Boolean(selectedPurchaseMethod)) ||
+    (activeStage.key === "purchase" && selectedPurchaseMethodAvailable) ||
     (activeStage.key === "optionalServices" && (accessoryMode || ((!optionalServices.install || serviceAvailability.install.available) && (!optionalServices.setup || serviceAvailability.setup.available) && (!optionalServices.remoteSupport || (optionalServices.acceptedSupportTerms && serviceAvailability.remoteSupport.available && submissionKind !== "quote"))))) ||
     (activeStage.key === "customer" &&
       customerInformationComplete &&
@@ -596,6 +645,15 @@ export default function NationwidePurchaseFlow({
   }
 
   function handleSelectPurchaseMethod(method: PurchaseMethodKey) {
+    if (
+      retainAvailablePurchaseMethod(
+        method,
+        paymentMethods,
+        !configurationRequiresQuote,
+      ) === ""
+    ) {
+      return;
+    }
     if (method === "hearth-financing") setOptionalServices(current => ({ ...current, remoteSupport: false, acceptedSupportTerms: false }));
     submissionInProgress.current = false;
     setSelectedPurchaseMethod(method);
@@ -618,6 +676,7 @@ export default function NationwidePurchaseFlow({
     if (
       (!accessoryMode && (!selectedProduct || !isSelfServiceProduct(selectedProduct))) ||
       !selectedPurchaseMethod ||
+      !selectedPurchaseMethodAvailable ||
       !locationComplete ||
       submissionInProgress.current
     ) {
@@ -945,7 +1004,8 @@ export default function NationwidePurchaseFlow({
           configuredTotalCents={configuredTotalCents}
           hearthUrl={hearthFinancingUrl}
           onSelectMethod={handleSelectPurchaseMethod}
-          availability={paymentMethodAvailability}
+          paymentMethods={paymentMethods}
+          onRetry={() => setPaymentMethodsReloadKey((value) => value + 1)}
         />
       );
     }

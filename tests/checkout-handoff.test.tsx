@@ -29,7 +29,11 @@ test("purchase method UI displays card, ACH, and Hearth without wire", () => {
       configuredTotalCents={354800}
       hearthUrl="https://example.com/hearth"
       onSelectMethod={() => undefined}
-      availability={{card:true,achDebit:true,hearthFinancing:true}}
+      paymentMethods={{
+        status: "ready",
+        availability: { card: true, achDebit: true, hearthFinancing: true },
+      }}
+      onRetry={() => undefined}
     />
   );
 
