@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
+import YarboCorePrice, { yarboCoreStatus } from "@/components/equipment/YarboCorePrice";
+import { selectedYarboCore, yarboCoreCanBeSelected, yarboCorePrice, yarboCoreVariants } from "@/lib/catalog/yarbo-core";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
 import { catalogPackageIsAvailable } from "@/lib/catalog/availability";
@@ -123,6 +125,7 @@ export default function ProductConfiguration({
       <><YarboConfiguration
         product={product}
         selection={selection}
+        onSelectVariant={onSelectVariant}
         onSelectPackage={onSelectPackage}
         onChangeOptionQuantity={onChangeOptionQuantity}
         onSelectPurchaseMode={onSelectPurchaseMode}
@@ -151,11 +154,12 @@ function OptionalAccessories({product,selection,onChangeOptionQuantity}:{product
 function YarboConfiguration({
   product,
   selection,
+  onSelectVariant,
   onSelectPackage,
   onChangeOptionQuantity,
   onSelectPurchaseMode,
   onToggleBaseProduct,
-}: Omit<ProductConfigurationProps, "onSelectVariant">) {
+}: ProductConfigurationProps) {
   const [activeGroup, setActiveGroup] = useState<YarboPackageGroupKey>("mower-pro");
   const groupedPackages = groupYarboPackages(product.packages);
   const effectiveActiveGroup = groupedPackages.some(
@@ -176,6 +180,8 @@ function YarboConfiguration({
   const modulesWithoutCore = selectedModules.length > 0 && !coreSelected;
   const individualMode = selection.purchaseMode === "individual-equipment";
   const completeMode = selection.purchaseMode === "complete-system";
+  const coreVariants = yarboCoreVariants(product);
+  const chosenCore = selectedYarboCore(product, selection.variantId);
 
   function selectPackage(packageId: string) {
     const catalogPackage = product.packages.find((item) => item.id === packageId);
@@ -340,11 +346,16 @@ function YarboConfiguration({
                             </h6>
                             {!available && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
                           </div>
-                          {available && <YarboPriceDisplay
-                            item={catalogPackage}
-                            priceClassName="text-xl font-black text-emerald-700"
-                          />}
+                          {available && coreVariants.length === 0 && <YarboPriceDisplay item={catalogPackage} />}
                         </div>
+
+                        {coreVariants.length > 0 && <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2">
+                          {coreVariants.map((core) => <div key={core.id} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            <p className="font-black text-slate-950">{core.name}</p>
+                            <p className="text-xs font-bold uppercase tracking-wide text-slate-600">{yarboCoreStatus(core)}</p>
+                            <YarboCorePrice core={core} price={yarboCorePrice(product, core, catalogPackage)} />
+                          </div>)}
+                        </div>}
 
                         {catalogPackage.description && (
                           <p className="mt-3 leading-6 text-slate-600">
@@ -398,6 +409,21 @@ function YarboConfiguration({
               </div>
             ))}
           </div>
+          {coreVariants.length > 0 && <fieldset className="mt-7 rounded-2xl border border-emerald-300 bg-white p-5">
+            <legend className="px-2 text-lg font-black text-slate-950">Choose your Core</legend>
+            <p className="mb-4 text-sm text-slate-600">One Core powers the selected package and its included modules.</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              {coreVariants.map((core) => {
+                const catalogPackage = product.packages.find((item) => item.id === selection.packageId);
+                const price = catalogPackage ? yarboCorePrice(product, core, catalogPackage) : null;
+                const selectable = Boolean(catalogPackage && yarboCoreCanBeSelected(product, core, catalogPackage));
+                return <label key={core.id} className={`flex min-w-0 gap-3 rounded-xl border p-4 ${selection.variantId === core.id ? "border-emerald-700 bg-emerald-50" : "border-slate-300"} ${!selectable ? "cursor-not-allowed bg-slate-100" : "cursor-pointer"}`}>
+                  <input type="radio" name="yarbo-complete-core" value={core.id} checked={selection.variantId === core.id} disabled={!selectable} onChange={() => onSelectVariant(core.id)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-700" aria-describedby={`yarbo-core-status-${core.id}`} />
+                  <span className="min-w-0"><strong className="block text-lg">{core.name}</strong><span id={`yarbo-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700">{yarboCoreStatus(core)}{!catalogPackage ? " · Choose a package first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={price} /></span></span>
+                </label>;
+              })}
+            </div>
+          </fieldset>}
         </div>
       </section>}
 
@@ -440,7 +466,7 @@ function YarboConfiguration({
                     Core Platform
                   </p>
                   <h5 className="mt-2 text-xl font-black text-slate-950">
-                    Yarbo Core
+                    Yarbo Core {coreSelected && chosenCore ? `— ${chosenCore.name}` : ""}
                   </h5>
                   <p className="mt-2 leading-6 text-slate-600">
                     The base Yarbo platform for customers assembling a custom
@@ -457,11 +483,11 @@ function YarboConfiguration({
                   ✓
                 </span>
               </div>
-              <YarboPriceDisplay
-                item={product}
-                className="mt-4"
-                priceClassName="text-lg font-black text-emerald-700"
-              />
+              <div className="mt-4">
+                {coreSelected && chosenCore
+                  ? <YarboCorePrice core={chosenCore} price={yarboCorePrice(product, chosenCore)} />
+                  : <YarboPriceDisplay item={product} priceClassName="text-lg font-black text-emerald-700" />}
+              </div>
             </button>
 
             {modules.map((option) => {
@@ -520,6 +546,18 @@ function YarboConfiguration({
               );
             })}
           </div>
+
+          {coreVariants.length > 0 && <fieldset className="mt-6 rounded-2xl border border-emerald-300 bg-white p-5">
+            <legend className="px-2 text-lg font-black">Choose your Core</legend>
+            <p className="mb-4 text-sm text-slate-600">Add a Core above to order it with individual modules. Module-only orders do not include a Core.</p>
+            <div className="grid gap-3 md:grid-cols-2">{coreVariants.map((core) => {
+              const selectable = coreSelected && yarboCoreCanBeSelected(product, core);
+              return <label key={core.id} className={`flex min-w-0 gap-3 rounded-xl border p-4 ${selection.variantId === core.id && coreSelected ? "border-emerald-700 bg-emerald-50" : "border-slate-300"} ${!selectable ? "cursor-not-allowed bg-slate-100" : "cursor-pointer"}`}>
+                <input type="radio" name="yarbo-individual-core" value={core.id} checked={coreSelected && selection.variantId === core.id} disabled={!selectable} onChange={() => onSelectVariant(core.id)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-700" aria-describedby={`yarbo-individual-core-status-${core.id}`} />
+                <span className="min-w-0"><strong className="block text-lg">{core.name}</strong><span id={`yarbo-individual-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700">{yarboCoreStatus(core)}{!coreSelected ? " · Add Core first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={yarboCorePrice(product, core)} /></span></span>
+              </label>;
+            })}</div>
+          </fieldset>}
 
           {individualMode && !coreSelected && selectedModules.length === 0 && (
             <p className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-bold leading-6 text-amber-950">

@@ -32,6 +32,18 @@ test("checkout operational precedence covers active, expired, and future tempora
   assert.equal(operationalPriceCents(operational({ sale_price_cents: 269800, sale_starts_at: "2026-08-11T00:00:00Z" }), now), 279900);
 });
 
+test("shared temporary sales use an exclusive end without changing open-ended sales", () => {
+  const starts = Date.parse("2026-08-01T00:00:00Z");
+  const ends = Date.parse("2026-08-20T00:00:00Z");
+  const dated = operational({ sale_price_cents: 269800, sale_starts_at: new Date(starts).toISOString(), sale_ends_at: new Date(ends).toISOString() });
+  assert.equal(operationalPriceCents(dated, starts - 1), 279900);
+  assert.equal(operationalPriceCents(dated, starts), 269800);
+  assert.equal(operationalPriceCents(dated, ends - 1), 269800);
+  assert.equal(operationalPriceCents(dated, ends), 279900);
+  assert.equal(operationalPriceCents(dated, ends + 1), 279900);
+  assert.equal(operationalPriceCents({ ...dated, sale_ends_at: null }, ends + 1), 269800);
+});
+
 test("public display renders comparison, IDS everyday, and active temporary sale levels", () => {
   const price = scheduledPublicPrice(operational({ sale_price_cents: 269800, sale_starts_at: "2026-08-01T00:00:00Z", sale_ends_at: "2026-08-20T00:00:00Z", promotion_label: "Launch Sale" }), [], "product", "p", now).price;
   const html = renderToStaticMarkup(React.createElement(EverydayPriceDisplay, { item: price, comparisonLabel: "Lymow Everyday Price" }));

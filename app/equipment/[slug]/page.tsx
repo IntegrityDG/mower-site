@@ -125,6 +125,7 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
 }
 
 function YarboProductPage({ product }: { product: CatalogProduct }) {
+  const y40p = product.variants.find((variant) => variant.slug === "yarbo-y40p");
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
       <CatalogHeader productSlug="yarbo" isAvailable={product.isAvailable} />
@@ -150,6 +151,7 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
                   product.fullDescription ??
                   product.page?.heroSubheading}
               </p>
+              {y40p && <p className="mt-4 rounded-xl border border-amber-300/60 bg-amber-200/10 p-4 font-bold text-amber-100">Choose Y40 or the premium next-generation Y40P Core. {y40p.publicStatus === "coming_soon" ? "Y40P is Coming Soon." : y40p.isAvailable ? "Both Core choices are available." : "Y40P is currently unavailable."}</p>}
               {product.isAvailable && <div className="mt-7">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">
                   Starting at

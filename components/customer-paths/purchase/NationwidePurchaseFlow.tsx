@@ -13,6 +13,7 @@ import { builderAccessoryOptions, customerFacingProductOptions } from "@/lib/cat
 import { buildAvailabilityIssues, catalogOptionIsAvailable, removeUnavailableBuildSelections } from "@/lib/catalog/availability";
 import { isSelfServiceProduct } from "@/lib/catalog/sales-mode";
 import { isPublicEquipmentProductSlug } from "@/lib/catalog/product-routing";
+import { yarboCoreCanBeSelected } from "@/lib/catalog/yarbo-core";
 import {
   checkoutEndpoint,
   checkoutSubmissionKind,
@@ -206,7 +207,9 @@ export function accessoryRequestedByBuildSearch(product: CatalogProduct, search:
 
 function initialBuildSelection(product: CatalogProduct): ProductBuildSelection {
   return {
-    variantId: "",
+    variantId: isYarboProduct(product)
+      ? product.variants.find((variant) => variant.slug === "yarbo-y40" && variant.isAvailable)?.id ?? ""
+      : "",
     packageId: "",
     optionQuantities: Object.fromEntries(
       customerFacingProductOptions(product)
@@ -466,7 +469,14 @@ export default function NationwidePurchaseFlow({
   }
 
   function handleSelectVariant(variantId: string) {
-    if (!selectedProduct?.variants.find((variant) => variant.id === variantId)?.isAvailable) return;
+    const variant = selectedProduct?.variants.find((item) => item.id === variantId);
+    if (!variant?.isAvailable) return;
+    if (selectedProduct && isYarboProduct(selectedProduct)) {
+      const catalogPackage = selectedProduct.packages.find((item) => item.id === buildSelection.packageId);
+      if (!yarboCoreCanBeSelected(selectedProduct, variant, catalogPackage)) return;
+      setBuildSelection((current) => ({ ...current, variantId }));
+      return;
+    }
     setBuildSelection((currentSelection) => ({
       ...currentSelection,
       variantId,
@@ -493,6 +503,7 @@ export default function NationwidePurchaseFlow({
     if (selectedProduct && isYarboProduct(selectedProduct)) {
       setBuildSelection((currentSelection) => ({
         ...currentSelection,
+        variantId: currentSelection.variantId || selectedProduct.variants.find((variant) => variant.slug === "yarbo-y40" && variant.isAvailable)?.id || "",
         packageId,
         purchaseMode: "complete-system",
         includeBaseProduct: false,
@@ -556,6 +567,9 @@ export default function NationwidePurchaseFlow({
   function handleSelectPurchaseMode(mode: YarboPurchaseMode) {
     setBuildSelection((currentSelection) => ({
       ...currentSelection,
+      variantId: mode === "complete-system"
+        ? currentSelection.variantId || selectedProduct?.variants.find((variant) => variant.slug === "yarbo-y40" && variant.isAvailable)?.id || ""
+        : currentSelection.includeBaseProduct ? currentSelection.variantId : "",
       packageId: mode === "complete-system" ? currentSelection.packageId : "",
       purchaseMode: mode,
       includeBaseProduct:
@@ -575,6 +589,9 @@ export default function NationwidePurchaseFlow({
       packageId: "",
       purchaseMode: "individual-equipment",
       includeBaseProduct: selected,
+      variantId: selected
+        ? currentSelection.variantId || selectedProduct?.variants.find((variant) => variant.slug === "yarbo-y40" && variant.isAvailable)?.id || ""
+        : "",
     }));
   }
 
@@ -626,7 +643,7 @@ export default function NationwidePurchaseFlow({
       : null;
     const yarboIndividualItems = selectedProductIsYarbo
       ? [
-          ...(build.yarboCoreSelected ? [selectedProduct.name] : []),
+          ...(build.yarboCoreSelected ? [build.selectedVariant?.name ?? selectedProduct.name] : []),
           ...build.selectedOptions.map(({ option, quantity }) =>
             quantity > 1
               ? `${yarboOptionDisplayName(option)} x ${quantity}`
@@ -653,7 +670,7 @@ export default function NationwidePurchaseFlow({
       selectedProduct.name;
     const primaryConfiguration =
       selectedYarboPackage
-        ? yarboPackageDisplayName(selectedYarboPackage)
+        ? `${build.selectedVariant?.name ?? "Y40 Core"} + ${yarboPackageDisplayName(selectedYarboPackage)}`
         : selectedProductIsYarbo && build.isYarboIndividualEquipment
           ? "Individual Yarbo Equipment"
           : defaultConfiguration;
@@ -669,7 +686,9 @@ export default function NationwidePurchaseFlow({
         paymentMethod: submissionKind,
         selection: {
           productId: selectedProduct.id,
-          variantId: build.selectedVariant?.id ?? null,
+          variantId: selectedProductIsYarbo && build.isYarboIndividualEquipment && !build.yarboCoreSelected
+            ? null
+            : build.selectedVariant?.id ?? null,
           purchaseMode: build.isYarboCompleteSystem
             ? "complete-system"
             : build.isYarboIndividualEquipment

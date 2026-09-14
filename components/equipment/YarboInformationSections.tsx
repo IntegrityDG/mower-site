@@ -2,6 +2,7 @@ import Image from "next/image";
 import type { ReactNode } from "react";
 
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
+import YarboCoreComparison from "@/components/equipment/YarboCoreComparison";
 import {
   yarboComponentContent,
   yarboCoreSpecs,
@@ -329,6 +330,7 @@ export default function YarboInformationSections({
 
   return (
     <>
+      <YarboCoreComparison product={product} />
       <section className="mt-14" aria-labelledby="yarbo-product-information">
         <p className="text-sm font-black uppercase tracking-[0.2em] text-emerald-700">
           Product information

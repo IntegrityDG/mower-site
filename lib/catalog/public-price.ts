@@ -19,6 +19,13 @@ export function priceFromRow(
   everydayLowPriceEnabled = true
 ): CatalogPrice {
   const saleIsActive = activeSalePriceCents(row, now) !== null;
+  const salePhase = row.sale_price_cents === null
+    ? "none" as const
+    : saleIsActive
+      ? "active" as const
+      : row.sale_starts_at && new Date(row.sale_starts_at).getTime() > now
+        ? "upcoming" as const
+        : "ended" as const;
 
   return {
     displayMsrpPriceCents: row.display_msrp_price_cents,
@@ -28,8 +35,11 @@ export function priceFromRow(
     showPublicPrice: row.show_public_price,
     contactForPricing: row.contact_for_pricing,
     promotionLabel: saleIsActive ? row.promotion_label : null,
+    scheduledSaleLabel: row.promotion_label,
     saleIsActive,
-    saleEndsAt: saleIsActive ? row.sale_ends_at : null,
+    saleStartsAt: row.sale_starts_at,
+    saleEndsAt: row.sale_ends_at,
+    salePhase,
     everydayLowPriceEnabled,
   };
 }

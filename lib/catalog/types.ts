@@ -15,13 +15,16 @@ export type CatalogPrice = {
   showPublicPrice: boolean;
   contactForPricing: boolean;
   promotionLabel: string | null;
+  scheduledSaleLabel?: string | null;
   saleIsActive: boolean;
+  saleStartsAt?: string | null;
   saleEndsAt?: string | null;
+  salePhase?: "none" | "upcoming" | "active" | "ended";
   /** Public promotional content for the price that is actually active. */
   publicPromotion?: CatalogPricePromotion | null;
 };
 
-export type CatalogPublicStatus = "active" | "unavailable";
+export type CatalogPublicStatus = "active" | "unavailable" | "coming_soon";
 
 export type CatalogAvailability = {
   /** Normalized sellability. Never infer this from price presence. */
@@ -143,6 +146,12 @@ export type CatalogPackageItem = {
   option: CatalogOption | null;
 };
 
+export type CatalogPackageCorePrice = CatalogPrice & CatalogAvailability & {
+  id: string;
+  coreVariantId: string;
+  priceMode: "package" | "core_specific";
+};
+
 export type CatalogPackage = CatalogPrice & CatalogAvailability & {
   id: string;
   slug: string;
@@ -150,6 +159,7 @@ export type CatalogPackage = CatalogPrice & CatalogAvailability & {
   description: string | null;
   sortOrder: number;
   items: CatalogPackageItem[];
+  corePrices?: CatalogPackageCorePrice[];
 };
 
 export type CatalogServicePaymentOption = CatalogPrice & CatalogAvailability & {

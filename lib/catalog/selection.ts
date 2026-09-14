@@ -14,6 +14,7 @@ import {
 } from "./yarbo";
 import { builderAccessoryOptions, customerFacingProductOptions } from "./customer-facing-options";
 import { buildAvailabilityIssues } from "./availability";
+import { selectedYarboCore, yarboCoreCanBeSelected, yarboCorePrice, yarboCoreVariants } from "./yarbo-core";
 
 export function allProductOptions(product: CatalogProduct) {
   const options = customerFacingProductOptions(product);
@@ -30,9 +31,8 @@ export function resolveBuildSelection(
   const yarboCompleteSystemMode =
     yarboProduct && selection.purchaseMode === "complete-system";
   const selectedVariant = yarboProduct
-    ? null
-    : product.variants.find((variant) => variant.id === selection.variantId) ??
-      null;
+    ? selectedYarboCore(product, selection.variantId)
+    : product.variants.find((variant) => variant.id === selection.variantId) ?? null;
   const selectedPackage = yarboIndividualMode
     ? null
     : product.packages.find(
@@ -69,14 +69,21 @@ export function resolveBuildSelection(
   const yarboCoreSelected =
     yarboIndividualMode && yarboCoreIsSelected(selection);
   const includeBaseProduct = !yarboIndividualMode || yarboCoreSelected;
+  const yarboPrice = yarboProduct && selectedVariant
+    ? yarboCorePrice(product, selectedVariant, selectedPackage)
+    : null;
   const baseItem = yarboIndividualMode
     ? yarboCoreSelected
-      ? product
+      ? (selectedVariant ? yarboPrice : product)
       : null
-    : selectedPackage ?? selectedVariant ?? (includeBaseProduct ? product : null);
+    : yarboCompleteSystemMode
+      ? (selectedVariant ? yarboPrice : selectedPackage)
+      : selectedPackage ?? selectedVariant ?? (includeBaseProduct ? product : null);
   const baseItemName = yarboIndividualMode
-    ? product.name
-    : selectedPackage?.name ?? selectedVariant?.name ?? product.name;
+    ? selectedVariant?.name ?? product.name
+    : yarboCompleteSystemMode && selectedPackage
+      ? `${selectedVariant?.name ?? "Y40 Core"} + ${selectedPackage.name}`
+      : selectedPackage?.name ?? selectedVariant?.name ?? product.name;
   const priceItems = [
     ...(baseItem
       ? [
@@ -211,12 +218,16 @@ export function productBuildIsComplete(
 ) {
   if (buildAvailabilityIssues(product, selection).length > 0) return false;
   if (isYarboProduct(product)) {
+    const cores = yarboCoreVariants(product);
+    const core = selectedYarboCore(product, selection.variantId);
     if (selection.purchaseMode === "complete-system") {
-      return Boolean(selection.packageId);
+      const catalogPackage = product.packages.find((item) => item.id === selection.packageId);
+      return Boolean(catalogPackage && (cores.length === 0 || (core && yarboCoreCanBeSelected(product, core, catalogPackage))));
     }
 
     if (selection.purchaseMode === "individual-equipment") {
-      return yarboHasIndividualSelection(product, selection);
+      return yarboHasIndividualSelection(product, selection) &&
+        (!selection.includeBaseProduct || cores.length === 0 || Boolean(core && yarboCoreCanBeSelected(product, core)));
     }
 
     return false;

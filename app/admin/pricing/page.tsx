@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import PricingProgramToggle from "@/components/admin/PricingProgramToggle";
+import PackageCorePricing from "@/components/admin/PackageCorePricing";
 import { isoToLocalDateTimeInput } from "@/lib/admin-pricing/datetime-local";
 import { editablePricingFields } from "@/lib/admin-pricing/validation";
 import type { PricingItem } from "@/lib/admin-pricing/types";
@@ -1076,6 +1077,7 @@ export default function PricingAdminPage() {
   <div className="mt-7 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-bold text-amber-950">Checkout pricing order is controlled by the IDS Everyday Low Price Program switch above. Active Temporary Sale Price always takes priority.</div>
   <div className="mt-3 rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 font-black text-amber-950">Pricing changes made here directly control the public storefront and checkout pricing.</div>
   <p className="mt-2 font-semibold text-slate-700">Manufacturer sync and catalog imports cannot automatically change IDS selling prices.</p>
+  <PackageCorePricing />
 
   <section className="mt-6 rounded-3xl border-2 border-blue-300 bg-white p-5 shadow-sm md:p-6">
     <div className="flex flex-wrap items-start justify-between gap-4">

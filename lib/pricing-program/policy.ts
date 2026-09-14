@@ -20,7 +20,7 @@ export function activeSalePriceCents(
     ? new Date(row.sale_ends_at).getTime()
     : Number.POSITIVE_INFINITY;
 
-  return now >= starts && now <= ends ? row.sale_price_cents : null;
+  return now >= starts && now < ends ? row.sale_price_cents : null;
 }
 
 export function sellingPriceCents(

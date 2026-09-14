@@ -14,7 +14,7 @@ import {
   getSupabaseCatalogClient,
 } from "@/lib/supabase";
 import type { ActivePriceSchedule } from "@/lib/catalog/active-price-schedule";
-import { scheduledPublicPrice, type PublicPriceRow } from "@/lib/catalog/public-price";
+import { priceFromRow, scheduledPublicPrice, type PublicPriceRow } from "@/lib/catalog/public-price";
 import {
   buildPublicPromotionMap,
   publicPromotionForPrice,
@@ -189,6 +189,7 @@ export async function loadPublicCatalog(
       packageItemsResult,
       sectionsResult,
       variantSpecificationValuesResult,
+      corePricesResult,
     ] = await Promise.all([
       variantIds.length
         ? supabase
@@ -219,6 +220,13 @@ export async function loadPublicCatalog(
             .in("variant_id", variantIds)
             .eq("is_public", true)
         : emptyResult,
+      packageIds.length && variants.some((variant) => variant.variant_slug === "yarbo-y40")
+        ? supabase
+            .from("catalog_package_core_prices")
+            .select("id,product_id,package_id,core_variant_id,price_mode,regular_price_cents,sale_price_cents,sale_starts_at,sale_ends_at,promotion_label,show_public_price,contact_for_pricing,public_status")
+            .in("package_id", packageIds)
+            .in("public_status", [...PUBLIC_CATALOG_STATUSES])
+        : emptyResult,
     ]);
 
     const variantOptions = ensureData("Variant options", variantOptionsResult);
@@ -228,6 +236,7 @@ export async function loadPublicCatalog(
       "Variant specification values",
       variantSpecificationValuesResult
     );
+    const corePrices = ensureData("Package Core prices", corePricesResult);
     const definitionIds = [
       ...new Set(
         variantSpecificationValues.map(
@@ -384,7 +393,7 @@ export async function loadPublicCatalog(
             definingOptionIds,
             ...availability,
             isAvailable: availability.isAvailable && definingOptionsAvailable,
-            ...(salesMode === "quote_only"
+            ...(salesMode === "quote_only" || product.slug === "yarbo"
               ? { specifications: specificationsForVariant(variant.id) }
               : {}),
             ...publicPrice(variant, "variant", variant.id),
@@ -428,6 +437,7 @@ export async function loadPublicCatalog(
                 ) ?? null,
             }));
           const availability = catalogAvailabilityFromPublicStatus(catalogPackage.public_status);
+          const packagePrice = publicPrice(catalogPackage, "package", catalogPackage.id);
           return {
             id: catalogPackage.id,
             slug: catalogPackage.package_slug,
@@ -435,9 +445,20 @@ export async function loadPublicCatalog(
             description: catalogPackage.description,
             sortOrder: catalogPackage.sort_order,
             items,
+            corePrices: corePrices
+              .filter((row) => row.package_id === catalogPackage.id)
+              .map((row) => ({
+                id: row.id,
+                coreVariantId: row.core_variant_id,
+                priceMode: row.price_mode as "package" | "core_specific",
+                ...catalogAvailabilityFromPublicStatus(row.public_status),
+                ...(row.price_mode === "package"
+                  ? packagePrice
+                  : priceFromRow({ ...row, display_msrp_price_cents: null } as PublicPriceRow, now, everydayLowPriceEnabled)),
+              })),
             ...availability,
             isAvailable: availability.isAvailable && items.every((item) => item.option?.isAvailable === true),
-            ...publicPrice(catalogPackage, "package", catalogPackage.id),
+            ...packagePrice,
           };
         });
 

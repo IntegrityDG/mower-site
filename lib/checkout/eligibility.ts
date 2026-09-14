@@ -8,7 +8,8 @@ export type CheckoutOptionRow = PriceableRow & { product_id: string; option_slug
 export type CheckoutPackageRow = PriceableRow & { product_id: string; package_slug: string; package_name: string; description: string | null };
 export type VariantOptionRow = { id: string; variant_id: string; option_id: string; relationship_type: string };
 export type PackageItemRow = { id: string; package_id: string; option_id: string; quantity: number; included_in_package_price: boolean };
-export type CheckoutCatalog = { product: CheckoutProductRow; variants: CheckoutVariantRow[]; options: CheckoutOptionRow[]; packages: CheckoutPackageRow[]; variantOptions: VariantOptionRow[]; packageItems: PackageItemRow[] };
+export type CheckoutCorePriceRow = PriceableRow & { product_id: string; package_id: string; core_variant_id: string; price_mode: "package" | "core_specific"; show_public_price: boolean; contact_for_pricing: boolean };
+export type CheckoutCatalog = { product: CheckoutProductRow; variants: CheckoutVariantRow[]; options: CheckoutOptionRow[]; packages: CheckoutPackageRow[]; variantOptions: VariantOptionRow[]; packageItems: PackageItemRow[]; corePrices?: CheckoutCorePriceRow[] };
 
 const LYMOW_VARIANTS = new Set(["lymow-one-plus-5a", "lymow-one-plus-10a"]);
 const LYMOW_CHARGERS = new Set(["lymow-5a-charger", "lymow-10a-charger"]);
@@ -48,7 +49,10 @@ export function validateCheckoutEligibility(request: CheckoutRequest, catalog: C
   if (request.selection.variantId && !variant) throw new CheckoutRejectionError("UNKNOWN_CATALOG_RECORD", "Variant was not found.");
   if (request.selection.packageId && !selectedPackage) throw new CheckoutRejectionError("UNKNOWN_CATALOG_RECORD", "Package was not found.");
   if (variant?.product_id !== undefined && variant.product_id !== product.id) reject("CROSS_PRODUCT_SELECTION", "The selected variant belongs to another product.");
-  if (variant && !active(variant)) unavailable(variant.name);
+  if (variant && !active(variant)) {
+    if (variant.public_status === "coming_soon") reject("INACTIVE_CATALOG_RECORD", `${variant.name} is Coming Soon and cannot be purchased yet.`);
+    unavailable(variant.name);
+  }
   if (selectedPackage?.product_id !== undefined && selectedPackage.product_id !== product.id) reject("CROSS_PRODUCT_SELECTION", "The selected package belongs to another product.");
   if (selectedPackage && !active(selectedPackage)) unavailable(selectedPackage.package_name);
 
@@ -68,16 +72,17 @@ export function validateCheckoutEligibility(request: CheckoutRequest, catalog: C
     }
     const missingRequired = catalog.variantOptions.filter((link) => link.variant_id === variant.id && link.relationship_type === "required").some((link) => !selectedOptions.some(({ option }) => option.id === link.option_id));
     if (missingRequired) reject("MISSING_CONFIGURATION", "A required Lymow option is missing.");
-    return { variant, selectedPackage: null, selectedOptions, moduleOnlyWarning: null };
+    return { variant, selectedPackage: null, selectedOptions, corePrice: null, moduleOnlyWarning: null };
   }
 
   if (product.slug !== "yarbo") reject("INCOMPATIBLE_SELECTION", "Product is not approved for checkout.");
-  if (variant) reject("INCOMPATIBLE_SELECTION", "Yarbo does not accept a variant selection.");
+  if (variant && !["yarbo-y40", "yarbo-y40p"].includes(variant.variant_slug)) reject("INCOMPATIBLE_SELECTION", "Choose a supported Yarbo Core.");
   if (selectedOptions.some(({ option }) => YARBO_HIDDEN.has(option.option_slug))) reject("YARBO_HIDDEN_OPTION", "This Yarbo option is not available.");
   const validYarboAccessory = (option: CheckoutOptionRow) => option.accessory_listing_enabled === true && option.accessory_tab === "yarbo" && option.show_in_builder === true && option.accessory_action_type === "builder" && !option.contact_for_pricing && option.regular_price_cents !== null;
   if (selectedOptions.some(({ option }) => !YARBO_MODULES.has(option.option_slug) && !validYarboAccessory(option))) reject("INCOMPATIBLE_SELECTION", "Only approved Yarbo modules and builder accessories may be selected.");
   if (request.selection.purchaseMode === "complete-system") {
     if (!selectedPackage) throw new CheckoutRejectionError("MISSING_CONFIGURATION", "Choose one Yarbo package.");
+    if (catalog.variants.some((core) => ["yarbo-y40", "yarbo-y40p"].includes(core.variant_slug)) && !variant) reject("MISSING_CONFIGURATION", "Choose one Yarbo Core for this package.");
     if (request.selection.includeBaseProduct || selectedOptions.some(({ option }) => YARBO_MODULES.has(option.option_slug))) reject("YARBO_PACKAGE_DOUBLE_COUNT", "A Yarbo package cannot include standalone Core or module selections.");
     const items = catalog.packageItems.filter((item) => item.package_id === selectedPackage.id);
     if (new Set(items.map((item) => item.option_id)).size !== items.length) reject("DUPLICATE_SELECTION", "Package contains duplicate components.");
@@ -85,12 +90,20 @@ export function validateCheckoutEligibility(request: CheckoutRequest, catalog: C
     if (packageOptions.some((option) => !option || option.product_id !== product.id)) reject("CROSS_PRODUCT_SELECTION", "The selected package contains a missing or cross-product component.");
     const unavailablePackageOption = packageOptions.find((option) => option && !active(option));
     if (unavailablePackageOption) unavailable(unavailablePackageOption.name);
-    return { variant: null, selectedPackage, selectedOptions: selectedOptions.filter(({ option }) => validYarboAccessory(option)), packageItems: items, moduleOnlyWarning: null };
+    const corePrice = variant
+      ? (catalog.corePrices ?? []).find((row) => row.package_id === selectedPackage.id && row.core_variant_id === variant.id)
+      : null;
+    if (variant && (!corePrice || corePrice.product_id !== product.id || !active(corePrice) || corePrice.price_mode !== (variant.variant_slug === "yarbo-y40" ? "package" : "core_specific") || corePrice.contact_for_pricing || !corePrice.show_public_price || (corePrice.price_mode === "core_specific" && corePrice.regular_price_cents === null))) reject("INCOMPATIBLE_SELECTION", "This package and Core combination is not available.");
+    if (variant && packageOptions.some((option) => option && YARBO_MODULES.has(option.option_slug) && !catalog.variantOptions.some((link) => link.variant_id === variant.id && link.option_id === option.id && link.relationship_type === "compatible"))) reject("INCOMPATIBLE_SELECTION", "A package module is not compatible with the selected Core.");
+    return { variant, selectedPackage, selectedOptions: selectedOptions.filter(({ option }) => validYarboAccessory(option)), corePrice, packageItems: items, moduleOnlyWarning: null };
   }
   if (request.selection.purchaseMode !== "individual-equipment" || selectedPackage) reject("INCOMPATIBLE_SELECTION", "Invalid Yarbo purchase mode.");
   const selectedModules = selectedOptions.filter(({ option }) => YARBO_MODULES.has(option.option_slug));
+  if (request.selection.includeBaseProduct && catalog.variants.some((core) => ["yarbo-y40", "yarbo-y40p"].includes(core.variant_slug)) && !variant) reject("MISSING_CONFIGURATION", "Choose one Yarbo Core.");
+  if (!request.selection.includeBaseProduct && variant) reject("INCOMPATIBLE_SELECTION", "Module-only orders cannot include a Core selection.");
+  if (variant && selectedModules.some(({ option }) => !catalog.variantOptions.some((link) => link.variant_id === variant.id && link.option_id === option.id && link.relationship_type === "compatible"))) reject("INCOMPATIBLE_SELECTION", "A module is not compatible with the selected Core.");
   if (!request.selection.includeBaseProduct && !selectedModules.length) reject("MISSING_CONFIGURATION", "Choose Yarbo Core or at least one module.");
-  return { variant: null, selectedPackage: null, selectedOptions, moduleOnlyWarning: !request.selection.includeBaseProduct && selectedModules.length ? "Yarbo Core is not included. These modules require an existing Yarbo Core to operate." : null };
+  return { variant, selectedPackage: null, selectedOptions, corePrice: null, moduleOnlyWarning: !request.selection.includeBaseProduct && selectedModules.length ? "Yarbo Core is not included. These modules require an existing Yarbo Core to operate." : null };
 }
 
 export function checkoutDisplayName(option: CheckoutOptionRow) {

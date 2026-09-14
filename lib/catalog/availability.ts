@@ -5,12 +5,12 @@ import type {
   ProductBuildSelection,
 } from "./types";
 
-export const PUBLIC_CATALOG_STATUSES = ["active", "unavailable"] as const;
+export const PUBLIC_CATALOG_STATUSES = ["active", "unavailable", "coming_soon"] as const;
 
 export function catalogAvailabilityFromPublicStatus(status: string) {
   return {
     isAvailable: status === "active",
-    publicStatus: status === "active" ? "active" as const : "unavailable" as const,
+    publicStatus: status === "active" ? "active" as const : status === "coming_soon" ? "coming_soon" as const : "unavailable" as const,
   };
 }
 
