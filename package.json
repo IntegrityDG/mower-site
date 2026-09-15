@@ -19,6 +19,7 @@
   "dependencies": {
     "@nickgraffis/us-counties": "0.0.2",
     "@supabase/supabase-js": "2.112.3",
+    "@vercel/analytics": "^2.0.1",
     "heic-to": "1.5.2",
     "next": "16.3.2",
     "pdf-lib": "1.17.1",
