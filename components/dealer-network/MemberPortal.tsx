@@ -1,5 +1,7 @@
 "use client";
 
+import { businessLocationLabel } from "@/lib/dealer-network/member-location-presentation";
+
 import {
   useCallback,
   useEffect,
@@ -546,7 +548,7 @@ function AccountSecurityPanel() {
       <div className="rounded-3xl bg-white p-6 shadow-sm">
         <h3 className="text-2xl font-black">Business Location</h3>
         <p className="mt-3 font-bold">
-          {summary.businessLocationReady ? "Location Ready" : "Location Needs Attention"}
+          {businessLocationLabel(summary, busy === "retry_business_location")}
         </p>
         {!summary.businessLocationReady && (
           <button

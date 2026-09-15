@@ -70,6 +70,12 @@ export async function PATCH(request: Request) {
       });
     }
     if (body.action === "retry_business_location") {
+      if (Object.keys(body).some((key) => key !== "action"))
+        return Response.json({ error: "Location retry accepts only the account action." }, { status: 400 });
+      const allowed = await consumeDealerRateLimit(
+        "member_geocode_retry", privateIdentifierHash(session.memberId), 5, 5 * 60,
+      );
+      if (!allowed) throw new MemberAccessError(429, "Too many location retries. Please wait before trying again.");
       const result = await retryOwnBusinessLocation(session.memberId);
       return result.ok
         ? Response.json({ success: true, message: result.message })

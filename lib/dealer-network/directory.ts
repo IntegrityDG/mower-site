@@ -4,6 +4,7 @@ import type {
   DirectoryResult,
   MemberRole,
 } from "./types";
+import { validGeocodePoint } from "./geocoding-adapter";
 
 export type PrivateDirectoryRow = {
   id: string;
@@ -59,7 +60,7 @@ export function filterDirectoryRows(
   return rows
     .map((row) => {
       const distance =
-        origin && row.latitude !== null && row.longitude !== null
+        origin && row.geocodeStatus === "succeeded" && validGeocodePoint(row)
           ? haversineMiles(origin, {
               latitude: row.latitude,
               longitude: row.longitude,
@@ -140,13 +141,13 @@ export function toDirectoryResult(
 }
 
 export async function resolveBusinessDirectoryOrigin(
-  stored: { latitude: number | null; longitude: number | null } | undefined,
+  stored: { latitude: number | null; longitude: number | null; geocodeStatus: string } | undefined,
   repair: () => Promise<{ latitude: number; longitude: number } | null>,
 ) {
   if (
-    typeof stored?.latitude === "number" &&
-    typeof stored.longitude === "number"
+    stored?.geocodeStatus === "succeeded" && validGeocodePoint(stored)
   )
     return { latitude: stored.latitude, longitude: stored.longitude };
-  return repair();
+  const repaired = await repair();
+  return validGeocodePoint(repaired) ? repaired : null;
 }

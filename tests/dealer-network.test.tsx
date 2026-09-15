@@ -730,7 +730,7 @@ test("admin member correction remounts by selection and rejects stale source dat
 test("business-location search repairs missing coordinates but reuses valid stored points", async () => {
   let repairs = 0;
   const stored = await resolveBusinessDirectoryOrigin(
-    { latitude: 38.2, longitude: -90 },
+    { latitude: 38.2, longitude: -90, geocodeStatus: "succeeded" },
     async () => {
       repairs += 1;
       return { latitude: 1, longitude: 2 };

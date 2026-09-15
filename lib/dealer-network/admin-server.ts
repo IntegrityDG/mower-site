@@ -34,8 +34,6 @@ import {
   type DealerNotificationDelivery,
 } from "./notification-delivery";
 import {
-  markMemberGeocodeStale,
-  refreshMemberGeocode,
   refreshStoredMemberGeocode,
 } from "./geocoding";
 import type {
@@ -1189,15 +1187,8 @@ export async function adminUpdateMemberProfile(
       current.zip_code,
     ].join("|");
   if (addressChanged) {
-    await markMemberGeocodeStale(memberId);
-    await refreshMemberGeocode({
-      id: memberId,
-      addressLine1: value.addressLine1,
-      addressLine2: value.addressLine2,
-      city: value.city,
-      state: value.state,
-      zipCode: value.zipCode,
-    });
+    // Private coordinates were atomically invalidated by the address-update trigger.
+    await refreshStoredMemberGeocode(memberId);
   }
   return { ok: true as const };
 }

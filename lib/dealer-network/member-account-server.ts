@@ -20,6 +20,8 @@ export async function readMemberAccountSecurity(tokenHash: string) {
     activeSessionCount: Number(summary.activeSessionCount),
     currentSessionExpiresAt: String(summary.currentSessionExpiresAt),
     businessLocationReady: Boolean(summary.businessLocationReady),
+    businessLocationState: ["ready", "needs_attention", "refreshing", "unavailable"].includes(summary.businessLocationState ?? "")
+      ? summary.businessLocationState : summary.businessLocationReady ? "ready" : "needs_attention",
   } satisfies MemberAccountSecuritySummary;
 }
 
@@ -96,13 +98,18 @@ export async function retryOwnBusinessLocation(memberId: string) {
       ok: true as const,
       message: "Your business location was updated successfully.",
     };
-  if (result.reason === "NO_RESULTS" || result.reason === "INVALID_REQUEST")
+  if (result.reason === "NO_RESULTS" || result.reason === "INVALID_REQUEST" ||
+    result.reason === "INCOMPLETE_ADDRESS" || result.reason === "MALFORMED_ADDRESS")
     return {
       ok: false as const,
       status: 422,
       error:
         "We couldn't locate your business address. Check the address in My Profile and try again.",
     };
+  if (result.reason === "ADDRESS_CHANGED") return {
+    ok: false as const, status: 409,
+    error: "Your address changed while its location was being refreshed. Please try again.",
+  };
   return {
     ok: false as const,
     status: 503,

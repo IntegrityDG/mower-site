@@ -76,6 +76,7 @@ export type MemberAccountSecuritySummary = {
   activeSessionCount: number;
   currentSessionExpiresAt: string;
   businessLocationReady: boolean;
+  businessLocationState?: "ready" | "needs_attention" | "refreshing" | "unavailable";
 };
 
 export type DealerBrand = {

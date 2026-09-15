@@ -10,8 +10,6 @@ import {
 } from "./directory";
 import {
   geocodeUsLocation,
-  markMemberGeocodeStale,
-  refreshMemberGeocode,
   refreshStoredMemberGeocode,
 } from "./geocoding";
 import { verifyPin } from "./security";
@@ -203,15 +201,8 @@ export async function updateMemberProfile(memberId: string, input: unknown) {
     });
   }
   if (addressChanged) {
-    await markMemberGeocodeStale(memberId);
-    await refreshMemberGeocode({
-      id: memberId,
-      addressLine1: value.addressLine1,
-      addressLine2: value.addressLine2,
-      city: value.city,
-      state: value.state,
-      zipCode: value.zipCode,
-    });
+    // The address-update trigger invalidates old coordinates in the same transaction.
+    await refreshStoredMemberGeocode(memberId);
   }
   return {
     ok: true as const,

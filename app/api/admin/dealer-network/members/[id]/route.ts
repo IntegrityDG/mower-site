@@ -47,10 +47,22 @@ export async function PATCH(
         OVER_QUERY_LIMIT: "Google geocoding quota is currently unavailable.",
         INVALID_REQUEST: "Google could not process the address request.",
         UNAVAILABLE: "The geocoding service is temporarily unavailable.",
+        OVER_DAILY_LIMIT: "Google reports a key, billing, or daily-limit problem. Check the server diagnostics.",
+        TIMEOUT: "Google geocoding timed out.",
+        NETWORK_ERROR: "The geocoding network request failed.",
+        HTTP_ERROR: "Google returned an unsuccessful HTTP response.",
+        BAD_PROVIDER_RESPONSE: "Google returned an invalid geocoding response.",
+        INCOMPLETE_ADDRESS: "The stored business address is incomplete.",
+        MALFORMED_ADDRESS: "The stored business address is malformed.",
+        DATABASE_READ_FAILED: "The stored business address could not be read.",
+        DATABASE_SAVE_FAILED: "The private business location could not be saved.",
+        ADDRESS_CHANGED: "The address changed during geocoding. Retry the current address.",
       } as const;
       const status =
-        result.reason === "NO_RESULTS" || result.reason === "INVALID_REQUEST"
+        result.reason === "NO_RESULTS" || result.reason === "INVALID_REQUEST" ||
+        result.reason === "INCOMPLETE_ADDRESS" || result.reason === "MALFORMED_ADDRESS"
           ? 422
+          : result.reason === "ADDRESS_CHANGED" ? 409
           : 503;
       return Response.json(
         {

@@ -25,6 +25,7 @@ import {
 import { US_STATES } from "@/lib/dealer-network/validation";
 import { activationResendEligibility } from "@/lib/dealer-network/activation-resend";
 import DealerNetworkBoardAdmin from "./DealerNetworkBoardAdmin";
+import GeocodingServiceCheck from "./GeocodingServiceCheck";
 
 type Tab =
   | "applications"
@@ -2169,6 +2170,7 @@ function SecurityTab({
         <p className="mt-1 text-sm text-slate-600">
           This reports only whether the server runtime can see the required configuration.
         </p>
+        <GeocodingServiceCheck />
       </div>
       <div className="rounded-3xl bg-white p-6 shadow-sm">
         <h2 className="text-2xl font-black">Notification Delivery</h2>
