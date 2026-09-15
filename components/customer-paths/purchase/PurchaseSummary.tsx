@@ -1,4 +1,8 @@
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
+import PreorderNotice from "@/components/equipment/PreorderNotice";
+import YarboCorePrice from "@/components/equipment/YarboCorePrice";
+import CoreAvailabilityBadge from "@/components/equipment/CoreAvailabilityBadge";
+import { selectedYarboCore, yarboCorePrice } from "@/lib/catalog/yarbo-core";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
 import { resolveBuildSelection } from "@/lib/catalog/selection";
@@ -88,6 +92,8 @@ export default function PurchaseSummary({
       <p className="mt-4 max-w-4xl leading-7 text-slate-600">
         {intro}
       </p>
+
+      <PreorderNotice core={selectedYarboCore(selectedProduct, buildSelection.variantId)} />
 
       {selectedProductIsYarbo ? (
         <YarboSummaryGrid
@@ -190,6 +196,7 @@ function YarboSummaryGrid({
   customerInformation: CustomerInformationValues;
 }) {
   const selectedPackage = build.selectedPackage;
+  const core = build.selectedVariant;
   const modulesWithoutCore =
     build.isYarboIndividualEquipment &&
     !build.yarboCoreSelected &&
@@ -219,11 +226,8 @@ function YarboSummaryGrid({
           <p className="mt-2 text-2xl font-black text-slate-950">
             {yarboPackageDisplayName(selectedPackage)}
           </p>
-          <YarboPriceDisplay
-            item={selectedPackage}
-            className="mt-2"
-            priceClassName="text-xl font-black text-emerald-700"
-          />
+          {core ? <div className="mt-2"><p className="mb-2 font-black">{core.name}</p><CoreAvailabilityBadge core={core} /><YarboCorePrice core={core} price={yarboCorePrice(selectedProduct, core, selectedPackage)} /></div> :
+            <YarboPriceDisplay item={selectedPackage} className="mt-2" priceClassName="text-xl font-black text-emerald-700" />}
           <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">
             No separate Core charge and no separate package-item module charges.
           </p>
@@ -237,11 +241,9 @@ function YarboSummaryGrid({
             {build.yarboCoreSelected && (
               <div className="border-b border-slate-200 pb-3">
                 <div className="flex items-start justify-between gap-4">
-                  <p className="font-black text-slate-950">{selectedProduct.name}</p>
-                  <YarboPriceDisplay
-                    item={selectedProduct}
-                    priceClassName="font-black text-emerald-700"
-                  />
+                  <p className="font-black text-slate-950">{core?.name ?? selectedProduct.name}</p>
+                  {core ? <div><CoreAvailabilityBadge core={core} /><YarboCorePrice core={core} price={yarboCorePrice(selectedProduct, core)} /></div> :
+                    <YarboPriceDisplay item={selectedProduct} priceClassName="font-black text-emerald-700" />}
                 </div>
               </div>
             )}

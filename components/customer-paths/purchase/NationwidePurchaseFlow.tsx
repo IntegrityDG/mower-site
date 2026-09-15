@@ -9,6 +9,8 @@ import {
   selectedOptionNames,
 } from "@/lib/catalog/selection";
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
+import { nextPreorderBoundaryDelay } from "@/lib/catalog/preorder";
+import PreorderNotice from "@/components/equipment/PreorderNotice";
 import { builderAccessoryOptions, customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { buildAvailabilityIssues, catalogOptionIsAvailable, removeUnavailableBuildSelections } from "@/lib/catalog/availability";
 import { isSelfServiceProduct } from "@/lib/catalog/sales-mode";
@@ -300,6 +302,14 @@ export default function NationwidePurchaseFlow({
       cancelled = true;
     };
   }, [catalogReloadKey]);
+
+  useEffect(() => {
+    if (!catalog) return;
+    const delay = nextPreorderBoundaryDelay(catalog);
+    if (delay === null) return;
+    const timer = window.setTimeout(() => setCatalogReloadKey((current) => current + 1), delay);
+    return () => window.clearTimeout(timer);
+  }, [catalog]);
 
   useEffect(() => {
     const requestId = paymentMethodsRequestId.current + 1;
@@ -1223,8 +1233,9 @@ function EquipmentSelectionReview({
             {selectedTitle}
           </p>
           <p className="mt-2 leading-7 text-slate-600">
-            {selectedProduct.name}
+            {build.selectedVariant?.name ?? selectedProduct.name}
           </p>
+          <PreorderNotice core={build.selectedVariant} />
           <p className="mt-4 text-2xl font-black text-emerald-700">
             {formatCents(build.equipmentTotalCents)}
             {build.hasUnpricedEquipment ? " + quote-required items" : ""}

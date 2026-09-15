@@ -3,7 +3,9 @@
 import { useMemo, useState } from "react";
 
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
-import YarboCorePrice, { yarboCoreStatus } from "@/components/equipment/YarboCorePrice";
+import YarboCorePrice from "@/components/equipment/YarboCorePrice";
+import CoreAvailabilityBadge from "@/components/equipment/CoreAvailabilityBadge";
+import PreorderNotice from "@/components/equipment/PreorderNotice";
 import { selectedYarboCore, yarboCoreCanBeSelected, yarboCorePrice, yarboCoreVariants } from "@/lib/catalog/yarbo-core";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
@@ -268,6 +270,8 @@ function YarboConfiguration({
         </button>
       </div>
 
+      <PreorderNotice core={chosenCore} />
+
       {completeMode && <section id="complete-yarbo-systems" className="mt-9">
         <div className="rounded-[2rem] border border-slate-300 bg-slate-50 p-5 md:p-7">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -352,7 +356,7 @@ function YarboConfiguration({
                         {coreVariants.length > 0 && <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2">
                           {coreVariants.map((core) => <div key={core.id} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
                             <p className="font-black text-slate-950">{core.name}</p>
-                            <p className="text-xs font-bold uppercase tracking-wide text-slate-600">{yarboCoreStatus(core)}</p>
+                            <CoreAvailabilityBadge core={core} />
                             <YarboCorePrice core={core} price={yarboCorePrice(product, core, catalogPackage)} />
                           </div>)}
                         </div>}
@@ -419,7 +423,7 @@ function YarboConfiguration({
                 const selectable = Boolean(catalogPackage && yarboCoreCanBeSelected(product, core, catalogPackage));
                 return <label key={core.id} className={`flex min-w-0 gap-3 rounded-xl border p-4 ${selection.variantId === core.id ? "border-emerald-700 bg-emerald-50" : "border-slate-300"} ${!selectable ? "cursor-not-allowed bg-slate-100" : "cursor-pointer"}`}>
                   <input type="radio" name="yarbo-complete-core" value={core.id} checked={selection.variantId === core.id} disabled={!selectable} onChange={() => onSelectVariant(core.id)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-700" aria-describedby={`yarbo-core-status-${core.id}`} />
-                  <span className="min-w-0"><strong className="block text-lg">{core.name}</strong><span id={`yarbo-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700">{yarboCoreStatus(core)}{!catalogPackage ? " · Choose a package first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={price} /></span></span>
+                  <span className="min-w-0"><strong className="block text-lg">{core.name}</strong><span id={`yarbo-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700"><CoreAvailabilityBadge core={core} />{!catalogPackage ? " · Choose a package first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={price} /></span></span>
                 </label>;
               })}
             </div>
@@ -554,7 +558,7 @@ function YarboConfiguration({
               const selectable = coreSelected && yarboCoreCanBeSelected(product, core);
               return <label key={core.id} className={`flex min-w-0 gap-3 rounded-xl border p-4 ${selection.variantId === core.id && coreSelected ? "border-emerald-700 bg-emerald-50" : "border-slate-300"} ${!selectable ? "cursor-not-allowed bg-slate-100" : "cursor-pointer"}`}>
                 <input type="radio" name="yarbo-individual-core" value={core.id} checked={coreSelected && selection.variantId === core.id} disabled={!selectable} onChange={() => onSelectVariant(core.id)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-700" aria-describedby={`yarbo-individual-core-status-${core.id}`} />
-                <span className="min-w-0"><strong className="block text-lg">{core.name}</strong><span id={`yarbo-individual-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700">{yarboCoreStatus(core)}{!coreSelected ? " · Add Core first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={yarboCorePrice(product, core)} /></span></span>
+                <span className="min-w-0"><strong className="block text-lg">{core.name}</strong><span id={`yarbo-individual-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700"><CoreAvailabilityBadge core={core} />{!coreSelected ? " · Add Core first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={yarboCorePrice(product, core)} /></span></span>
               </label>;
             })}</div>
           </fieldset>}

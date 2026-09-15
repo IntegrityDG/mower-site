@@ -123,7 +123,8 @@ test("migration adds constrained comparison columns and converts only undated sa
 });
 
 test("pricing resolver contains no display MSRP checkout fallback", () => {
-  const source = readFileSync("lib/checkout/pricing-resolver.ts", "utf8");
+  const source = readFileSync("lib/checkout/pricing-resolver.ts", "utf8") +
+    readFileSync("lib/checkout/equipment-pricing.ts", "utf8");
   assert.doesNotMatch(source, /display_msrp_price_cents/);
   assert.match(source, /operationalPriceCents/);
 });

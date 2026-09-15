@@ -1,9 +1,10 @@
 import { salesModeForProductSlug } from "@/lib/catalog/sales-mode";
+import { catalogPurchaseState } from "@/lib/catalog/preorder";
 import { CheckoutRejectionError, type CheckoutRequest } from "./types";
 
 export type PriceableRow = { id: string; public_status: string; regular_price_cents: number | null; sale_price_cents: number | null; sale_starts_at: string | null; sale_ends_at: string | null };
 export type CheckoutProductRow = PriceableRow & { slug: string; brand: string; name: string; description?: string | null };
-export type CheckoutVariantRow = PriceableRow & { product_id: string; variant_slug: string; name: string; description: string | null; sku: string | null };
+export type CheckoutVariantRow = PriceableRow & { product_id: string; variant_slug: string; name: string; description: string | null; sku: string | null; preorder_enabled?: boolean };
 export type CheckoutOptionRow = PriceableRow & { product_id: string; option_slug: string; name: string; description: string | null; minimum_quantity: number; maximum_quantity: number | null; accessory_listing_enabled?: boolean; accessory_tab?: string | null; show_in_builder?: boolean; accessory_action_type?: string | null; contact_for_pricing?: boolean };
 export type CheckoutPackageRow = PriceableRow & { product_id: string; package_slug: string; package_name: string; description: string | null };
 export type VariantOptionRow = { id: string; variant_id: string; option_id: string; relationship_type: string };
@@ -30,7 +31,7 @@ export function checkoutProductIsSupported(product: {
   );
 }
 
-export function validateCheckoutEligibility(request: CheckoutRequest, catalog: CheckoutCatalog) {
+export function validateCheckoutEligibility(request: CheckoutRequest, catalog: CheckoutCatalog, now = Date.now()) {
   const { product } = catalog;
   if (product.id !== request.selection.productId) reject("UNKNOWN_CATALOG_RECORD", "Product was not found.");
   if (!checkoutProductIsSupported(product)) reject("QUOTE_ONLY_PRODUCT", "This product is quote-only.");
@@ -49,12 +50,26 @@ export function validateCheckoutEligibility(request: CheckoutRequest, catalog: C
   if (request.selection.variantId && !variant) throw new CheckoutRejectionError("UNKNOWN_CATALOG_RECORD", "Variant was not found.");
   if (request.selection.packageId && !selectedPackage) throw new CheckoutRejectionError("UNKNOWN_CATALOG_RECORD", "Package was not found.");
   if (variant?.product_id !== undefined && variant.product_id !== product.id) reject("CROSS_PRODUCT_SELECTION", "The selected variant belongs to another product.");
-  if (variant && !active(variant)) {
+  if (variant && !["available", "preorder"].includes(catalogPurchaseState(variant, now))) {
     if (variant.public_status === "coming_soon") reject("INACTIVE_CATALOG_RECORD", `${variant.name} is Coming Soon and cannot be purchased yet.`);
     unavailable(variant.name);
   }
   if (selectedPackage?.product_id !== undefined && selectedPackage.product_id !== product.id) reject("CROSS_PRODUCT_SELECTION", "The selected package belongs to another product.");
   if (selectedPackage && !active(selectedPackage)) unavailable(selectedPackage.package_name);
+  if (variant && catalogPurchaseState(variant, now) === "preorder") {
+    const components = catalog.variantOptions.filter((link) => link.variant_id === variant.id &&
+      ["defines_variant", "included", "required"].includes(link.relationship_type));
+    for (const link of components) {
+      const option = catalog.options.find((row) => row.id === link.option_id);
+      if (!option || option.product_id !== product.id) reject("CROSS_PRODUCT_SELECTION", "A required Core component was not found.");
+      if (!active(option!)) unavailable(option!.name);
+      if (link.relationship_type === "required" &&
+        !selectedOptions.some(({ option: selected }) => selected.id === link.option_id) &&
+        !catalog.packageItems.some((item) => item.package_id === selectedPackage?.id && item.option_id === link.option_id)) {
+        reject("MISSING_CONFIGURATION", "A required Core component is missing.");
+      }
+    }
+  }
 
   if (product.slug === "lymow-one-plus") {
     if (!variant || !LYMOW_VARIANTS.has(variant.variant_slug) || request.selection.purchaseMode !== "standard") throw new CheckoutRejectionError("MISSING_CONFIGURATION", "Choose one supported Lymow variant.");

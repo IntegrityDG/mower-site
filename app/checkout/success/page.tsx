@@ -295,6 +295,7 @@ export default async function Success({
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
             {presentation.message}
           </p>
+          {view.preorderNotice && <p role="note" className="mx-auto mt-5 max-w-2xl rounded-xl border border-violet-300 bg-violet-50 p-4 text-sm font-semibold leading-6 text-violet-950">{view.preorderNotice}</p>}
 
           <div className="mx-auto mt-8 max-w-xl rounded-2xl border border-slate-200 bg-slate-50 p-5 text-left sm:p-6">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">

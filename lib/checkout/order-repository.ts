@@ -25,4 +25,4 @@ export async function finishWebhook(id:string,status:"processed"|"failed"|"ignor
 export async function applyCardEventV2(p:ApplyCardEventV2Params){return one(await getSupabaseServiceClient().rpc("checkout_apply_card_event_v2",p) as never)}
 export async function applyAchEventV1(p:Record<string,unknown>){return one(await getSupabaseServiceClient().rpc("checkout_apply_ach_event_v1",p) as never)}
 export async function applyWireEventV1(p:Record<string,unknown>){return one(await getSupabaseServiceClient().rpc("checkout_apply_wire_event_v1",p) as never)}
-export function safeProjection(r:CheckoutRecord){return{publicReference:r.publicReference,attemptStatus:r.attemptStatus,paymentStatus:r.paymentStatus,orderStatus:r.orderStatus,fulfillmentStatus:r.fulfillmentStatus,currency:r.currency,totalCents:r.totalCents,refundedCents:r.refundedCents,fundedAmountCents:r.fundedAmountCents,amountRemainingCents:r.amountRemainingCents,items:[...r.snapshot.chargeableItems,...r.snapshot.includedPackageComponents].map(i=>({name:i.name,quantity:i.quantity,included:i.includedInPackagePrice}))}}
+export { safeProjection } from "./order-projection";

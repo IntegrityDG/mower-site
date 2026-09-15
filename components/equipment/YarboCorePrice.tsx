@@ -1,4 +1,5 @@
 import type { CatalogPrice, CatalogVariant } from "@/lib/catalog/types";
+import { PREORDER_BADGE } from "@/lib/catalog/preorder";
 import { formatCents } from "@/lib/catalog/pricing";
 import { YARBO_Y40P_SLUG } from "@/lib/catalog/yarbo-core";
 import YarboPriceDisplay from "./YarboPriceDisplay";
@@ -12,7 +13,7 @@ function saleWindow(price: CatalogPrice) {
 }
 
 export function yarboCoreStatus(core: CatalogVariant) {
-  return core.publicStatus === "coming_soon" ? "Coming Soon"
+  return core.purchaseState === "preorder" ? PREORDER_BADGE : core.publicStatus === "coming_soon" ? "Coming Soon"
     : core.isAvailable ? "Available" : "Currently Unavailable";
 }
 

@@ -129,6 +129,10 @@ export type CatalogOptionGroup = {
 };
 
 export type CatalogVariant = CatalogPrice & CatalogAvailability & {
+  purchaseState?: import("./preorder").PurchaseState;
+  preorderEnabled?: boolean;
+  preorderStartsAt?: string | null;
+  preorderEndsAt?: string | null;
   id: string;
   slug: string;
   sku: string | null;

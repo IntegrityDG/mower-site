@@ -1,4 +1,5 @@
 import "server-only";
+import { catalogVariantAvailability } from "@/lib/catalog/preorder";
 
 import type {
   CatalogOption,
@@ -379,7 +380,7 @@ export async function loadPublicCatalog(
                 link.relationship_type === "defines_variant"
             )
             .map((link) => link.option_id);
-          const availability = catalogAvailabilityFromPublicStatus(variant.public_status);
+          const availability = catalogVariantAvailability(variant, now);
           const definingOptionsAvailable = definingOptionIds.every(
             (optionId) => normalizedOptions.find((option) => option.id === optionId)?.isAvailable === true,
           );

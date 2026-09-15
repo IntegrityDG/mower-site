@@ -1,4 +1,5 @@
 import type { CatalogPackage, CatalogPrice, CatalogProduct, CatalogVariant } from "./types";
+import { catalogPackageIsAvailable } from "./availability";
 
 export const YARBO_Y40_SLUG = "yarbo-y40";
 export const YARBO_Y40P_SLUG = "yarbo-y40p";
@@ -31,7 +32,7 @@ export function yarboCoreCanBeSelected(
 ) {
   const price = yarboCorePrice(product, core, catalogPackage);
   return product.isAvailable && core.isAvailable &&
-    (!catalogPackage || catalogPackage.isAvailable) &&
+    (!catalogPackage || catalogPackageIsAvailable(catalogPackage)) &&
     Boolean(price && price.showPublicPrice && !price.contactForPricing && price.currentPriceCents !== null);
 }
 
