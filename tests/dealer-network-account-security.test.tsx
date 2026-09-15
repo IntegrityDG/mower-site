@@ -25,7 +25,6 @@ test("member portal exposes a safe Account / Security panel", () => {
     "Last Login",
     "Active Sessions",
     "Current Session",
-    "Business Location",
     "Sign Out Other Sessions",
     "Sign Out Everywhere",
     "Change PIN",

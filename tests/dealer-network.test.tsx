@@ -760,14 +760,16 @@ test("approval and directory UI keep geocoding best-effort and clear busy state"
   const admin = readFileSync("lib/dealer-network/admin-server.ts", "utf8");
   const memberServer = readFileSync("lib/dealer-network/member-server.ts", "utf8");
   const memberUi = readFileSync("components/dealer-network/MemberPortal.tsx", "utf8");
+  const memberFeatures = readFileSync("lib/dealer-network/member-features.ts", "utf8");
   const approval = admin.slice(
     admin.indexOf("export async function approveDealerApplication"),
     admin.indexOf("export async function transitionDealerApplication"),
   );
   assert.match(approval, /refreshStoredMemberGeocode\(outcome\.memberId\)\.catch/);
   assert.match(memberServer, /resolveBusinessDirectoryOrigin[\s\S]*?refreshStoredMemberGeocode/);
-  assert.match(memberUi, /params\.set\("latitude", String\(coordinates\.latitude\)\)/);
-  assert.match(memberUi, /params\.set\("longitude", String\(coordinates\.longitude\)\)/);
+  assert.match(memberUi, /memberDirectorySearchParams\(new FormData\(form\), near, coordinates\)/);
+  assert.match(memberFeatures, /params\.set\("latitude", String\(coordinates\.latitude\)\)/);
+  assert.match(memberFeatures, /params\.set\("longitude", String\(coordinates\.longitude\)\)/);
   assert.match(memberUi, /finally\s*\{[\s\S]*?setSearching\(false\)/);
   assert.match(memberUi, /browserGeolocationErrorMessage\(error\.code\)[\s\S]*?setSearching\(false\)/);
 });

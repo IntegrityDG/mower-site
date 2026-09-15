@@ -1,6 +1,7 @@
 "use client";
 
 import { businessLocationLabel } from "@/lib/dealer-network/member-location-presentation";
+import { DEALER_NETWORK_GEOLOCATION_UI_ENABLED, memberDirectorySearchParams } from "@/lib/dealer-network/member-features";
 
 import {
   useCallback,
@@ -545,7 +546,7 @@ function AccountSecurityPanel() {
           />
         </dl>
       </div>
-      <div className="rounded-3xl bg-white p-6 shadow-sm">
+      {DEALER_NETWORK_GEOLOCATION_UI_ENABLED && <div className="rounded-3xl bg-white p-6 shadow-sm">
         <h3 className="text-2xl font-black">Business Location</h3>
         <p className="mt-3 font-bold">
           {businessLocationLabel(summary, busy === "retry_business_location")}
@@ -560,7 +561,7 @@ function AccountSecurityPanel() {
             {busy === "retry_business_location" ? "Retrying…" : "Retry Business Location"}
           </button>
         )}
-      </div>
+      </div>}
       <div className="rounded-3xl bg-white p-6 shadow-sm">
         <h3 className="text-2xl font-black">Security Actions</h3>
         <form onSubmit={changePin} className="mt-5 grid gap-4 sm:grid-cols-3">
@@ -645,27 +646,7 @@ function DirectoryPanel({
     if (!form) return;
     setSearching(true);
     onMessage("");
-    const data = new FormData(form),
-      params = new URLSearchParams();
-    for (const key of [
-      "query",
-      "role",
-      "brandId",
-      "relationshipType",
-      "region",
-      "zip",
-      "areaCode",
-      "nearZip",
-      "radius",
-    ]) {
-      const value = String(data.get(key) ?? "").trim();
-      if (value) params.set(key, value);
-    }
-    if (near) params.set("near", near);
-    if (coordinates) {
-      params.set("latitude", String(coordinates.latitude));
-      params.set("longitude", String(coordinates.longitude));
-    }
+    const params = memberDirectorySearchParams(new FormData(form), near, coordinates);
     try {
       const response = await fetch(
         `/api/dealer-network/member/directory?${params}`,
@@ -691,7 +672,7 @@ function DirectoryPanel({
     }
   }
   function useLocation() {
-    if (searching) return;
+    if (!DEALER_NETWORK_GEOLOCATION_UI_ENABLED || searching) return;
     if (!window.isSecureContext) {
       onMessage(
         "Browser location requires a secure connection. Use ZIP or business location instead.",
@@ -723,8 +704,7 @@ function DirectoryPanel({
           <strong>
             Leave all fields blank and click Search to browse up to 100 members.
           </strong>{" "}
-          Search approved, active, unlocked members. Street addresses and raw
-          coordinates are never displayed.
+          Search approved, active, unlocked members. Street addresses are never displayed.
         </p>
         <form
           ref={formRef}
@@ -790,6 +770,7 @@ function DirectoryPanel({
               className={inputClass}
             />
           </label>
+          {DEALER_NETWORK_GEOLOCATION_UI_ENABLED && <>
           <label className="font-bold">
             Near ZIP Code
             <input
@@ -809,6 +790,7 @@ function DirectoryPanel({
               ))}
             </select>
           </label>
+          </>}
           <div className="flex flex-wrap gap-2 md:col-span-3">
             <button
               disabled={searching}
@@ -816,6 +798,7 @@ function DirectoryPanel({
             >
               Search
             </button>
+            {DEALER_NETWORK_GEOLOCATION_UI_ENABLED && <>
             <button
               type="button"
               disabled={searching}
@@ -840,6 +823,7 @@ function DirectoryPanel({
             >
               Use My Location
             </button>
+            </>}
             <button
               type="reset"
               onClick={() => {
@@ -910,7 +894,7 @@ function DirectoryCard({
           </p>
           <p className="text-sm text-slate-600">
             {result.city}, {result.state}
-            {result.distanceMiles !== null
+            {DEALER_NETWORK_GEOLOCATION_UI_ENABLED && result.distanceMiles !== null
               ? ` · ${result.distanceMiles} miles away`
               : ""}
           </p>
