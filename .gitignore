@@ -52,3 +52,7 @@ supabase/.temp/
 
 # local visual QA artifacts
 .tmp-lymow-*
+/.dealer-ui-argprobe.cjs
+/.dealer-ui-browser-fixture.json
+/.dealer-ui-browser-generate.cjs
+/.dealer-ui-inspect.js
