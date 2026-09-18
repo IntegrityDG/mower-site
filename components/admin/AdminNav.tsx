@@ -14,6 +14,7 @@ const links = [
   ["Accessories", "/admin/accessories"],
   ["Pricing", "/admin/pricing"],
   ["Payment Methods", "/admin/payment-methods"],
+  ["Custom Invoices", "/admin/custom-invoices"],
 ] as const;
 
 export default function AdminNav() {

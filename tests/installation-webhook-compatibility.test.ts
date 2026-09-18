@@ -76,6 +76,7 @@ function harness(options: Options = {}) {
   const modules: Record<string, Record<string, unknown>> = {
     "@/lib/service/outbox": { wakeServiceMaintenance: () => undefined },
     "@/lib/service/stripe": { handleServiceStripeWebhook: async (event: { data: { object: { metadata?: { ids_service?: string } } } }) => { if (event.data.object.metadata?.ids_service) forbidden("unexpected Service event in legacy compatibility fixture"); return false; } },
+    "@/lib/custom-invoices/stripe": { handleCustomInvoiceStripeWebhook: async () => false },
     "next/server": { NextResponse },
     "@/lib/checkout/order-repository": {
       findByPaymentIntentId: async (id: string) => {

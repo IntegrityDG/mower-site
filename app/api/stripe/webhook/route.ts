@@ -17,6 +17,7 @@ import { readDemoRequest } from "@/lib/demo-scheduling/server";
 import { notifyDemoPaymentConfirmed } from "@/lib/demo-scheduling/notifications";
 import { applyInstallationRefund, applyInstallationStripeSession, handleInstallationWebhook, installationEventContext } from "@/lib/installations/stripe";
 import { handleServiceStripeWebhook } from "@/lib/service/stripe";
+import { handleCustomInvoiceStripeWebhook } from "@/lib/custom-invoices/stripe";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -188,6 +189,8 @@ export async function POST(request: Request) {
   try { const signature=request.headers.get("stripe-signature"); if(!signature)return NextResponse.json({error:"Invalid webhook."},{status:400}); event=getStripeServerClient().webhooks.constructEvent(await request.text(),signature,getStripeWebhookSecret()); expectedLivemode=getStripeMode()==="live"; }
   catch(error){return NextResponse.json({error:error instanceof StripeConfigurationError?"Webhook unavailable.":"Invalid webhook."},{status:error instanceof StripeConfigurationError?503:400});}
   try { assertStripeEventMode(event.livemode, expectedLivemode); } catch { return NextResponse.json({error:"Invalid webhook."},{status:400}); }
+  try { if(await handleCustomInvoiceStripeWebhook(event, expectedLivemode)) return ok(); }
+  catch { return NextResponse.json({error:"Custom invoice reconciliation temporarily unavailable."},{status:503}); }
   // Affirmative installation metadata routes to its own atomic receipt/ledger.
   // Other order and demo dispatch remains below, including order-first refunds.
   try { if(await handleServiceStripeWebhook(event)) { wakeServiceMaintenance(); return ok(); } }
