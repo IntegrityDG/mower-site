@@ -9,6 +9,15 @@ import {
   SaleImportError,
 } from "@/lib/admin-pricing/sale-import-server";
 
+import {
+  assertSaleImportApplyPolicy,
+  saleImportAppliedValues,
+  saleImportBeforeValues,
+  SaleImportApplyPolicyError,
+  saleImportPricingUpdate,
+  type SaleImportApplyProposal,
+} from "@/lib/admin-pricing/sale-import-apply-policy";
+
 
 type ApplyKind =
   | "product"
@@ -159,16 +168,6 @@ export async function applyApprovedSaleImport(
     );
   }
 
-  if (
-    review.import.status ===
-    "failed"
-  ) {
-    throw new SaleImportError(
-      409,
-      "A failed price-sheet import cannot be applied.",
-    );
-  }
-
   const approvedPending =
     review.rows.filter(
       row =>
@@ -207,7 +206,7 @@ export async function applyApprovedSaleImport(
       "catalog_sale_import_rows",
     )
     .select(
-      "id,import_id,product_id,variant_id,option_id,package_id,match_status,approved,proposed_display_msrp_price_cents,proposed_sale_price_cents,proposed_sale_starts_at,proposed_sale_ends_at,proposed_promotional_dealer_cost_cents,proposed_sale_message,proposed_show_sale_message_public,before_values,applied_values,applied_at",
+      "id,import_id,product_id,variant_id,option_id,package_id,match_status,match_method,validation_errors,approved,proposed_display_msrp_price_cents,proposed_sale_price_cents,proposed_discount_cents,proposed_sale_starts_at,proposed_sale_ends_at,proposed_promotional_dealer_cost_cents,proposed_promotion_label,proposed_sale_message,proposed_show_sale_message_public,before_values,applied_values,applied_at",
     )
     .eq(
       "import_id",
@@ -224,11 +223,13 @@ export async function applyApprovedSaleImport(
     throw storedRowsError;
   }
 
-  const candidateKeys =
-    new Set(
+  const candidatesByKey =
+    new Map(
       review.candidates.map(
-        candidate =>
+        candidate => [
           `${candidate.kind}:${candidate.id}`,
+          candidate,
+        ],
       ),
     );
 
@@ -275,16 +276,22 @@ export async function applyApprovedSaleImport(
         );
       }
 
-      if (
-        !candidateKeys.has(
+      const currentCandidate =
+        candidatesByKey.get(
           `${target.kind}:${target.id}`,
-        )
-      ) {
+        );
+
+      if (!currentCandidate) {
         throw new SaleImportError(
           409,
           "An approved row points to an IDS item outside the selected manufacturer.",
         );
       }
+
+      const pricingScope =
+        review.import.pricing_scope === "y40" || review.import.pricing_scope === "y40p"
+          ? review.import.pricing_scope
+          : "generic";
 
       const table =
         TARGET_TABLES[
@@ -302,7 +309,7 @@ export async function applyApprovedSaleImport(
       } = await client
         .from(table)
         .select(
-          "display_msrp_price_cents,sale_price_cents,sale_starts_at,sale_ends_at",
+          "display_msrp_price_cents,regular_price_cents,sale_price_cents,sale_starts_at,sale_ends_at,promotion_label",
         )
         .eq(
           "id",
@@ -360,6 +367,11 @@ export async function applyApprovedSaleImport(
           rawRow.proposed_sale_price_cents,
         );
 
+      const proposedDiscount =
+        numberOrNull(
+          rawRow.proposed_discount_cents,
+        );
+
       const proposedStart =
         stringOrNull(
           rawRow.proposed_sale_starts_at,
@@ -375,6 +387,11 @@ export async function applyApprovedSaleImport(
           rawRow.proposed_promotional_dealer_cost_cents,
         );
 
+      const proposedPromotionLabel =
+        stringOrNull(
+          rawRow.proposed_promotion_label,
+        );
+
       const proposedMessage =
         stringOrNull(
           rawRow.proposed_sale_message,
@@ -384,15 +401,58 @@ export async function applyApprovedSaleImport(
         rawRow.proposed_show_sale_message_public ===
         true;
 
+      const proposal: SaleImportApplyProposal = {
+        displayMsrpCents: proposedMsrp,
+        saleCents: proposedSale,
+        discountCents: proposedDiscount,
+        dealerCostCents: proposedDealerCost,
+        startsAt: proposedStart,
+        endsAt: proposedEnd,
+        promotionLabel: proposedPromotionLabel,
+        saleMessage: proposedMessage,
+        saleMessageIsPublic: proposedMessagePublic,
+      };
+
+      try {
+        assertSaleImportApplyPolicy({
+          manufacturerBrand: String(review.import.manufacturer_brand),
+          pricingScope,
+          importPromotionLabel:
+            typeof review.import.promotion_label === "string"
+              ? review.import.promotion_label
+              : null,
+          candidate: currentCandidate,
+          validationErrors: rawRow.validation_errors,
+          proposal,
+        });
+      } catch (error) {
+        if (error instanceof SaleImportApplyPolicyError) {
+          throw new SaleImportError(error.status, error.message);
+        }
+        throw error;
+      }
+
+      const {
+        data: existingCost,
+        error: existingCostError,
+      } = await privateClient
+        .from(
+          "catalog_promotional_dealer_costs",
+        )
+        .select(
+          "id,product_id,variant_id,option_id,package_id,service_id,product_service_id,dealer_cost_cents,starts_at,ends_at,source_import_id,source_import_row_id,source_label",
+        )
+        .eq(
+          "source_import_row_id",
+          rowId,
+        )
+        .limit(1)
+        .maybeSingle();
+
       if (
-        proposedDealerCost !==
-          null &&
-        !proposedEnd
+        existingCostError
       ) {
-        throw new SaleImportError(
-          400,
-          "Promotional dealer cost requires a promotion end date so normal dealer cost can automatically resume.",
-        );
+        throw existingCostError;
       }
 
       const beforeValues =
@@ -400,31 +460,11 @@ export async function applyApprovedSaleImport(
         typeof rawRow.before_values ===
           "object"
           ? rawRow.before_values
-          : {
-              display_msrp_price_cents:
-                currentPricing.display_msrp_price_cents ??
-                null,
-
-              sale_price_cents:
-                currentPricing.sale_price_cents ??
-                null,
-
-              sale_starts_at:
-                currentPricing.sale_starts_at ??
-                null,
-
-              sale_ends_at:
-                currentPricing.sale_ends_at ??
-                null,
-
-              sale_message:
-                currentMessage?.message ??
-                null,
-
-              sale_message_is_public:
-                currentMessage?.is_public ===
-                true,
-            };
+          : saleImportBeforeValues({
+              currentPricing,
+              currentMessage: currentMessage ?? null,
+              existingPromotionalCost: existingCost ?? null,
+            });
 
       if (
         !rawRow.before_values
@@ -456,48 +496,17 @@ export async function applyApprovedSaleImport(
         }
       }
 
-      const pricingUpdate:
-        Record<
-          string,
-          unknown
-        > = {};
-
-      if (
-        proposedMsrp !== null
-      ) {
-        pricingUpdate.display_msrp_price_cents =
-          proposedMsrp;
-      }
-
-      if (
-        proposedSale !== null
-      ) {
-        pricingUpdate.sale_price_cents =
-          proposedSale;
-      }
-
-      if (
-        proposedStart !== null
-      ) {
-        pricingUpdate.sale_starts_at =
-          proposedStart;
-      }
-
-      if (
-        proposedEnd !== null
-      ) {
-        pricingUpdate.sale_ends_at =
-          proposedEnd;
-      }
+      const pricingUpdate =
+        saleImportPricingUpdate(
+          proposal,
+          new Date().toISOString(),
+        );
 
       if (
         Object.keys(
           pricingUpdate,
         ).length
       ) {
-        pricingUpdate.updated_at =
-          new Date().toISOString();
-
         const {
           error: pricingError,
         } = await client
@@ -586,27 +595,6 @@ export async function applyApprovedSaleImport(
         proposedDealerCost !==
         null
       ) {
-        const {
-          data: existingCost,
-          error: existingCostError,
-        } = await privateClient
-          .from(
-            "catalog_promotional_dealer_costs",
-          )
-          .select("id")
-          .eq(
-            "source_import_row_id",
-            rowId,
-          )
-          .limit(1)
-          .maybeSingle();
-
-        if (
-          existingCostError
-        ) {
-          throw existingCostError;
-        }
-
         const costValues = {
           [privateTargetColumn]:
             target.id,
@@ -675,34 +663,13 @@ export async function applyApprovedSaleImport(
         }
       }
 
-      const appliedValues = {
-        target_kind:
-          target.kind,
-
-        target_id:
-          target.id,
-
-        display_msrp_price_cents:
-          proposedMsrp,
-
-        sale_price_cents:
-          proposedSale,
-
-        sale_starts_at:
-          proposedStart,
-
-        sale_ends_at:
-          proposedEnd,
-
-        promotional_dealer_cost_cents:
-          proposedDealerCost,
-
-        sale_message:
-          proposedMessage,
-
-        sale_message_is_public:
-          proposedMessagePublic,
-      };
+      const appliedValues =
+        saleImportAppliedValues({
+          target,
+          importId,
+          rowId,
+          proposal,
+        });
 
       const appliedAt =
         new Date().toISOString();
@@ -749,12 +716,12 @@ export async function applyApprovedSaleImport(
       appliedThisRun;
 
     const failureMessage =
-      error instanceof Error
+      error instanceof SaleImportError
         ? error.message.slice(
             0,
             1000,
           )
-        : "Price-sheet application failed.";
+        : "Price-sheet application failed safely. Review server logs before retrying.";
 
     await privateClient
       .from(

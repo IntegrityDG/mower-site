@@ -5,11 +5,20 @@ import {
   randomUUID,
 } from "node:crypto";
 
-import * as XLSX from "xlsx";
-
 import {
   getSupabaseServiceClient,
 } from "@/lib/supabase";
+
+import {
+  assertSaleImportBrandMatches,
+  matchSaleImportRows,
+  parseSaleImportWorkbook,
+  saleImportCandidateAllowedForScope,
+  SaleImportParseError,
+  suggestSaleImportCandidates,
+  type SaleImportCandidate,
+  type SaleImportPricingScope,
+} from "@/lib/admin-pricing/sale-import-parser";
 
 
 const IMPORT_BUCKET =
@@ -17,8 +26,6 @@ const IMPORT_BUCKET =
 
 const MAX_FILE_BYTES =
   4 * 1024 * 1024;
-
-const MAX_ROWS = 2000;
 
 const EXTENSIONS = new Set([
   "xlsx",
@@ -41,33 +48,7 @@ export class SaleImportError extends Error {
 }
 
 
-type ParsedSourceRow = {
-  sheetName: string;
-  rowNumber: number;
-  raw: Record<string, unknown>;
-  itemName: string | null;
-  sku: string | null;
-  msrpCents: number | null;
-  saleCents: number | null;
-  dealerCostCents: number | null;
-  startsAt: string | null;
-  endsAt: string | null;
-  saleMessage: string | null;
-};
-
-
-type Candidate = {
-  kind:
-    | "product"
-    | "variant"
-    | "option"
-    | "package";
-
-  id: string;
-  productId: string | null;
-  label: string;
-  aliases: string[];
-};
+type Candidate = SaleImportCandidate;
 
 
 export type SaleImportPreviewRow = {
@@ -88,417 +69,24 @@ export type SaleImportPreviewRow = {
 
   proposedMsrpCents: number | null;
   proposedSaleCents: number | null;
+  proposedDiscountCents: number | null;
   proposedDealerCostCents: number | null;
   proposedSaleStartsAt: string | null;
   proposedSaleEndsAt: string | null;
+  proposedPromotionLabel: string | null;
   proposedSaleMessage: string | null;
+  currentMsrpCents: number | null;
+  currentSaleCents: number | null;
+  targetStatus: string | null;
+  matchMethod: string | null;
+  matchReason: string | null;
+  validationErrors: string[];
+  suggestions: Array<{
+    kind: Candidate["kind"];
+    id: string;
+    label: string;
+  }>;
 };
-
-
-function normalizeHeader(
-  value: string,
-) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-
-function normalizeToken(
-  value: string,
-) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "");
-}
-
-
-function textValue(
-  value: unknown,
-  max = 250,
-): string | null {
-  if (
-    value === null ||
-    value === undefined
-  ) {
-    return null;
-  }
-
-  const text =
-    String(value).trim();
-
-  if (!text) {
-    return null;
-  }
-
-  return text.slice(0, max);
-}
-
-
-function valueFromAliases(
-  row: Record<string, unknown>,
-  aliases: string[],
-) {
-  const wanted =
-    new Set(
-      aliases.map(normalizeHeader),
-    );
-
-  for (
-    const [key, value]
-    of Object.entries(row)
-  ) {
-    if (
-      wanted.has(
-        normalizeHeader(key),
-      )
-    ) {
-      return value;
-    }
-  }
-
-  return null;
-}
-
-
-function priceCents(
-  value: unknown,
-): number | null {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
-    return null;
-  }
-
-  let amount: number;
-
-  if (
-    typeof value === "number"
-  ) {
-    amount = value;
-  } else {
-    const text =
-      String(value)
-        .trim()
-        .replace(/\$/g, "")
-        .replace(/,/g, "");
-
-    if (
-      !text ||
-      text.includes("%")
-    ) {
-      return null;
-    }
-
-    amount = Number(text);
-  }
-
-  if (
-    !Number.isFinite(amount) ||
-    amount < 0
-  ) {
-    return null;
-  }
-
-  const cents =
-    Math.round(amount * 100);
-
-  return Number.isSafeInteger(cents)
-    ? cents
-    : null;
-}
-
-
-function dateValue(
-  value: unknown,
-): string | null {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
-    return null;
-  }
-
-  if (
-    value instanceof Date &&
-    Number.isFinite(
-      value.getTime(),
-    )
-  ) {
-    return value.toISOString();
-  }
-
-  if (
-    typeof value === "number"
-  ) {
-    const decoded =
-      XLSX.SSF.parse_date_code(
-        value,
-      );
-
-    if (decoded) {
-      const date =
-        new Date(
-          Date.UTC(
-            decoded.y,
-            decoded.m - 1,
-            decoded.d,
-            decoded.H,
-            decoded.M,
-            Math.floor(decoded.S),
-          ),
-        );
-
-      if (
-        Number.isFinite(
-          date.getTime(),
-        )
-      ) {
-        return date.toISOString();
-      }
-    }
-
-    return null;
-  }
-
-  const date =
-    new Date(String(value));
-
-  return Number.isFinite(
-    date.getTime(),
-  )
-    ? date.toISOString()
-    : null;
-}
-
-
-function safeJson(
-  value: Record<string, unknown>,
-): Record<string, unknown> {
-  return JSON.parse(
-    JSON.stringify(value),
-  ) as Record<string, unknown>;
-}
-
-
-function parseWorkbook(
-  buffer: Buffer,
-): ParsedSourceRow[] {
-  let workbook: XLSX.WorkBook;
-
-  try {
-    workbook =
-      XLSX.read(buffer, {
-        type: "buffer",
-        cellDates: true,
-      });
-  } catch {
-    throw new SaleImportError(
-      400,
-      "The uploaded file could not be read as an Excel or CSV price sheet.",
-    );
-  }
-
-  const parsed:
-    ParsedSourceRow[] = [];
-
-  for (
-    const sheetName
-    of workbook.SheetNames
-  ) {
-    const sheet =
-      workbook.Sheets[
-        sheetName
-      ];
-
-    if (!sheet) {
-      continue;
-    }
-
-    const rows =
-      XLSX.utils.sheet_to_json<
-        Record<string, unknown>
-      >(sheet, {
-        defval: null,
-        raw: true,
-      });
-
-    for (
-      let index = 0;
-      index < rows.length;
-      index++
-    ) {
-      if (
-        parsed.length >=
-        MAX_ROWS
-      ) {
-        throw new SaleImportError(
-          400,
-          `Price sheets are limited to ${MAX_ROWS} data rows per import.`,
-        );
-      }
-
-      const row = rows[index];
-
-      const itemName =
-        textValue(
-          valueFromAliases(
-            row,
-            [
-              "product",
-              "product name",
-              "item",
-              "item name",
-              "model",
-              "model name",
-              "description",
-            ],
-          ),
-        );
-
-      const sku =
-        textValue(
-          valueFromAliases(
-            row,
-            [
-              "sku",
-              "item number",
-              "item no",
-              "part number",
-              "part no",
-              "model number",
-              "model no",
-            ],
-          ),
-          120,
-        );
-
-      const msrpCents =
-        priceCents(
-          valueFromAliases(
-            row,
-            [
-              "msrp",
-              "retail",
-              "retail price",
-              "list price",
-              "map",
-              "map price",
-            ],
-          ),
-        );
-
-      const saleCents =
-        priceCents(
-          valueFromAliases(
-            row,
-            [
-              "sale",
-              "sale price",
-              "promo price",
-              "promotional price",
-              "special price",
-            ],
-          ),
-        );
-
-      const dealerCostCents =
-        priceCents(
-          valueFromAliases(
-            row,
-            [
-              "dealer cost",
-              "dealer price",
-              "cost",
-              "promo dealer cost",
-              "promotional dealer cost",
-            ],
-          ),
-        );
-
-      const startsAt =
-        dateValue(
-          valueFromAliases(
-            row,
-            [
-              "sale start",
-              "start date",
-              "promo start",
-              "promotion start",
-              "effective date",
-            ],
-          ),
-        );
-
-      const endsAt =
-        dateValue(
-          valueFromAliases(
-            row,
-            [
-              "sale end",
-              "end date",
-              "promo end",
-              "promotion end",
-              "expiration date",
-              "expires",
-            ],
-          ),
-        );
-
-      const saleMessage =
-        textValue(
-          valueFromAliases(
-            row,
-            [
-              "sale message",
-              "promo message",
-              "promotion message",
-              "notes",
-            ],
-          ),
-          250,
-        );
-
-      parsed.push({
-        sheetName:
-          sheetName.slice(
-            0,
-            120,
-          ),
-
-        rowNumber:
-          index + 2,
-
-        raw:
-          safeJson(row),
-
-        itemName,
-        sku,
-        msrpCents,
-        saleCents,
-        dealerCostCents,
-        startsAt,
-        endsAt,
-        saleMessage,
-      });
-    }
-  }
-
-  if (!parsed.length) {
-    throw new SaleImportError(
-      400,
-      "No data rows were found in the uploaded price sheet.",
-    );
-  }
-
-  return parsed;
-}
 
 
 async function canonicalBrand(
@@ -568,7 +156,7 @@ async function loadCandidates(
   } = await client
     .from("catalog_products")
     .select(
-      "id,name,slug,brand",
+      "id,name,slug,brand,display_msrp_price_cents,sale_price_cents,public_status",
     )
     .ilike(
       "brand",
@@ -600,6 +188,16 @@ async function loadCandidates(
       ),
     );
 
+  const productSlugById =
+    new Map(
+      products.map(
+        (row) => [
+          String(row.id),
+          String(row.slug ?? ""),
+        ],
+      ),
+    );
+
   const candidates:
     Candidate[] =
       products.map(
@@ -608,6 +206,10 @@ async function loadCandidates(
           id: String(row.id),
           productId:
             String(row.id),
+          productSlug:
+            String(row.slug ?? "") || null,
+          brand:
+            String(row.brand ?? brand),
           label:
             String(
               row.name ??
@@ -629,6 +231,21 @@ async function loadCandidates(
               row.slug ?? "",
             ),
           ],
+          slug:
+            String(row.slug ?? "") || null,
+          sku: null,
+          componentSignature: [],
+          y40PriceMode: null,
+          currentDisplayMsrpCents:
+            typeof row.display_msrp_price_cents === "number"
+              ? row.display_msrp_price_cents
+              : null,
+          currentSaleCents:
+            typeof row.sale_price_cents === "number"
+              ? row.sale_price_cents
+              : null,
+          publicStatus:
+            typeof row.public_status === "string" ? row.public_status : null,
         }),
       );
 
@@ -646,7 +263,7 @@ async function loadCandidates(
         "catalog_product_variants",
       )
       .select(
-        "id,product_id,name,variant_slug",
+        "id,product_id,name,variant_slug,sku,display_msrp_price_cents,sale_price_cents,public_status",
       )
       .in(
         "product_id",
@@ -658,7 +275,7 @@ async function loadCandidates(
         "catalog_options",
       )
       .select(
-        "id,product_id,name,option_slug",
+        "id,product_id,name,option_slug,display_msrp_price_cents,sale_price_cents,public_status",
       )
       .in(
         "product_id",
@@ -670,7 +287,7 @@ async function loadCandidates(
         "catalog_packages",
       )
       .select(
-        "id,product_id,package_name,package_slug",
+        "id,product_id,package_name,package_slug,display_msrp_price_cents,sale_price_cents,public_status",
       )
       .in(
         "product_id",
@@ -696,6 +313,66 @@ async function loadCandidates(
     throw packagesResult.error;
   }
 
+  const packageIds =
+    (packagesResult.data ?? []).map(
+      (row) => String(row.id),
+    );
+
+  const [
+    packageItemsResult,
+    packageCorePricesResult,
+  ] = packageIds.length
+    ? await Promise.all([
+        client
+          .from("catalog_package_items")
+          .select("package_id,option_id")
+          .in("package_id", packageIds),
+        client
+          .from("catalog_package_core_prices")
+          .select("package_id,core_variant_id,price_mode")
+          .in("package_id", packageIds),
+      ])
+    : [
+        { data: [], error: null },
+        { data: [], error: null },
+      ];
+
+  if (packageItemsResult.error) throw packageItemsResult.error;
+  if (packageCorePricesResult.error) throw packageCorePricesResult.error;
+
+  const optionSlugById = new Map(
+    (optionsResult.data ?? []).map((row) => [
+      String(row.id),
+      String(row.option_slug ?? ""),
+    ]),
+  );
+  const packageComponents = new Map<string, string[]>();
+  for (const item of packageItemsResult.data ?? []) {
+    const packageId = String(item.package_id);
+    const slug = optionSlugById.get(String(item.option_id));
+    if (!slug) continue;
+    const existing = packageComponents.get(packageId) ?? [];
+    existing.push(slug);
+    packageComponents.set(packageId, existing);
+  }
+  for (const [packageId, slugs] of packageComponents) {
+    packageComponents.set(packageId, [...new Set(slugs)].sort());
+  }
+
+  const y40VariantId =
+    (variantsResult.data ?? []).find(
+      (row) => row.variant_slug === "yarbo-y40",
+    )?.id;
+  const y40PriceModeByPackage = new Map<string, "package" | "core_specific">();
+  if (y40VariantId) {
+    for (const row of packageCorePricesResult.data ?? []) {
+      if (String(row.core_variant_id) !== String(y40VariantId)) continue;
+      if (row.price_mode === "package" || row.price_mode === "core_specific") {
+        y40PriceModeByPackage.set(String(row.package_id), row.price_mode);
+      }
+    }
+  }
+
   for (
     const row
     of variantsResult.data ?? []
@@ -710,6 +387,9 @@ async function loadCandidates(
       kind: "variant",
       id: String(row.id),
       productId,
+      productSlug:
+        productSlugById.get(productId) ?? null,
+      brand,
       label: name,
 
       aliases: [
@@ -722,6 +402,20 @@ async function loadCandidates(
           productId,
         ) ?? ""} ${name}`,
       ],
+      slug:
+        String(row.variant_slug ?? "") || null,
+      sku:
+        typeof row.sku === "string" && row.sku.trim() ? row.sku.trim() : null,
+      componentSignature: [],
+      y40PriceMode: null,
+      currentDisplayMsrpCents:
+        typeof row.display_msrp_price_cents === "number"
+          ? row.display_msrp_price_cents
+          : null,
+      currentSaleCents:
+        typeof row.sale_price_cents === "number" ? row.sale_price_cents : null,
+      publicStatus:
+        typeof row.public_status === "string" ? row.public_status : null,
     });
   }
 
@@ -739,6 +433,9 @@ async function loadCandidates(
       kind: "option",
       id: String(row.id),
       productId,
+      productSlug:
+        productSlugById.get(productId) ?? null,
+      brand,
       label: name,
 
       aliases: [
@@ -751,6 +448,19 @@ async function loadCandidates(
           productId,
         ) ?? ""} ${name}`,
       ],
+      slug:
+        String(row.option_slug ?? "") || null,
+      sku: null,
+      componentSignature: [],
+      y40PriceMode: null,
+      currentDisplayMsrpCents:
+        typeof row.display_msrp_price_cents === "number"
+          ? row.display_msrp_price_cents
+          : null,
+      currentSaleCents:
+        typeof row.sale_price_cents === "number" ? row.sale_price_cents : null,
+      publicStatus:
+        typeof row.public_status === "string" ? row.public_status : null,
     });
   }
 
@@ -770,6 +480,9 @@ async function loadCandidates(
       kind: "package",
       id: String(row.id),
       productId,
+      productSlug:
+        productSlugById.get(productId) ?? null,
+      brand,
       label: name,
 
       aliases: [
@@ -782,58 +495,25 @@ async function loadCandidates(
           productId,
         ) ?? ""} ${name}`,
       ],
+      slug:
+        String(row.package_slug ?? "") || null,
+      sku: null,
+      componentSignature:
+        packageComponents.get(String(row.id)) ?? [],
+      y40PriceMode:
+        y40PriceModeByPackage.get(String(row.id)) ?? null,
+      currentDisplayMsrpCents:
+        typeof row.display_msrp_price_cents === "number"
+          ? row.display_msrp_price_cents
+          : null,
+      currentSaleCents:
+        typeof row.sale_price_cents === "number" ? row.sale_price_cents : null,
+      publicStatus:
+        typeof row.public_status === "string" ? row.public_status : null,
     });
   }
 
   return candidates;
-}
-
-
-function matchRow(
-  row: ParsedSourceRow,
-  candidates: Candidate[],
-) {
-  const searchTokens =
-    [
-      row.itemName,
-      row.sku,
-    ]
-      .filter(
-        (
-          value,
-        ): value is string =>
-          Boolean(value),
-      )
-      .map(normalizeToken)
-      .filter(Boolean);
-
-  if (
-    !searchTokens.length
-  ) {
-    return null;
-  }
-
-  const matches =
-    candidates.filter(
-      (candidate) =>
-        candidate.aliases
-          .map(normalizeToken)
-          .filter(Boolean)
-          .some(
-            (alias) =>
-              searchTokens.includes(
-                alias,
-              ),
-          ),
-    );
-
-  if (
-    matches.length !== 1
-  ) {
-    return null;
-  }
-
-  return matches[0];
 }
 
 
@@ -927,18 +607,40 @@ export async function createSaleImportPreview(
     );
   }
 
-  const brand =
-    await canonicalBrand(
-      requestedBrand,
-    );
-
   const buffer =
     Buffer.from(
       await file.arrayBuffer(),
     );
 
-  const parsed =
-    parseWorkbook(buffer);
+  let workbook;
+  try {
+    workbook = parseSaleImportWorkbook(
+      buffer,
+      file.name,
+    );
+  } catch (error) {
+    if (error instanceof SaleImportParseError) {
+      throw new SaleImportError(400, error.message);
+    }
+    throw error;
+  }
+
+  const brand =
+    await canonicalBrand(
+      requestedBrand,
+    );
+
+  try {
+    assertSaleImportBrandMatches(
+      workbook.detectedManufacturerBrand,
+      brand,
+    );
+  } catch (error) {
+    if (error instanceof SaleImportParseError) {
+      throw new SaleImportError(400, error.message);
+    }
+    throw error;
+  }
 
   const candidates =
     await loadCandidates(
@@ -946,41 +648,9 @@ export async function createSaleImportPreview(
     );
 
   const prepared =
-    parsed.map(
-      (row) => {
-        const hasUsefulValues =
-          Boolean(
-            row.itemName ||
-            row.sku ||
-            row.msrpCents !==
-              null ||
-            row.saleCents !==
-              null ||
-            row.dealerCostCents !==
-              null,
-          );
-
-        const candidate =
-          hasUsefulValues
-            ? matchRow(
-                row,
-                candidates,
-              )
-            : null;
-
-        const matchStatus: SaleImportPreviewRow["matchStatus"] =
-          !hasUsefulValues
-            ? "skipped"
-            : candidate
-              ? "matched"
-              : "needs_review";
-
-        return {
-          row,
-          candidate,
-          matchStatus,
-        };
-      },
+    matchSaleImportRows(
+      workbook,
+      candidates,
     );
 
   const safeMatchCount =
@@ -1030,7 +700,7 @@ export async function createSaleImportPreview(
       status: "preview",
 
       parsed_row_count:
-        parsed.length,
+        workbook.rows.length,
 
       safe_match_count:
         safeMatchCount,
@@ -1039,6 +709,30 @@ export async function createSaleImportPreview(
         needsReviewCount,
 
       applied_row_count: 0,
+
+      detected_manufacturer_brand:
+        workbook.detectedManufacturerBrand,
+
+      pricing_scope:
+        workbook.pricingScope,
+
+      promotion_label:
+        workbook.promotionLabel,
+
+      promotion_starts_at:
+        workbook.promotionStartsAt,
+
+      promotion_ends_at:
+        workbook.promotionEndsAt,
+
+      header_sheet_name:
+        workbook.sheetName,
+
+      header_row_number:
+        workbook.headerRowNumber,
+
+      column_mapping:
+        workbook.headerMapping,
     })
     .select("id")
     .single();
@@ -1119,6 +813,9 @@ export async function createSaleImportPreview(
         row,
         candidate,
         matchStatus,
+        matchConfidence,
+        matchMethod,
+        matchReason,
       }) => ({
         import_id:
           importId,
@@ -1159,9 +856,16 @@ export async function createSaleImportPreview(
           matchStatus,
 
         match_confidence:
-          candidate
-            ? 1
-            : null,
+          matchConfidence,
+
+        match_method:
+          matchMethod,
+
+        match_reason:
+          matchReason,
+
+        validation_errors:
+          row.validationErrors,
 
         approved: false,
 
@@ -1171,6 +875,9 @@ export async function createSaleImportPreview(
         proposed_sale_price_cents:
           row.saleCents,
 
+        proposed_discount_cents:
+          row.discountCents,
+
         proposed_sale_starts_at:
           row.startsAt,
 
@@ -1179,6 +886,9 @@ export async function createSaleImportPreview(
 
         proposed_promotional_dealer_cost_cents:
           row.dealerCostCents,
+
+        proposed_promotion_label:
+          row.promotionLabel,
 
         proposed_sale_message:
           row.saleMessage,
@@ -1199,6 +909,11 @@ export async function createSaleImportPreview(
     .select("id");
 
   if (rowsError) {
+    const cleanupResult =
+      await client.storage
+        .from(IMPORT_BUCKET)
+        .remove([storagePath]);
+
     await privateClient
       .from(
         "catalog_sale_imports",
@@ -1206,7 +921,9 @@ export async function createSaleImportPreview(
       .update({
         status: "failed",
         storage_path:
-          storagePath,
+          cleanupResult.error
+            ? storagePath
+            : null,
 
         failure_message:
           "Parsed spreadsheet rows could not be saved.",
@@ -1219,7 +936,9 @@ export async function createSaleImportPreview(
     throw rowsError;
   }
 
-  await privateClient
+  const {
+    error: readyError,
+  } = await privateClient
     .from(
       "catalog_sale_imports",
     )
@@ -1233,6 +952,10 @@ export async function createSaleImportPreview(
       "id",
       importId,
     );
+
+  if (readyError) {
+    throw readyError;
+  }
 
   const rowIds =
     (
@@ -1252,6 +975,10 @@ export async function createSaleImportPreview(
               row,
               candidate,
               matchStatus,
+              matchConfidence,
+              matchMethod,
+              matchReason,
+              suggestions,
             },
             index,
           ) => ({
@@ -1273,9 +1000,7 @@ export async function createSaleImportPreview(
             matchStatus,
 
             matchConfidence:
-              candidate
-                ? 1
-                : null,
+              matchConfidence,
 
             matchedKind:
               candidate?.kind ??
@@ -1295,6 +1020,9 @@ export async function createSaleImportPreview(
             proposedSaleCents:
               row.saleCents,
 
+            proposedDiscountCents:
+              row.discountCents,
+
             proposedDealerCostCents:
               row.dealerCostCents,
 
@@ -1304,8 +1032,34 @@ export async function createSaleImportPreview(
             proposedSaleEndsAt:
               row.endsAt,
 
+            proposedPromotionLabel:
+              row.promotionLabel,
+
             proposedSaleMessage:
               row.saleMessage,
+
+            currentMsrpCents:
+              candidate?.currentDisplayMsrpCents ?? null,
+
+            currentSaleCents:
+              candidate?.currentSaleCents ?? null,
+
+            targetStatus:
+              candidate?.publicStatus ?? null,
+
+            matchMethod,
+
+            matchReason,
+
+            validationErrors:
+              row.validationErrors,
+
+            suggestions:
+              suggestions.map((item) => ({
+                kind: item.kind,
+                id: item.id,
+                label: item.label,
+              })),
           }),
         );
 
@@ -1318,7 +1072,7 @@ export async function createSaleImportPreview(
       file.name,
 
     parsedRowCount:
-      parsed.length,
+      workbook.rows.length,
 
     safeMatchCount,
 
@@ -1333,6 +1087,30 @@ export async function createSaleImportPreview(
 
     previewLimited:
       prepared.length > 250,
+
+    detectedManufacturerBrand:
+      workbook.detectedManufacturerBrand,
+
+    pricingScope:
+      workbook.pricingScope,
+
+    promotionLabel:
+      workbook.promotionLabel,
+
+    promotionStartsAt:
+      workbook.promotionStartsAt,
+
+    promotionEndsAt:
+      workbook.promotionEndsAt,
+
+    headerSheetName:
+      workbook.sheetName,
+
+    headerRowNumber:
+      workbook.headerRowNumber,
+
+    columnMapping:
+      workbook.headerMapping,
 
     rows:
       preview,
@@ -1384,7 +1162,7 @@ export async function readSaleImportAdminData() {
       "catalog_sale_imports",
     )
     .select(
-      "id,manufacturer_brand,original_file_name,status,parsed_row_count,safe_match_count,needs_review_count,applied_row_count,failure_message,created_at,applied_at",
+      "id,manufacturer_brand,original_file_name,status,parsed_row_count,safe_match_count,needs_review_count,applied_row_count,failure_message,created_at,applied_at,detected_manufacturer_brand,pricing_scope,promotion_label,promotion_starts_at,promotion_ends_at,header_sheet_name,header_row_number,column_mapping",
     )
     .order(
       "created_at",
@@ -1410,6 +1188,12 @@ export type SaleImportReviewCandidate = {
   kind: Candidate["kind"];
   id: string;
   label: string;
+  slug: string | null;
+  productSlug: string | null;
+  y40PriceMode: "package" | "core_specific" | null;
+  currentMsrpCents: number | null;
+  currentSaleCents: number | null;
+  publicStatus: string | null;
 };
 
 export type SaleImportReviewRow = {
@@ -1430,10 +1214,19 @@ export type SaleImportReviewRow = {
   matchedLabel: string | null;
   proposedMsrpCents: number | null;
   proposedSaleCents: number | null;
+  proposedDiscountCents: number | null;
   proposedDealerCostCents: number | null;
   proposedSaleStartsAt: string | null;
   proposedSaleEndsAt: string | null;
+  proposedPromotionLabel: string | null;
   proposedSaleMessage: string | null;
+  currentMsrpCents: number | null;
+  currentSaleCents: number | null;
+  targetStatus: string | null;
+  matchMethod: string | null;
+  matchReason: string | null;
+  validationErrors: string[];
+  suggestions: SaleImportReviewCandidate[];
   appliedAt: string | null;
 };
 
@@ -1507,7 +1300,7 @@ export async function readSaleImportReview(
       "catalog_sale_imports",
     )
     .select(
-      "id,manufacturer_brand,original_file_name,status,parsed_row_count,safe_match_count,needs_review_count,applied_row_count,failure_message,created_at,applied_at",
+      "id,manufacturer_brand,original_file_name,status,parsed_row_count,safe_match_count,needs_review_count,applied_row_count,failure_message,created_at,applied_at,detected_manufacturer_brand,pricing_scope,promotion_label,promotion_starts_at,promotion_ends_at,header_sheet_name,header_row_number,column_mapping",
     )
     .eq(
       "id",
@@ -1536,6 +1329,16 @@ export async function readSaleImportReview(
       brand,
     );
 
+  const pricingScope: SaleImportPricingScope =
+    importRow.pricing_scope === "y40" || importRow.pricing_scope === "y40p"
+      ? importRow.pricing_scope
+      : "generic";
+
+  const reviewCandidates =
+    candidates.filter((candidate) =>
+      saleImportCandidateAllowedForScope(candidate, pricingScope),
+    );
+
   const {
     data: rows,
     error: rowsError,
@@ -1544,7 +1347,7 @@ export async function readSaleImportReview(
       "catalog_sale_import_rows",
     )
     .select(
-      "id,sheet_name,source_row_number,manufacturer_item_name,manufacturer_sku,product_id,variant_id,option_id,package_id,match_status,match_confidence,approved,proposed_display_msrp_price_cents,proposed_sale_price_cents,proposed_sale_starts_at,proposed_sale_ends_at,proposed_promotional_dealer_cost_cents,proposed_sale_message,applied_at",
+      "id,sheet_name,source_row_number,manufacturer_item_name,manufacturer_sku,product_id,variant_id,option_id,package_id,match_status,match_confidence,match_method,match_reason,validation_errors,approved,proposed_display_msrp_price_cents,proposed_sale_price_cents,proposed_discount_cents,proposed_sale_starts_at,proposed_sale_ends_at,proposed_promotional_dealer_cost_cents,proposed_promotion_label,proposed_sale_message,applied_at",
     )
     .eq(
       "import_id",
@@ -1572,7 +1375,7 @@ export async function readSaleImportReview(
         const candidate =
           candidateFromStoredRow(
             row,
-            candidates,
+            reviewCandidates,
           );
 
         const rawStatus =
@@ -1588,6 +1391,41 @@ export async function readSaleImportReview(
             rawStatus === "applied"
               ? rawStatus
               : "needs_review";
+
+        const itemName =
+          typeof row.manufacturer_item_name === "string"
+            ? row.manufacturer_item_name
+            : null;
+
+        const validationErrors =
+          Array.isArray(row.validation_errors)
+            ? row.validation_errors.filter(
+                (value): value is string => typeof value === "string",
+              )
+            : [];
+
+        const suggestions =
+          matchStatus === "needs_review"
+            ? suggestSaleImportCandidates(
+                {
+                  itemName,
+                  baseItemName:
+                    itemName?.normalize("NFKC").split("(", 1)[0].trim() || null,
+                },
+                reviewCandidates,
+                pricingScope,
+              ).map((item) => ({
+                kind: item.kind,
+                id: item.id,
+                label: item.label,
+                slug: item.slug,
+                productSlug: item.productSlug,
+                y40PriceMode: item.y40PriceMode,
+                currentMsrpCents: item.currentDisplayMsrpCents,
+                currentSaleCents: item.currentSaleCents,
+                publicStatus: item.publicStatus,
+              }))
+            : [];
 
         return {
           id:
@@ -1605,11 +1443,7 @@ export async function readSaleImportReview(
               ? row.source_row_number
               : null,
 
-          itemName:
-            typeof row.manufacturer_item_name ===
-            "string"
-              ? row.manufacturer_item_name
-              : null,
+          itemName,
 
           sku:
             typeof row.manufacturer_sku ===
@@ -1652,6 +1486,11 @@ export async function readSaleImportReview(
               ? row.proposed_sale_price_cents
               : null,
 
+          proposedDiscountCents:
+            typeof row.proposed_discount_cents === "number"
+              ? row.proposed_discount_cents
+              : null,
+
           proposedDealerCostCents:
             typeof row.proposed_promotional_dealer_cost_cents ===
             "number"
@@ -1670,11 +1509,35 @@ export async function readSaleImportReview(
               ? row.proposed_sale_ends_at
               : null,
 
+          proposedPromotionLabel:
+            typeof row.proposed_promotion_label === "string"
+              ? row.proposed_promotion_label
+              : null,
+
           proposedSaleMessage:
             typeof row.proposed_sale_message ===
             "string"
               ? row.proposed_sale_message
               : null,
+
+          currentMsrpCents:
+            candidate?.currentDisplayMsrpCents ?? null,
+
+          currentSaleCents:
+            candidate?.currentSaleCents ?? null,
+
+          targetStatus:
+            candidate?.publicStatus ?? null,
+
+          matchMethod:
+            typeof row.match_method === "string" ? row.match_method : null,
+
+          matchReason:
+            typeof row.match_reason === "string" ? row.match_reason : null,
+
+          validationErrors,
+
+          suggestions,
 
           appliedAt:
             typeof row.applied_at ===
@@ -1688,7 +1551,7 @@ export async function readSaleImportReview(
     import: importRow,
 
     candidates:
-      candidates
+      reviewCandidates
         .map(
           candidate => ({
             kind:
@@ -1699,6 +1562,24 @@ export async function readSaleImportReview(
 
             label:
               candidate.label,
+
+            slug:
+              candidate.slug,
+
+            productSlug:
+              candidate.productSlug,
+
+            y40PriceMode:
+              candidate.y40PriceMode,
+
+            currentMsrpCents:
+              candidate.currentDisplayMsrpCents,
+
+            currentSaleCents:
+              candidate.currentSaleCents,
+
+            publicStatus:
+              candidate.publicStatus,
           }),
         )
         .sort(
@@ -1764,7 +1645,7 @@ export async function updateSaleImportRowReview(
       "catalog_sale_imports",
     )
     .select(
-      "id,manufacturer_brand,status",
+      "id,manufacturer_brand,status,pricing_scope",
     )
     .eq(
       "id",
@@ -1801,7 +1682,7 @@ export async function updateSaleImportRowReview(
       "catalog_sale_import_rows",
     )
     .select(
-      "id,match_status,approved,product_id,variant_id,option_id,package_id",
+      "id,match_status,approved,product_id,variant_id,option_id,package_id,validation_errors",
     )
     .eq(
       "id",
@@ -1870,6 +1751,9 @@ export async function updateSaleImportRowReview(
           match_status:
             "needs_review",
           match_confidence: null,
+          match_method: null,
+          match_reason:
+            "No IDS catalog target is selected.",
           approved: false,
         },
       );
@@ -1902,13 +1786,19 @@ export async function updateSaleImportRowReview(
           ),
         );
 
+      const pricingScope: SaleImportPricingScope =
+        importRow.pricing_scope === "y40" || importRow.pricing_scope === "y40p"
+          ? importRow.pricing_scope
+          : "generic";
+
       const candidate =
         candidates.find(
           item =>
             item.kind ===
               targetKind &&
             item.id ===
-              targetId,
+              targetId &&
+            saleImportCandidateAllowedForScope(item, pricingScope),
         );
 
       if (!candidate) {
@@ -1926,10 +1816,20 @@ export async function updateSaleImportRowReview(
           ),
 
           match_status:
-            "matched",
+            Array.isArray(existingRow.validation_errors) && existingRow.validation_errors.length
+              ? "needs_review"
+              : "matched",
 
           match_confidence:
             null,
+
+          match_method:
+            "manual",
+
+          match_reason:
+            "IDS administrator selected this catalog target.",
+
+          approved: false,
         },
       );
     }
@@ -1954,6 +1854,16 @@ export async function updateSaleImportRowReview(
     if (
       input.approved
     ) {
+      if (
+        Array.isArray(existingRow.validation_errors) &&
+        existingRow.validation_errors.length > 0
+      ) {
+        throw new SaleImportError(
+          400,
+          "Resolve the source validation errors before approving this row.",
+        );
+      }
+
       const hasStoredTarget =
         Boolean(
           update.product_id ??

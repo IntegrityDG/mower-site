@@ -31,10 +31,23 @@ type SaleImportPreviewRow = {
     matchedLabel: string | null;
     proposedMsrpCents: number | null;
     proposedSaleCents: number | null;
+    proposedDiscountCents: number | null;
     proposedDealerCostCents: number | null;
     proposedSaleStartsAt: string | null;
     proposedSaleEndsAt: string | null;
+    proposedPromotionLabel: string | null;
     proposedSaleMessage: string | null;
+    currentMsrpCents: number | null;
+    currentSaleCents: number | null;
+    targetStatus: string | null;
+    matchMethod: string | null;
+    matchReason: string | null;
+    validationErrors: string[];
+    suggestions: Array<{
+        kind: "product" | "variant" | "option" | "package";
+        id: string;
+        label: string;
+    }>;
 };
 
 type SaleImportPreview = {
@@ -46,6 +59,14 @@ type SaleImportPreview = {
     needsReviewCount: number;
     skippedCount: number;
     previewLimited: boolean;
+    detectedManufacturerBrand: string | null;
+    pricingScope: "generic" | "y40" | "y40p";
+    promotionLabel: string | null;
+    promotionStartsAt: string | null;
+    promotionEndsAt: string | null;
+    headerSheetName: string;
+    headerRowNumber: number;
+    columnMapping: Record<string, string>;
     rows: SaleImportPreviewRow[];
 };
 
@@ -61,11 +82,25 @@ type SaleImportHistory = {
     failure_message: string | null;
     created_at: string;
     applied_at: string | null;
+    detected_manufacturer_brand: string | null;
+    pricing_scope: "generic" | "y40" | "y40p" | null;
+    promotion_label: string | null;
+    promotion_starts_at: string | null;
+    promotion_ends_at: string | null;
+    header_sheet_name: string | null;
+    header_row_number: number | null;
+    column_mapping: Record<string, string>;
 };
 type SaleImportReviewCandidate = {
     kind: "product" | "variant" | "option" | "package";
     id: string;
     label: string;
+    slug: string | null;
+    productSlug: string | null;
+    y40PriceMode: "package" | "core_specific" | null;
+    currentMsrpCents: number | null;
+    currentSaleCents: number | null;
+    publicStatus: string | null;
 };
 
 type SaleImportReviewRow = {
@@ -82,10 +117,19 @@ type SaleImportReviewRow = {
     matchedLabel: string | null;
     proposedMsrpCents: number | null;
     proposedSaleCents: number | null;
+    proposedDiscountCents: number | null;
     proposedDealerCostCents: number | null;
     proposedSaleStartsAt: string | null;
     proposedSaleEndsAt: string | null;
+    proposedPromotionLabel: string | null;
     proposedSaleMessage: string | null;
+    currentMsrpCents: number | null;
+    currentSaleCents: number | null;
+    targetStatus: string | null;
+    matchMethod: string | null;
+    matchReason: string | null;
+    validationErrors: string[];
+    suggestions: SaleImportReviewCandidate[];
     appliedAt: string | null;
 };
 
@@ -99,6 +143,7 @@ const margin = (value: number | null) => value === null ? "Not available" : `${v
 const itemPrice = (item: PricingItem, field: string) => typeof item.values[field] === "number" ? item.values[field] as number : null;
 const itemDate = (item: PricingItem, field: string) => typeof item.values[field] === "string" ? item.values[field] as string : null;
 const dateLabel = (value: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(value));
+const dateTimeLabel = (value: string | null) => value ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" }).format(new Date(value)) : "Not detected";
 function PricingFacts({ item }: {
     item: PricingItem;
 }) {
@@ -1203,16 +1248,37 @@ export default function PricingAdminPage() {
           </div>
         </div>
 
+        <dl className="mt-4 grid gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt className="font-black uppercase text-blue-800">Detected Source</dt>
+            <dd className="mt-1 font-semibold">{saleImportPreview.detectedManufacturerBrand ?? "Not detected"} · {saleImportPreview.pricingScope.toUpperCase()}</dd>
+          </div>
+          <div>
+            <dt className="font-black uppercase text-blue-800">Promotion</dt>
+            <dd className="mt-1 font-semibold">{saleImportPreview.promotionLabel ?? "Not detected"}</dd>
+          </div>
+          <div>
+            <dt className="font-black uppercase text-blue-800">Sale Window (Central)</dt>
+            <dd className="mt-1 font-semibold">{dateTimeLabel(saleImportPreview.promotionStartsAt)} to {dateTimeLabel(saleImportPreview.promotionEndsAt)} (exclusive end)</dd>
+          </div>
+          <div>
+            <dt className="font-black uppercase text-blue-800">Header Evidence</dt>
+            <dd className="mt-1 font-semibold">{saleImportPreview.headerSheetName} · row {saleImportPreview.headerRowNumber}</dd>
+          </div>
+        </dl>
+
         <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
-          <table className="min-w-full text-left text-sm">
+          <table className="min-w-[1200px] w-full text-left text-sm">
             <thead className="bg-slate-950 text-white">
               <tr>
                 <th className="p-3">Row</th>
                 <th className="p-3">Manufacturer Item</th>
                 <th className="p-3">IDS Match</th>
-                <th className="p-3">MSRP</th>
-                <th className="p-3">Sale</th>
-                <th className="p-3">Dealer Cost</th>
+                <th className="p-3">Current → Proposed MSRP</th>
+                <th className="p-3">Current → Proposed Sale</th>
+                <th className="p-3">Discount</th>
+                <th className="bg-slate-800 p-3">🔒 Promo Dealer Cost</th>
+                <th className="p-3">Match Evidence</th>
                 <th className="p-3">Status</th>
               </tr>
             </thead>
@@ -1239,19 +1305,34 @@ export default function PricingAdminPage() {
                   </td>
 
                   <td className="p-3">
-                    {row.matchedLabel ?? "Not matched"}
+                    <div className="font-bold">{row.matchedLabel ?? "Not matched"}</div>
+                    {row.targetStatus && <div className="mt-1 text-xs uppercase text-slate-500">Catalog: {row.targetStatus.replaceAll("_", " ")}</div>}
                   </td>
 
                   <td className="whitespace-nowrap p-3">
-                    {money(row.proposedMsrpCents)}
+                    {money(row.currentMsrpCents)} → <strong>{money(row.proposedMsrpCents)}</strong>
                   </td>
 
                   <td className="whitespace-nowrap p-3">
-                    {money(row.proposedSaleCents)}
+                    {money(row.currentSaleCents)} → <strong>{money(row.proposedSaleCents)}</strong>
                   </td>
 
                   <td className="whitespace-nowrap p-3">
+                    {money(row.proposedDiscountCents)}
+                  </td>
+
+                  <td className="whitespace-nowrap bg-slate-50 p-3 font-black">
                     {money(row.proposedDealerCostCents)}
+                  </td>
+
+                  <td className="max-w-xs p-3">
+                    <div className="font-bold">{row.matchMethod?.replaceAll("_", " ") ?? "No deterministic match"}</div>
+                    {row.matchReason && <div className="mt-1 text-xs text-slate-600">{row.matchReason}</div>}
+                    {row.validationErrors.length > 0 && (
+                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs font-bold text-red-700">
+                        {row.validationErrors.map(error => <li key={error}>{error}</li>)}
+                      </ul>
+                    )}
                   </td>
 
                   <td className="p-3">
@@ -1350,20 +1431,42 @@ export default function PricingAdminPage() {
           </span>
         </div>
 
+        <dl className="mt-4 grid gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt className="font-black uppercase text-emerald-800">Detected Source</dt>
+            <dd className="mt-1 font-semibold">{saleImportReview.import.detected_manufacturer_brand ?? "Not detected"} · {(saleImportReview.import.pricing_scope ?? "generic").toUpperCase()}</dd>
+          </div>
+          <div>
+            <dt className="font-black uppercase text-emerald-800">Promotion</dt>
+            <dd className="mt-1 font-semibold">{saleImportReview.import.promotion_label ?? "Not detected"}</dd>
+          </div>
+          <div>
+            <dt className="font-black uppercase text-emerald-800">Sale Window (Central)</dt>
+            <dd className="mt-1 font-semibold">{dateTimeLabel(saleImportReview.import.promotion_starts_at)} to {dateTimeLabel(saleImportReview.import.promotion_ends_at)} (exclusive end)</dd>
+          </div>
+          <div>
+            <dt className="font-black uppercase text-emerald-800">Header Evidence</dt>
+            <dd className="mt-1 font-semibold">{saleImportReview.import.header_sheet_name ?? "Unknown sheet"} · row {saleImportReview.import.header_row_number ?? "?"}</dd>
+          </div>
+        </dl>
+
         <p className="mt-4 rounded-xl bg-blue-50 p-4 font-bold text-blue-950">
-          Review the IDS match for each row, correct it if necessary, then approve only the rows you trust. Approved rows still do not affect live pricing until the separate Apply step is added.
+          Review the IDS match and source validation for each row, correct it if necessary, then approve only the rows you trust. Approval alone does not affect live pricing; the separate Apply Approved Rows action is required.
         </p>
 
         <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
-          <table className="min-w-[1100px] w-full text-left text-sm">
+          <table className="min-w-[1550px] w-full text-left text-sm">
             <thead className="bg-slate-950 text-white">
               <tr>
                 <th className="p-3">Row</th>
                 <th className="p-3">Manufacturer Item</th>
                 <th className="p-3">IDS Match</th>
-                <th className="p-3">MSRP</th>
-                <th className="p-3">Sale</th>
-                <th className="p-3">Promo Dealer Cost</th>
+                <th className="p-3">Current → Proposed MSRP</th>
+                <th className="p-3">Current → Proposed Sale</th>
+                <th className="p-3">Discount</th>
+                <th className="p-3">Promotion</th>
+                <th className="bg-slate-800 p-3">🔒 Promo Dealer Cost</th>
+                <th className="p-3">Match Evidence</th>
                 <th className="p-3">Approve</th>
               </tr>
             </thead>
@@ -1462,21 +1565,46 @@ export default function PricingAdminPage() {
 
                       {row.matchConfidence === 1 && (
                         <p className="mt-1 text-xs font-bold text-emerald-700">
-                          Exact automatic match
+                          Deterministic automatic match
+                        </p>
+                      )}
+
+                      {row.suggestions.length > 0 && (
+                        <p className="mt-2 text-xs text-amber-800">
+                          Suggestions only: {row.suggestions.map(item => item.label).join(", ")}
                         </p>
                       )}
                     </td>
 
-                    <td className="whitespace-nowrap p-3">
-                      {money(row.proposedMsrpCents)}
+                  <td className="whitespace-nowrap p-3">
+                      {money(row.currentMsrpCents)} → <strong>{money(row.proposedMsrpCents)}</strong>
                     </td>
 
                     <td className="whitespace-nowrap p-3">
-                      {money(row.proposedSaleCents)}
+                      {money(row.currentSaleCents)} → <strong>{money(row.proposedSaleCents)}</strong>
                     </td>
 
                     <td className="whitespace-nowrap p-3">
+                      {money(row.proposedDiscountCents)}
+                    </td>
+
+                    <td className="min-w-[14rem] p-3">
+                      <div className="font-bold">{row.proposedPromotionLabel ?? "Not detected"}</div>
+                      <div className="mt-1 text-xs text-slate-600">{dateTimeLabel(row.proposedSaleStartsAt)} to {dateTimeLabel(row.proposedSaleEndsAt)}</div>
+                    </td>
+
+                    <td className="whitespace-nowrap bg-slate-50 p-3 font-black">
                       {money(row.proposedDealerCostCents)}
+                    </td>
+
+                    <td className="max-w-sm p-3">
+                      <div className="font-bold">{row.matchMethod?.replaceAll("_", " ") ?? "Manual review"}</div>
+                      {row.matchReason && <div className="mt-1 text-xs text-slate-600">{row.matchReason}</div>}
+                      {row.validationErrors.length > 0 && (
+                        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs font-bold text-red-700">
+                          {row.validationErrors.map(error => <li key={error}>{error}</li>)}
+                        </ul>
+                      )}
                     </td>
 
                     <td className="p-3">

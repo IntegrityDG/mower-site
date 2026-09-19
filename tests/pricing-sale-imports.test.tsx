@@ -29,6 +29,18 @@ const applyServer = read(
   "lib/admin-pricing/sale-import-apply-server.ts",
 );
 
+const applyPolicy = read(
+  "lib/admin-pricing/sale-import-apply-policy.ts",
+);
+
+const parser = read(
+  "lib/admin-pricing/sale-import-parser.ts",
+);
+
+const hardeningMigration = read(
+  "supabase/migrations/20260918222638_harden_price_sheet_importer.sql",
+);
+
 const pricingPage = read(
   "app/admin/pricing/page.tsx",
 );
@@ -128,8 +140,13 @@ test(
   "spreadsheet apply can never overwrite IDS Everyday Low Price",
   () => {
     assert.doesNotMatch(
-      applyServer,
-      /regular_price_cents/,
+      applyPolicy,
+      /update\.regular_price_cents/,
+    );
+
+    assert.match(
+      applyPolicy,
+      /regular_price_cents:\s*input\.currentPricing\.regular_price_cents/,
     );
 
     assert.match(
@@ -144,7 +161,7 @@ test(
 
     assert.match(
       pricingPage,
-      /IDS Everyday Low Price will NOT be changed/,
+      /IDS Everyday Low Price is protected and will not be overwritten/,
     );
   },
 );
@@ -172,6 +189,74 @@ test(
 
 
 test(
+  "semantic parsing fails closed and fuzzy matches remain suggestions only",
+  () => {
+    assert.match(parser, /MAX_HEADER_NONEMPTY_ROWS = 20/);
+    assert.match(parser, /AMBIGUOUS_HEADER/);
+    assert.match(parser, /suggestSaleImportCandidates/);
+    assert.match(parser, /No deterministic IDS catalog match was found/);
+    assert.match(parser, /assertSaleImportBrandMatches/);
+    assert.match(parser, /America\/Chicago/);
+    assert.doesNotMatch(importServer, /sheet_to_json/);
+  },
+);
+
+
+test(
+  "structural and manufacturer validation happens before import or storage persistence",
+  () => {
+    const parseAt = importServer.indexOf("parseSaleImportWorkbook(");
+    const brandCheckAt = importServer.indexOf("assertSaleImportBrandMatches(");
+    const importInsertAt = importServer.search(/\.from\(\s*"catalog_sale_imports"/);
+    const storageUploadAt = importServer.indexOf(".upload(");
+    assert.ok(parseAt >= 0);
+    assert.ok(brandCheckAt > parseAt);
+    assert.ok(importInsertAt > brandCheckAt);
+    assert.ok(storageUploadAt > importInsertAt);
+  },
+);
+
+
+test(
+  "Y40 and Y40P targets are constrained to their authoritative pricing sources",
+  () => {
+    assert.match(applyPolicy, /authoritative Y40 pricing source/);
+    assert.match(applyPolicy, /candidate\.kind !== "variant"/);
+    assert.match(applyPolicy, /candidate\.slug === "yarbo-y40p"/);
+    assert.match(applyPolicy, /candidate\.y40PriceMode !== "package"/);
+  },
+);
+
+
+test(
+  "hardening migration changes only importer metadata and missing Y40 inheritance",
+  () => {
+    assert.match(hardeningMigration, /alter table catalog_private\.catalog_sale_imports/);
+    assert.match(hardeningMigration, /alter table catalog_private\.catalog_sale_import_rows/);
+    assert.match(hardeningMigration, /insert into public\.catalog_package_core_prices/);
+    assert.match(hardeningMigration, /price_mode,\s*regular_price_cents/);
+    assert.match(hardeningMigration, /'package',\s*null,\s*null/);
+    assert.doesNotMatch(hardeningMigration, /update\s+public\.catalog_/i);
+    assert.doesNotMatch(hardeningMigration, /yarbo-y40p/);
+    assert.doesNotMatch(hardeningMigration, /payment_method/i);
+  },
+);
+
+
+test(
+  "review UI exposes parser evidence, current-to-proposed prices, and private costs",
+  () => {
+    assert.match(pricingPage, /Detected Source/);
+    assert.match(pricingPage, /Header Evidence/);
+    assert.match(pricingPage, /Current → Proposed MSRP/);
+    assert.match(pricingPage, /exclusive end/);
+    assert.match(pricingPage, /🔒 Promo Dealer Cost/);
+    assert.match(pricingPage, /Suggestions only/);
+  },
+);
+
+
+test(
   "promotional dealer cost remains temporary and requires an end date",
   () => {
     assert.match(
@@ -180,13 +265,23 @@ test(
     );
 
     assert.match(
-      applyServer,
+      applyPolicy,
       /Promotional dealer cost requires a promotion end date/,
     );
 
     assert.match(
       applyServer,
       /source_import_row_id/,
+    );
+
+    assert.doesNotMatch(
+      applyServer,
+      /catalog_internal_pricing/,
+    );
+
+    assert.match(
+      read("supabase/migrations/20260818023107_add_pricing_promotion_content_and_sale_imports.sql"),
+      /unique index catalog_promotional_costs_import_row_unique/,
     );
   },
 );
