@@ -1,5 +1,8 @@
 import "server-only";
 import { loadPublicCatalog } from "@/lib/catalog/load-public-catalog";
+import { scheduledPublicPrice } from "@/lib/catalog/public-price";
+import type { ActivePriceSchedule } from "@/lib/catalog/active-price-schedule";
+import { readPricingProgramSettingsFailSafe } from "@/lib/pricing-program/server";
 import { getSupabaseServiceClient } from "@/lib/supabase";
 import { applyCatalogSnapshots } from "./catalog-snapshot";
 import type { CatalogInvoiceReference, InvoiceDraftInput } from "./types";
@@ -21,10 +24,18 @@ export async function readInvoiceCatalogReferences(): Promise<CatalogInvoiceRefe
       } else rows.push({ id: item.id, sourceType: "package", name: `${product.name} / ${item.name}`, description: item.description, sku: null, priceCents: item.currentPriceCents, status: item.publicStatus, purchaseState: null, parentId: product.id, parentName: product.name, availabilityWarning: warning(item.publicStatus, null) });
     }
   }
-  const { data: services, error } = await getSupabaseServiceClient().from("catalog_services").select("id,name,description,regular_price_cents,sale_price_cents,sale_starts_at,sale_ends_at,public_status").neq("public_status", "hidden");
-  if (error) throw new Error("Catalog services are unavailable.");
+  const client = getSupabaseServiceClient();
+  const [{ data: services, error }, { data: schedules, error: schedulesError }, pricingProgram] = await Promise.all([
+    client.from("catalog_services").select("*").neq("public_status", "hidden"),
+    client.from("catalog_price_schedules").select("*").eq("public_status", "active").not("service_id", "is", null),
+    readPricingProgramSettingsFailSafe(),
+  ]);
+  if (error || schedulesError) throw new Error("Catalog services are unavailable.");
   const now = Date.now();
-  for (const service of services ?? []) { const saleActive = service.sale_price_cents != null && (!service.sale_starts_at || Date.parse(service.sale_starts_at) <= now) && (!service.sale_ends_at || Date.parse(service.sale_ends_at) >= now); const price = saleActive ? service.sale_price_cents : service.regular_price_cents; rows.push({ id: service.id, sourceType: "service", name: service.name, description: service.description, sku: null, priceCents: price, status: service.public_status, purchaseState: null, parentId: null, parentName: null, availabilityWarning: warning(service.public_status, null) }); }
+  for (const service of services ?? []) {
+    const { price } = scheduledPublicPrice(service, (schedules ?? []) as ActivePriceSchedule[], "service", service.id, now, pricingProgram.everydayLowPriceEnabled);
+    rows.push({ id: service.id, sourceType: "service", name: service.name, description: service.description, sku: null, priceCents: price.contactForPricing || !price.showPublicPrice ? null : price.currentPriceCents, status: service.public_status, purchaseState: null, parentId: null, parentName: null, availabilityWarning: warning(service.public_status, null) });
+  }
   return rows.sort((a, b) => a.name.localeCompare(b.name));
 }
 

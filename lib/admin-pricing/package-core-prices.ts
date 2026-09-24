@@ -16,6 +16,13 @@ export type PackageCorePriceAdminRow = {
   showPublicPrice: boolean;
   contactForPricing: boolean;
   publicStatus: string;
+  effectivePriceCents?: number | null;
+  checkoutPriceCents?: number | null;
+  saleState?: "none" | "upcoming" | "active" | "ended";
+  sourceLabel?: string;
+  explanation?: string;
+  updatedAt?: string;
+  pricingProgramEnabled?: boolean;
 };
 
 const editable = new Set([
@@ -50,7 +57,7 @@ type Dependencies = {
   isAdmin: () => Promise<boolean>;
   read: () => Promise<PackageCorePriceAdminRow[]>;
   readValues: (id: string) => Promise<Record<string, unknown> | null>;
-  update: (id: string, patch: Record<string, unknown>) => Promise<PackageCorePriceAdminRow>;
+  update: (id: string, patch: Record<string, unknown>, expectedUpdatedAt: string) => Promise<PackageCorePriceAdminRow>;
 };
 
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -70,10 +77,18 @@ export function createPackageCorePriceAdminHandlers(deps: Dependencies) {
       try {
         const existing = await deps.readValues(id);
         if (!existing) return json({ error: "Core-specific price was not found." }, 404);
-        const parsed = validatePackageCorePricePatch(input, existing);
+        if (!input || typeof input !== "object" || Array.isArray(input)) return json({ error: "A JSON object is required." }, 422);
+        const { expectedUpdatedAt, ...patch } = input as Record<string, unknown>;
+        const storedVersion = typeof existing.updated_at === "string" ? existing.updated_at : null;
+        if (storedVersion && (typeof expectedUpdatedAt !== "string" || storedVersion !== expectedUpdatedAt)) return json({ error: "Pricing record changed after you opened it. Reload and review the newer values before saving." }, 409);
+        const parsed = validatePackageCorePricePatch(patch, existing);
         if (!parsed.ok) return json({ error: parsed.error }, 422);
-        return json({ row: await deps.update(id, parsed.value) });
-      } catch { return json({ error: "Package/Core pricing update failed." }, 503); }
+        return json({ row: await deps.update(id, parsed.value, typeof expectedUpdatedAt === "string" ? expectedUpdatedAt : "") });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (message.startsWith("Pricing record changed")) return json({ error: message }, 409);
+        return json({ error: "Package/Core pricing update failed." }, 503);
+      }
     },
   };
 }

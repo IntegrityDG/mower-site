@@ -1,11 +1,12 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import PricingProgramToggle from "@/components/admin/PricingProgramToggle";
 import PackageCorePricing from "@/components/admin/PackageCorePricing";
-import { isoToLocalDateTimeInput } from "@/lib/admin-pricing/datetime-local";
+import { centralDateTimeInputToIso, isoToLocalDateTimeInput } from "@/lib/admin-pricing/datetime-local";
 import { editablePricingFields } from "@/lib/admin-pricing/validation";
 import type { PricingItem } from "@/lib/admin-pricing/types";
 import { grossMarginPercent, grossProfitCents } from "@/lib/admin-pricing/gross-margin";
+import { sellingPriceDecision } from "@/lib/pricing-program/policy";
 const labels: Record<string, string> = { display_msrp_price_cents: "Manufacturer / MSRP", regular_price_cents: "IDS Everyday Low Price", sale_price_cents: "Temporary Sale Price", sale_starts_at: "Sale Start", sale_ends_at: "Sale End", promotion_label: "Promotion Label", show_public_price: "Show Public Price", contact_for_pricing: "Contact for Pricing", override_display_msrp_price_cents: "Manufacturer / MSRP Override", override_regular_price_cents: "IDS Everyday Low Price Override", override_sale_price_cents: "Temporary Sale Price Override", override_sale_starts_at: "Sale Start Override", override_sale_ends_at: "Sale End Override", override_promotion_label: "Promotion Label Override", override_show_public_price: "Show Public Price Override", override_contact_for_pricing: "Contact for Pricing Override", is_available: "Available", schedule_name: "Schedule Name", starts_at: "Starts At", ends_at: "Ends At", public_status: "Public Status" };
 const priceFields = new Set(["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "override_display_msrp_price_cents", "override_regular_price_cents", "override_sale_price_cents"]);
 const fieldLabel = (kind: PricingItem["kind"], field: string) => {
@@ -142,8 +143,12 @@ const money = (cents: number | null) => cents === null ? "Not set" : new Intl.Nu
 const margin = (value: number | null) => value === null ? "Not available" : `${value.toFixed(1)}%`;
 const itemPrice = (item: PricingItem, field: string) => typeof item.values[field] === "number" ? item.values[field] as number : null;
 const itemDate = (item: PricingItem, field: string) => typeof item.values[field] === "string" ? item.values[field] as string : null;
-const dateLabel = (value: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(value));
+const dateLabel = (value: string) => new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/Chicago", timeZoneName: "short" }).format(new Date(value));
 const dateTimeLabel = (value: string | null) => value ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "America/Chicago" }).format(new Date(value)) : "Not detected";
+type PricingView = "overview" | "manual" | "services" | "imports" | "schedules" | "program";
+const equipmentKinds = new Set<PricingItem["kind"]>(["products", "variants", "packages", "options"]);
+const serviceKinds = new Set<PricingItem["kind"]>(["services", "service-payment-options", "product-services"]);
+const preferredBrands = ["Lymow", "Yarbo", "Pandag", "Aftermarket"];
 function PricingFacts({ item }: {
     item: PricingItem;
 }) {
@@ -742,6 +747,31 @@ function initialDraft(item: PricingItem) {
         return [field, value ?? ""];
     }));
 }
+
+function proposedCustomerPrice(item: PricingItem, draft: Record<string, unknown>) {
+    if (item.activeScheduleName) return { price: item.effectivePriceCents, reason: `The active schedule “${item.activeScheduleName}” continues to control customer pricing.` };
+    if (item.effectiveSource === "quote_only") return { price: null, reason: item.effectiveExplanation ?? "This amount is not currently customer-facing." };
+    if (item.effectiveSource === "unpriced") return { price: null, reason: item.effectiveExplanation ?? "A different catalog row controls customer pricing." };
+    const prefix = item.kind === "product-services" ? "override_" : "";
+    const centsFromDraft = (field: string) => {
+        const value = draft[field];
+        if (value === "" || value === null || value === undefined) return null;
+        const dollars = Number(value);
+        return Number.isFinite(dollars) ? Math.round(dollars * 100) : null;
+    };
+    const show = prefix ? draft.override_show_public_price !== "false" : draft.show_public_price !== false;
+    const contact = prefix ? draft.override_contact_for_pricing === "true" : draft.contact_for_pricing === true;
+    if (draft.public_status === "hidden") return { price: null, reason: "The catalog record will remain hidden from customers." };
+    if (!show || contact) return { price: null, reason: contact ? "Contact for Pricing will suppress the customer amount." : "Show Public Price is off." };
+    const decision = sellingPriceDecision({
+        display_msrp_price_cents: centsFromDraft(`${prefix}display_msrp_price_cents`),
+        regular_price_cents: centsFromDraft(`${prefix}regular_price_cents`),
+        sale_price_cents: centsFromDraft(`${prefix}sale_price_cents`),
+        sale_starts_at: centralDateTimeInputToIso(String(draft[`${prefix}sale_starts_at`] ?? "")),
+        sale_ends_at: centralDateTimeInputToIso(String(draft[`${prefix}sale_ends_at`] ?? "")),
+    }, item.pricingProgramEnabled !== false);
+    return { price: decision.priceCents, reason: `${decision.source === "temporary_sale" ? "Temporary Sale" : decision.source === "manufacturer_msrp" ? "Manufacturer MSRP" : "IDS Everyday Low Price"} would control after save.` };
+}
 export default function PricingAdminPage() {
     const [authed, setAuthed] = useState<boolean | null>(null);
     const [password, setPassword] = useState("");
@@ -750,6 +780,12 @@ export default function PricingAdminPage() {
     const [search, setSearch] = useState("");
     const [kind, setKind] = useState("all");
     const [brand, setBrand] = useState("all");
+    const [view, setView] = useState<PricingView>("overview");
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
+    const firstMenuItemRef = useRef<HTMLButtonElement>(null);
+    const editorReturnFocusRef = useRef<HTMLElement | null>(null);
+    const urlInitializedRef = useRef(false);
     const [editing, setEditing] = useState<PricingItem | null>(null);
     const [draft, setDraft] = useState<Record<string, unknown>>({});
     const [saving, setSaving] = useState(false);
@@ -824,10 +860,56 @@ export default function PricingAdminPage() {
     }, []);
 
     useEffect(() => {
-        if (authed === true) {
+        if (authed === true && view === "imports") {
             void loadSaleImports();
         }
-    }, [authed, loadSaleImports]);
+    }, [authed, loadSaleImports, view]);
+
+    useEffect(() => {
+        if (!menuOpen) return;
+        firstMenuItemRef.current?.focus();
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setMenuOpen(false);
+                menuButtonRef.current?.focus();
+            }
+        };
+        window.addEventListener("keydown", closeOnEscape);
+        return () => window.removeEventListener("keydown", closeOnEscape);
+    }, [menuOpen]);
+
+    useEffect(() => {
+        if (!editing) return;
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === "Escape" && !saving) closeEditor();
+        };
+        window.addEventListener("keydown", closeOnEscape);
+        return () => window.removeEventListener("keydown", closeOnEscape);
+    }, [editing, saving]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (!urlInitializedRef.current) return;
+        const query = new URLSearchParams(window.location.search);
+        query.set("view", view);
+        if (view === "manual" && brand !== "all") query.set("brand", brand);
+        else query.delete("brand");
+        window.history.replaceState(null, "", `${window.location.pathname}?${query.toString()}`);
+    }, [view, brand]);
+
+    useEffect(() => {
+        const applyLocation = () => {
+            const query = new URLSearchParams(window.location.search);
+            const requestedView = query.get("view");
+            if (["overview", "manual", "services", "imports", "schedules", "program"].includes(requestedView ?? "")) setView(requestedView as PricingView);
+            const requestedBrand = query.get("brand");
+            setBrand(requestedBrand ?? "all");
+            urlInitializedRef.current = true;
+        };
+        applyLocation();
+        window.addEventListener("popstate", applyLocation);
+        return () => window.removeEventListener("popstate", applyLocation);
+    }, []);
 
     async function uploadSaleImport(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -1057,7 +1139,8 @@ export default function PricingAdminPage() {
     }
     else
         setMessage("Invalid password."); }
-    function edit(item: PricingItem) { setEditing(item); setDraft(initialDraft(item)); setMessage(""); }
+    function closeEditor() { setEditing(null); requestAnimationFrame(() => editorReturnFocusRef.current?.focus()); }
+    function edit(item: PricingItem) { editorReturnFocusRef.current = document.activeElement as HTMLElement | null; setEditing(item); setDraft(initialDraft(item)); setMessage(""); }
     async function setAvailability(item: PricingItem, status: boolean | "active" | "unavailable" | "hidden") {
         const nextStatus = typeof status === "boolean" ? status ? "active" : "unavailable" : status;
         const available = nextStatus === "active";
@@ -1074,7 +1157,7 @@ export default function PricingAdminPage() {
             publicStatus: candidate.availabilityField === "public_status" ? nextStatus : candidate.publicStatus,
             values: { ...candidate.values, [candidate.availabilityField]: candidate.availabilityField === "is_available" ? available : nextStatus },
         } : candidate));
-        const body = item.availabilityField === "is_available" ? { is_available: available } : { public_status: nextStatus };
+        const body = item.availabilityField === "is_available" ? { is_available: available, expectedUpdatedAt: item.updatedAt } : { public_status: nextStatus, expectedUpdatedAt: item.updatedAt };
         try {
             const response = await fetch(`/api/admin/pricing/${item.kind}/${item.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
             const payload = await response.json().catch(() => ({}));
@@ -1102,30 +1185,59 @@ export default function PricingAdminPage() {
                 body[field] = Number.isFinite(dollars) ? Math.round(dollars * 100) : value;
             }
         }
-        else if (dateFields.has(field))
-            body[field] = value ? new Date(String(value)).toISOString() : null;
+        else if (dateFields.has(field)) {
+            const iso = centralDateTimeInputToIso(typeof value === "string" ? value : null);
+            if (value && !iso) {
+                setSaving(false);
+                setMessage("Enter a valid Central Time. Times skipped by daylight-saving changes are not valid.");
+                return;
+            }
+            body[field] = iso;
+        }
         else if (nullableBooleanFields.has(field))
             body[field] = value === "inherit" ? null : value === "true";
         else
             body[field] = value;
-    } const response = await fetch(`/api/admin/pricing/${editing.kind}/${editing.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const payload = await response.json().catch(() => ({})); setSaving(false); if (!response.ok) {
+    } body.expectedUpdatedAt = editing.updatedAt; const response = await fetch(`/api/admin/pricing/${editing.kind}/${editing.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); const payload = await response.json().catch(() => ({})); setSaving(false); if (!response.ok) {
         setMessage(payload.error ?? "Pricing update failed.");
         return;
-    } setItems(current => current.map(item => item.kind === payload.item.kind && item.id === payload.item.id ? payload.item : item)); setEditing(null); setMessage(`${payload.item.name} pricing saved successfully.`); }
-    const brands = useMemo(() => [...new Set(items.map(item => item.brand ?? item.productName?.split(" ")[0] ?? null).filter(Boolean) as string[])].sort(), [items]);
-    const filtered = useMemo(() => items.filter(item => { const query = search.trim().toLowerCase(); const matchesSearch = !query || [item.name, item.slug, item.brand, item.productName, item.targetLabel].some(value => value?.toLowerCase().includes(query)); const matchesKind = kind === "all" || item.kind === kind; const matchesBrand = brand === "all" || [item.brand, item.productName].some(value => value?.toLowerCase().includes(brand.toLowerCase())); return matchesSearch && matchesKind && matchesBrand; }), [items, search, kind, brand]);
+    } setItems(current => current.map(item => item.kind === payload.item.kind && item.id === payload.item.id ? payload.item : item)); closeEditor(); const checkoutMessage = typeof payload.item.checkoutPriceCents === "number" ? ` Checkout price: ${money(payload.item.checkoutPriceCents)}.` : ""; setMessage(payload.item.effectivePriceCents === null ? `Saved. ${payload.item.effectiveExplanation ?? "This amount is not currently customer-facing."}` : `Saved. Customer price is now ${money(payload.item.effectivePriceCents)}. Source: ${payload.item.effectiveSourceLabel ?? payload.item.storedAtLabel}.${checkoutMessage}`); }
+    const brands = useMemo(() => {
+        const available = [...new Set(items.filter(item => equipmentKinds.has(item.kind)).map(item => item.brand).filter(Boolean) as string[])];
+        return available.sort((a, b) => {
+            const aIndex = preferredBrands.indexOf(a); const bIndex = preferredBrands.indexOf(b);
+            if (aIndex !== -1 || bIndex !== -1) return (aIndex === -1 ? 99 : aIndex) - (bIndex === -1 ? 99 : bIndex);
+            return a.localeCompare(b);
+        });
+    }, [items]);
+    const filtered = useMemo(() => items.filter(item => {
+        const query = search.trim().toLowerCase();
+        const matchesSearch = !query || [item.name, item.slug, item.sku, item.brand, item.productName, item.targetLabel].some(value => value?.toLowerCase().includes(query));
+        const matchesWorkspace = view === "manual" ? equipmentKinds.has(item.kind) && (brand === "all" || item.brand === brand) : view === "services" ? serviceKinds.has(item.kind) : view === "schedules" ? item.kind === "schedules" : false;
+        const matchesKind = kind === "all" || item.kind === kind || kind === "sale" && item.saleState === "active" || kind === "upcoming" && item.saleState === "upcoming" || kind === "unavailable" && !item.isAvailable || kind === "contact" && (item.effectiveSource === "contact_for_pricing" || item.quoteOnly);
+        return matchesSearch && matchesWorkspace && matchesKind;
+    }), [items, search, kind, brand, view]);
     if (authed === null)
         return <main className="min-h-screen bg-slate-100 p-6">Loading admin…</main>;
     if (!authed)
         return <main className="flex min-h-screen items-center justify-center bg-slate-100 p-6"><form onSubmit={login} className="w-full max-w-md rounded-[2rem] bg-white p-8 shadow-xl"><p className="text-sm font-bold uppercase tracking-[.2em] text-emerald-700">IDS Admin</p><h1 className="mt-2 text-3xl font-black">Pricing Management</h1><p className="mt-3 text-slate-600">Use the existing IDS administrator password.</p><label className="mt-6 block font-bold">Admin password<input type="password" required value={password} onChange={event => setPassword(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3"/></label><button className="mt-5 w-full rounded-xl bg-slate-950 px-5 py-3 font-black text-white">Sign In</button>{message && <p role="alert" className="mt-4 text-red-700">{message}</p>}</form></main>;
-    return <main className="min-h-screen bg-slate-100 p-5 text-slate-950 md:p-10"><div className="mx-auto max-w-7xl"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="text-sm font-bold uppercase tracking-[.2em] text-emerald-700">IDS Admin</p><h1 className="text-4xl font-black">Pricing Management</h1></div><button onClick={async () => { await fetch("/api/admin/reviews/login", { method: "DELETE" }); setAuthed(false); }} className="rounded-xl border px-4 py-2 font-bold">Sign Out</button></div>
-  <PricingProgramToggle />
-  <div className="mt-7 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-bold text-amber-950">Checkout pricing order is controlled by the IDS Everyday Low Price Program switch above. Active Temporary Sale Price always takes priority.</div>
-  <div className="mt-3 rounded-2xl border-2 border-amber-400 bg-amber-50 p-4 font-black text-amber-950">Pricing changes made here directly control the public storefront and checkout pricing.</div>
-  <p className="mt-2 font-semibold text-slate-700">Manufacturer sync and catalog imports cannot automatically change IDS selling prices.</p>
-  <PackageCorePricing />
+    const proposed = editing ? proposedCustomerPrice(editing, draft) : null;
+    const activeSales = items.filter(item => item.saleState === "active").length;
+    const upcomingSales = items.filter(item => item.saleState === "upcoming").length;
+    const contactPrices = items.filter(item => item.effectiveSource === "contact_for_pricing" || item.quoteOnly).length;
+    const selectWorkspace = (nextView: PricingView, nextBrand = "all") => {
+        setView(nextView); setBrand(nextBrand); setSearch(""); setKind("all"); setMenuOpen(false); menuButtonRef.current?.focus();
+    };
+    return <main className="min-h-screen bg-slate-100 p-4 text-slate-950 sm:p-5 md:p-10"><div className="mx-auto max-w-7xl"><header className="flex flex-wrap items-start justify-between gap-4"><div className="flex items-start gap-3"><button ref={menuButtonRef} type="button" aria-label="Open pricing menu" aria-expanded={menuOpen} aria-controls="pricing-menu" onClick={() => setMenuOpen(true)} className="flex min-h-12 min-w-12 items-center justify-center rounded-xl border border-slate-300 bg-white text-2xl font-black shadow-sm">☰</button><div><p className="text-sm font-bold uppercase tracking-[.2em] text-emerald-700">IDS Admin</p><h1 className="text-3xl font-black sm:text-4xl">Pricing Management</h1><p className="mt-1 text-sm font-semibold text-slate-600">{view === "manual" ? `Manual Price Changes${brand !== "all" ? ` / ${brand}` : ""}` : view === "services" ? "Services & Deployment" : view === "imports" ? "Manufacturer Price Sheets" : view === "schedules" ? "Sales / Price Schedules" : view === "program" ? "Pricing Program Settings" : "Overview"}</p></div></div><button onClick={async () => { await fetch("/api/admin/reviews/login", { method: "DELETE" }); setAuthed(false); }} className="rounded-xl border px-4 py-2 font-bold">Sign Out</button></header>
+  {menuOpen && <div className="fixed inset-0 z-[60] bg-slate-950/60" onMouseDown={event => { if (event.target === event.currentTarget) { setMenuOpen(false); menuButtonRef.current?.focus(); } }}><aside id="pricing-menu" aria-label="Pricing menu" className="h-full w-[min(88vw,22rem)] overflow-y-auto bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-3"><h2 className="text-xl font-black">Pricing Menu</h2><button type="button" aria-label="Close pricing menu" onClick={() => { setMenuOpen(false); menuButtonRef.current?.focus(); }} className="min-h-11 rounded-xl border px-4 font-black">Close</button></div><nav className="mt-5 space-y-2"><button ref={firstMenuItemRef} type="button" aria-current={view === "overview" ? "page" : undefined} onClick={() => selectWorkspace("overview")} className={`w-full rounded-xl px-4 py-3 text-left font-black ${view === "overview" ? "bg-slate-950 text-white" : "bg-slate-100"}`}>Overview</button><div className="rounded-2xl border border-slate-200 p-2"><button type="button" aria-current={view === "manual" && brand === "all" ? "page" : undefined} onClick={() => selectWorkspace("manual")} className="w-full rounded-xl px-3 py-2 text-left font-black">Manual Price Changes</button><div className="mt-1 space-y-1 border-l-2 border-slate-200 pl-3">{brands.map(value => <button key={value} type="button" aria-current={view === "manual" && brand === value ? "page" : undefined} onClick={() => selectWorkspace("manual", value)} className={`block min-h-11 w-full rounded-lg px-3 py-2 text-left font-bold ${view === "manual" && brand === value ? "bg-emerald-100 text-emerald-950 ring-2 ring-emerald-700" : "hover:bg-slate-100"}`}>{value}</button>)}</div></div>{(["services", "imports", "schedules", "program"] as PricingView[]).map((value) => <button key={value} type="button" aria-current={view === value ? "page" : undefined} onClick={() => selectWorkspace(value)} className={`w-full rounded-xl px-4 py-3 text-left font-black ${view === value ? "bg-slate-950 text-white" : "bg-slate-100"}`}>{value === "services" ? "Services & Deployment" : value === "imports" ? "Manufacturer Price Sheets" : value === "schedules" ? "Sales / Price Schedules" : "Pricing Program Settings"}</button>)}</nav></aside></div>}
 
-  <section className="mt-6 rounded-3xl border-2 border-blue-300 bg-white p-5 shadow-sm md:p-6">
+  {view === "overview" && <section className="mt-7 space-y-5"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase text-slate-500">Active sales</p><p className="mt-1 text-3xl font-black">{activeSales}</p></div><div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase text-slate-500">Upcoming sales</p><p className="mt-1 text-3xl font-black">{upcomingSales}</p></div><div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase text-slate-500">Contact / quote only</p><p className="mt-1 text-3xl font-black">{contactPrices}</p></div><div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-black uppercase text-slate-500">Catalog records</p><p className="mt-1 text-3xl font-black">{items.length}</p></div></div><div className="rounded-3xl bg-white p-5 shadow-sm"><h2 className="text-2xl font-black">Quick actions</h2><div className="mt-4 flex flex-wrap gap-3"><button type="button" onClick={() => selectWorkspace("manual", brands[0] ?? "all")} className="rounded-xl bg-emerald-700 px-5 py-3 font-black text-white">Manual Price Changes</button><button type="button" onClick={() => selectWorkspace("imports")} className="rounded-xl bg-slate-950 px-5 py-3 font-black text-white">Upload Price Sheet</button><button type="button" onClick={() => { selectWorkspace("manual"); setKind("sale"); }} className="rounded-xl border border-slate-300 px-5 py-3 font-black">View Active Sales</button></div><p className="mt-5 max-w-3xl text-sm leading-6 text-slate-600">Customer price precedence: an active price schedule selects the pricing row, then an active temporary sale wins; otherwise the pricing program selects IDS Everyday Low Price or Manufacturer MSRP. Quote-only and Contact for Pricing suppress self-service pricing.</p></div></section>}
+
+  {view === "program" && <><PricingProgramToggle onChanged={load} />
+  <div className="mt-7 rounded-2xl border border-amber-300 bg-amber-50 p-4 font-bold text-amber-950">Active Temporary Sale Price always takes priority. When the program is on, IDS Everyday Low Price follows; when off, Manufacturer MSRP is used where available.</div></>}
+  {view === "manual" && brand === "Yarbo" && <PackageCorePricing />}
+
+  {view === "imports" && <section className="mt-6 rounded-3xl border-2 border-blue-300 bg-white p-5 shadow-sm md:p-6">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div>
         <p className="text-sm font-black uppercase tracking-[.18em] text-blue-700">
@@ -1748,11 +1860,25 @@ export default function PricingAdminPage() {
         </div>
       </details>
     )}
-  </section>
-  <div className="mt-6 grid gap-4 rounded-2xl bg-white p-5 md:grid-cols-3"><label className="font-bold">Search<input value={search} onChange={event => setSearch(event.target.value)} placeholder="Name or slug" className="mt-2 w-full rounded-xl border p-3"/></label><label className="font-bold">Type<select value={kind} onChange={event => setKind(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3"><option value="all">All categories</option>{Object.entries({ products: "Equipment", variants: "Product Variants", packages: "Packages", options: "Modules / Options", services: "Services", "service-payment-options": "Service Payment Options", "product-services": "Product-Service Overrides", schedules: "Price Schedules" }).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="font-bold">Brand / Product<select value={brand} onChange={event => setBrand(event.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3"><option value="all">All brands</option>{brands.map(value => <option key={value}>{value}</option>)}</select></label></div>
-  {message && <p role="status" className="mt-5 rounded-xl bg-white p-4 font-bold">{message}</p>}<p className="mt-6 font-bold">{filtered.length} pricing records</p><div className="mt-4 grid gap-4 lg:grid-cols-2">{filtered.map(item => <article key={`${item.kind}:${item.id}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">{item.category}</p><h2 className="mt-1 text-xl font-black">{item.name}</h2><p className="text-sm text-slate-500">{[item.slug, item.brand, item.productName].filter(Boolean).join(" · ")}</p>{item.targetLabel && <p className="mt-1 text-sm font-bold">Target: {item.targetLabel}</p>}</div><button onClick={() => edit(item)} className="rounded-xl bg-slate-950 px-4 py-2 font-black text-white">Edit</button></div><div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3"><span className="mr-1 text-xs font-black uppercase tracking-[.16em] text-slate-700">Available</span><button type="button" aria-pressed={item.availabilityStatus === "active"} disabled={Boolean(availabilitySavingKey)} onClick={() => void setAvailability(item, "active")} className={`rounded-lg px-4 py-2 text-sm font-black ${item.availabilityStatus === "active" ? "bg-emerald-600 text-white" : "border border-slate-300 bg-white text-slate-700"} disabled:cursor-wait disabled:opacity-60`}>ON</button><button type="button" aria-pressed={item.availabilityStatus === "unavailable"} disabled={Boolean(availabilitySavingKey)} onClick={() => void setAvailability(item, "unavailable")} className={`rounded-lg px-4 py-2 text-sm font-black ${item.availabilityStatus === "unavailable" ? "bg-slate-950 text-white" : "border border-slate-300 bg-white text-slate-700"} disabled:cursor-wait disabled:opacity-60`}>OFF</button>{item.availabilityField === "public_status" && <button type="button" aria-pressed={item.availabilityStatus === "hidden"} disabled={Boolean(availabilitySavingKey)} onClick={() => void setAvailability(item, "hidden")} className={`rounded-lg px-4 py-2 text-sm font-black ${item.availabilityStatus === "hidden" ? "bg-red-700 text-white" : "border border-red-300 bg-white text-red-700"} disabled:cursor-wait disabled:opacity-60`}>HIDDEN</button>}<span className={`ml-auto rounded-full px-3 py-1 text-xs font-black uppercase ${item.availabilityStatus === "hidden" ? "bg-red-100 text-red-900" : item.isAvailable ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-950"}`}>{availabilitySavingKey === `${item.kind}:${item.id}` ? "SAVING…" : item.availabilityStatus === "active" ? "AVAILABLE" : item.availabilityStatus === "unavailable" ? "UNAVAILABLE" : item.availabilityStatus.replaceAll("_", " ")}</span></div><div className="mt-4 flex flex-wrap gap-2"><span className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold">Effective: {money(item.effectivePriceCents)}</span>{item.activeScheduleName && <span className="rounded-full bg-blue-100 px-3 py-1 text-sm font-black text-blue-900">Active schedule: {item.activeScheduleName}</span>}{item.quoteOnly && <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-900">Quote only — not self-service</span>}</div><PricingFacts item={item}/></article>)}</div></div>
-  {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4" onMouseDown={event => { if (event.target === event.currentTarget && !saving)
-        setEditing(null); }}><div role="dialog" aria-modal="true" aria-labelledby="pricing-edit-heading" className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl sm:p-8"><div className="flex justify-between gap-4"><div><p className="text-sm font-bold uppercase text-emerald-700">{editing.category}</p><h2 id="pricing-edit-heading" className="text-2xl font-black">Edit {editing.name}</h2></div><button type="button" onClick={() => setEditing(null)} className="h-fit rounded-xl border px-3 py-2 font-bold">Close</button></div>{editing.kind === "product-services" && <p className="mt-4 rounded-xl bg-blue-50 p-3 font-bold text-blue-900">Blank = inherit base service pricing</p>}{editing.quoteOnly && <p className="mt-4 rounded-xl bg-amber-50 p-3 font-bold text-amber-950">This product remains quote-only. Pricing changes do not enable self-service checkout.</p>}<form onSubmit={save} className="mt-5 grid gap-4 sm:grid-cols-2">{editablePricingFields[editing.kind].map(field => <label key={field} className="font-bold">{fieldLabel(editing.kind, field)}{priceFields.has(field) ? <input type="number" min="0" step="0.01" value={String(draft[field] ?? "")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} placeholder="2799.00" className="mt-2 w-full rounded-xl border p-3"/> : dateFields.has(field) ? <input type="datetime-local" required={editing.kind === "schedules" && field === "starts_at"} value={String(draft[field] ?? "")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} className="mt-2 w-full rounded-xl border p-3"/> : booleanFields.has(field) ? <input type="checkbox" checked={Boolean(draft[field])} onChange={event => setDraft(current => ({ ...current, [field]: event.target.checked }))} className="ml-3 h-5 w-5 accent-emerald-600"/> : nullableBooleanFields.has(field) ? <select value={String(draft[field] ?? "inherit")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} className="mt-2 w-full rounded-xl border bg-white p-3"><option value="inherit">Blank — inherit</option><option value="true">Yes</option><option value="false">No</option></select> : field === "public_status" ? <select value={String(draft[field] ?? "hidden")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} className="mt-2 w-full rounded-xl border bg-white p-3">{["active", "unavailable", "coming_soon", "hidden"].map(value => <option key={value}>{value}</option>)}</select> : <input maxLength={160} required={field === "schedule_name"} value={String(draft[field] ?? "")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} className="mt-2 w-full rounded-xl border p-3"/>}</label>)}<div className="sm:col-span-2"><p className="mb-4 rounded-xl bg-amber-50 p-3 font-bold text-amber-950">Checkout pricing order: Active Temporary Sale Price → IDS Everyday Price. Manufacturer / Comparison Price is display-only and is never charged.</p><button disabled={saving} className="rounded-xl bg-emerald-600 px-6 py-3 font-black text-white disabled:opacity-60">{saving ? "Saving…" : "Save Pricing"}</button></div></form><PricingPromotionEditor
+  </section>}
+  {(view === "manual" || view === "services" || view === "schedules") && <section aria-labelledby="pricing-workspace-title"><div className="mt-6 grid min-w-0 gap-4 rounded-2xl bg-white p-5 md:grid-cols-3"><label className="min-w-0 font-bold md:col-span-2">Search<input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search name, slug, SKU, package, module, or option" className="mt-2 min-w-0 w-full rounded-xl border p-3"/></label><label className="min-w-0 font-bold">Filter<select value={kind} onChange={event => setKind(event.target.value)} className="mt-2 min-w-0 w-full rounded-xl border bg-white p-3"><option value="all">All</option>{view === "manual" && <><option value="products">Machines</option><option value="variants">Models / Configurations</option><option value="packages">Packages</option><option value="options">Modules / Accessories</option></>}{view === "services" && <><option value="services">Services</option><option value="service-payment-options">Payment Options</option><option value="product-services">Product Overrides</option></>}<option value="sale">On Sale</option><option value="upcoming">Upcoming Sale</option><option value="unavailable">Unavailable</option><option value="contact">Contact / Quote</option></select></label>{view === "manual" && <div className="min-w-0 md:col-span-3"><p className="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Brand</p><div className="flex max-w-full gap-2 overflow-x-auto pb-1"><button type="button" aria-pressed={brand === "all"} onClick={() => setBrand("all")} className={`shrink-0 rounded-xl px-4 py-2 font-black ${brand === "all" ? "bg-slate-950 text-white" : "border bg-white"}`}>All brands</button>{brands.map(value => <button key={value} type="button" aria-pressed={brand === value} onClick={() => setBrand(value)} className={`shrink-0 rounded-xl px-4 py-2 font-black ${brand === value ? "bg-emerald-700 text-white" : "border bg-white"}`}>{value}</button>)}</div></div>}</div>
+  {message && <p role="status" className="mt-5 rounded-xl bg-white p-4 font-bold">{message}</p>}
+  <p id="pricing-workspace-title" className="mt-6 font-bold">{filtered.length} pricing records</p>
+  <div className="mt-4 grid gap-4 lg:grid-cols-2">{filtered.map(item => (
+    <article key={`${item.kind}:${item.id}`} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-[.16em] text-emerald-700">{item.category}</p><h2 className="mt-1 text-xl font-black">{item.name}</h2><p className="text-sm text-slate-500">{[item.slug, item.sku, item.brand, item.productName].filter(Boolean).join(" · ")}</p>{item.targetLabel && <p className="mt-1 text-sm font-bold">Target: {item.targetLabel}</p>}</div><button onClick={() => edit(item)} className="min-h-11 rounded-xl bg-slate-950 px-4 py-2 font-black text-white">Edit</button></div>
+      <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 sm:grid-cols-3"><div><p className="text-xs font-black uppercase text-slate-500">Current customer price</p><p className="mt-1 text-xl font-black">{money(item.effectivePriceCents)}</p></div><div><p className="text-xs font-black uppercase text-slate-500">Price source</p><p className="mt-1 font-black">{item.effectiveSourceLabel ?? item.storedAtLabel ?? item.category}</p></div><div><p className="text-xs font-black uppercase text-slate-500">Sale state</p><p className="mt-1 font-black">{item.saleState === "active" ? "ACTIVE" : (item.saleState ?? "none").replaceAll("_", " ")}</p></div></div>
+      <p className="mt-3 text-sm font-semibold text-slate-700"><span className="font-black">Stored at:</span> {item.storedAtLabel ?? item.category}</p><p className="mt-1 text-sm text-slate-600">{item.effectiveExplanation}</p>
+      <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3"><span className="mr-1 text-xs font-black uppercase tracking-[.16em] text-slate-700">Available</span><button type="button" aria-pressed={item.availabilityStatus === "active"} disabled={Boolean(availabilitySavingKey)} onClick={() => void setAvailability(item, "active")} className={`min-h-10 rounded-lg px-4 py-2 text-sm font-black ${item.availabilityStatus === "active" ? "bg-emerald-600 text-white" : "border border-slate-300 bg-white text-slate-700"} disabled:cursor-wait disabled:opacity-60`}>ON</button><button type="button" aria-pressed={item.availabilityStatus === "unavailable"} disabled={Boolean(availabilitySavingKey)} onClick={() => void setAvailability(item, "unavailable")} className={`min-h-10 rounded-lg px-4 py-2 text-sm font-black ${item.availabilityStatus === "unavailable" ? "bg-slate-950 text-white" : "border border-slate-300 bg-white text-slate-700"} disabled:cursor-wait disabled:opacity-60`}>OFF</button>{item.availabilityField === "public_status" && <button type="button" aria-pressed={item.availabilityStatus === "hidden"} disabled={Boolean(availabilitySavingKey)} onClick={() => void setAvailability(item, "hidden")} className={`min-h-10 rounded-lg px-4 py-2 text-sm font-black ${item.availabilityStatus === "hidden" ? "bg-red-700 text-white" : "border border-red-300 bg-white text-red-700"} disabled:cursor-wait disabled:opacity-60`}>HIDDEN</button>}<span className={`ml-auto rounded-full px-3 py-1 text-xs font-black uppercase ${item.availabilityStatus === "hidden" ? "bg-red-100 text-red-900" : item.isAvailable ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-950"}`}>{availabilitySavingKey === `${item.kind}:${item.id}` ? "SAVING…" : item.availabilityStatus === "active" ? "AVAILABLE" : item.availabilityStatus === "unavailable" ? "UNAVAILABLE" : item.availabilityStatus.replaceAll("_", " ")}</span></div>
+      <PricingFacts item={item}/>
+    </article>
+  ))}</div></section>}
+  {editing && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget && !saving) closeEditor(); }}><div role="dialog" aria-modal="true" aria-labelledby="pricing-edit-heading" className="max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-5 shadow-2xl sm:p-8"><div className="flex justify-between gap-4"><div><p className="text-sm font-bold uppercase text-emerald-700">{editing.category}</p><h2 id="pricing-edit-heading" className="text-2xl font-black">Edit {editing.name}</h2><p className="mt-1 text-sm font-semibold text-slate-600">Stored at: {editing.storedAtLabel ?? editing.category}</p></div><button type="button" autoFocus onClick={closeEditor} className="h-fit min-h-11 rounded-xl border px-3 py-2 font-bold">Close</button></div>
+    {editing.activeScheduleName && <div className="mt-4 rounded-xl border-2 border-blue-300 bg-blue-50 p-4 font-bold text-blue-950">Customer pricing is currently controlled by active schedule: {editing.activeScheduleName}. <button type="button" onClick={() => { closeEditor(); selectWorkspace("schedules"); }} className="underline">Inspect schedules</button></div>}
+    {editing.kind === "product-services" && <p className="mt-4 rounded-xl bg-blue-50 p-3 font-bold text-blue-900">Blank = inherit base service pricing</p>}{editing.quoteOnly && <p className="mt-4 rounded-xl bg-amber-50 p-3 font-bold text-amber-950">Quote-only — stored catalog amounts are not displayed as customer checkout pricing.</p>}
+    <p className="mt-4 text-sm font-semibold text-slate-700">Manufacturer / Comparison Price is display-only and is never charged while the IDS Everyday Low Price Program is on.</p>
+    <div className="mt-5 grid gap-3 rounded-2xl bg-slate-100 p-4 sm:grid-cols-2"><div><p className="text-xs font-black uppercase text-slate-600">Current customer price</p><p className="text-2xl font-black">{money(editing.effectivePriceCents)}</p><p className="mt-1 text-sm">{editing.effectiveSourceLabel}</p></div><div><p className="text-xs font-black uppercase text-slate-600">Proposed customer price</p><p className="text-2xl font-black">{money(proposed?.price ?? null)}</p><p className="mt-1 text-sm">{proposed?.reason}</p></div></div>
+    <form onSubmit={save} className="mt-5 grid gap-4 sm:grid-cols-2">{editablePricingFields[editing.kind].map(field => <label key={field} className="font-bold">{fieldLabel(editing.kind, field)}{priceFields.has(field) ? <input type="number" min="0" step="0.01" value={String(draft[field] ?? "")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} placeholder="2799.00" className="mt-2 w-full rounded-xl border p-3"/> : dateFields.has(field) ? <><input type="datetime-local" required={editing.kind === "schedules" && field === "starts_at"} value={String(draft[field] ?? "")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} className="mt-2 w-full rounded-xl border p-3"/><span className="mt-1 block text-xs font-medium text-slate-600">Central Time{field.includes("end") ? " — the window stops at this exact time." : ""}</span></> : booleanFields.has(field) ? <input type="checkbox" checked={Boolean(draft[field])} onChange={event => setDraft(current => ({ ...current, [field]: event.target.checked }))} className="ml-3 h-5 w-5 accent-emerald-600"/> : nullableBooleanFields.has(field) ? <select value={String(draft[field] ?? "inherit")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} className="mt-2 w-full rounded-xl border bg-white p-3"><option value="inherit">Blank — inherit</option><option value="true">Yes</option><option value="false">No</option></select> : field === "public_status" ? <select value={String(draft[field] ?? "hidden")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} className="mt-2 w-full rounded-xl border bg-white p-3">{["active", "unavailable", "coming_soon", "hidden"].map(value => <option key={value}>{value}</option>)}</select> : <input maxLength={160} required={field === "schedule_name"} value={String(draft[field] ?? "")} onChange={event => setDraft(current => ({ ...current, [field]: event.target.value }))} className="mt-2 w-full rounded-xl border p-3"/>}</label>)}<div className="sm:col-span-2"><p className="mb-4 rounded-xl bg-amber-50 p-3 font-bold text-amber-950">Price order: active schedule row → active temporary sale → IDS Everyday Price (program ON) or Manufacturer MSRP (program OFF).</p><button disabled={saving} className="w-full rounded-xl bg-emerald-600 px-6 py-3 font-black text-white disabled:opacity-60 sm:w-auto">{saving ? "Saving…" : "Save Pricing"}</button></div></form><PricingPromotionEditor
     key={`${editing.kind}:${editing.id}`}
     item={editing}
     onSaved={(updated, label) => {
@@ -1766,5 +1892,5 @@ export default function PricingAdminPage() {
         setEditing(updated);
         setMessage(`${updated.name} ${label} saved successfully.`);
     }}
-/></div></div>}</main>;
+/></div></div>}</div></main>;
 }

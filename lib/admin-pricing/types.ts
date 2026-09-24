@@ -9,6 +9,16 @@ export type PricingPromotionMessage = {
   isPublic: boolean;
 };
 
+export type PricingEffectiveSource =
+  | "temporary_sale"
+  | "active_schedule"
+  | "ids_everyday"
+  | "manufacturer_msrp"
+  | "quote_only"
+  | "contact_for_pricing"
+  | "hidden_price"
+  | "unpriced";
+
 export type PricingItem = {
   id: string;
   kind: PricingKind;
@@ -17,6 +27,9 @@ export type PricingItem = {
   slug: string;
   brand: string | null;
   productName: string | null;
+  productId?: string | null;
+  productSlug?: string | null;
+  sku?: string | null;
   publicStatus: string | null;
   availabilityField: "public_status" | "is_available";
   availabilityStatus: string;
@@ -25,7 +38,15 @@ export type PricingItem = {
   targetLabel: string | null;
   values: Record<string, string | number | boolean | null>;
   effectivePriceCents: number | null;
+  checkoutPriceCents?: number | null;
+  effectiveSource?: PricingEffectiveSource;
+  effectiveSourceLabel?: string;
+  effectiveExplanation?: string;
+  storedAtLabel?: string;
+  saleState?: "none" | "upcoming" | "active" | "ended";
+  pricingProgramEnabled?: boolean;
   activeScheduleName: string | null;
+  updatedAt?: string;
 
   /** Dealer cost currently used for IDS profit/margin calculations. */
   dealerCostCents: number | null;

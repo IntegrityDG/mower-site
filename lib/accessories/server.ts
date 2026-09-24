@@ -1,27 +1,31 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import "server-only";
 import { getSupabaseServiceClient } from "@/lib/supabase";
+import { scheduledPublicPrice } from "@/lib/catalog/public-price";
+import type { ActivePriceSchedule } from "@/lib/catalog/active-price-schedule";
+import { readPricingProgramSettingsFailSafe } from "@/lib/pricing-program/server";
 import { AFTERMARKET_DISCLAIMER, type AccessoryAvailabilityStatus, type AccessoryCatalogResponse, type AccessoryItem, type AccessorySettings } from "./types";
 
 const SETTINGS_ID = "accessories";
-function currentPrice(row: Record<string, any>) {
-  const now = Date.now(); const starts = row.sale_starts_at ? Date.parse(row.sale_starts_at) : -Infinity; const ends = row.sale_ends_at ? Date.parse(row.sale_ends_at) : Infinity;
-  return row.sale_price_cents !== null && now >= starts && now <= ends ? row.sale_price_cents : row.regular_price_cents;
-}
 export function mapSettings(row: Record<string, any>): AccessorySettings {
   return { lymowEnabled: row.lymow_enabled, lymowLabel: row.lymow_label, yarboEnabled: row.yarbo_enabled, yarboLabel: row.yarbo_label, pandagEnabled: row.pandag_enabled, pandagLabel: row.pandag_label, pandagMessage: row.pandag_message, aftermarketEnabled: row.aftermarket_enabled, aftermarketLabel: row.aftermarket_label, featuredAftermarketEnabled: row.featured_aftermarket_enabled, featuredAftermarketImageUrl: row.featured_aftermarket_image_url, featuredAftermarketImageAlt: row.featured_aftermarket_image_alt, featuredAftermarketHeading: row.featured_aftermarket_heading, featuredAftermarketDescription: row.featured_aftermarket_description, featuredAftermarketIdsExclusive: row.featured_aftermarket_ids_exclusive, aftermarketDisclaimer: row.aftermarket_disclaimer?.trim() || AFTERMARKET_DISCLAIMER };
 }
-export function mapItem(row: Record<string, any>): AccessoryItem {
-  return { id: row.id, slug: row.option_slug, tab: row.accessory_tab, name: row.name, description: row.description, imageUrl: row.accessory_image_url, imageAlt: row.accessory_image_alt, badge: row.accessory_badge, idsExclusive: row.ids_exclusive, manufacturer: row.manufacturer_name, regularPriceCents: row.regular_price_cents, salePriceCents: row.sale_price_cents, currentPriceCents: currentPrice(row), promotionLabel: row.promotion_label, showPublicPrice: row.show_public_price, contactForPricing: row.contact_for_pricing, showInBuilder: row.show_in_builder, actionType: row.accessory_action_type ?? "none", actionLabel: row.accessory_action_label, actionUrl: row.accessory_action_url, priceText: row.accessory_price_text, sortOrder: row.sort_order, visible: row.accessory_listing_enabled && row.public_status !== "hidden", publicStatus: row.public_status };
+export function mapItem(row: Record<string, any>, schedules: readonly ActivePriceSchedule[] = [], now = Date.now(), everydayLowPriceEnabled = true): AccessoryItem {
+  const { price } = scheduledPublicPrice(row as Parameters<typeof scheduledPublicPrice>[0], schedules, "option", row.id, now, everydayLowPriceEnabled);
+  return { id: row.id, slug: row.option_slug, tab: row.accessory_tab, name: row.name, description: row.description, imageUrl: row.accessory_image_url, imageAlt: row.accessory_image_alt, badge: row.accessory_badge, idsExclusive: row.ids_exclusive, manufacturer: row.manufacturer_name, regularPriceCents: price.regularPriceCents, salePriceCents: price.salePriceCents, currentPriceCents: price.currentPriceCents, promotionLabel: price.promotionLabel, showPublicPrice: price.showPublicPrice, contactForPricing: price.contactForPricing, showInBuilder: row.show_in_builder, actionType: row.accessory_action_type ?? "none", actionLabel: row.accessory_action_label, actionUrl: row.accessory_action_url, priceText: row.accessory_price_text, sortOrder: row.sort_order, visible: row.accessory_listing_enabled && row.public_status !== "hidden", publicStatus: row.public_status };
 }
 export async function readAccessoryCatalog(admin = false): Promise<AccessoryCatalogResponse> {
   const client = getSupabaseServiceClient();
-  const [settingsResult, itemsResult] = await Promise.all([
+  const [settingsResult, itemsResult, schedulesResult, pricingProgram] = await Promise.all([
     client.from("accessory_catalog_settings").select("*").eq("id", SETTINGS_ID).single(),
     client.from("catalog_options").select("*").not("accessory_tab", "is", null).eq("admin_managed", true).order("sort_order").order("name"),
+    client.from("catalog_price_schedules").select("*").eq("public_status", "active").not("option_id", "is", null),
+    readPricingProgramSettingsFailSafe(),
   ]);
-  if (settingsResult.error || !settingsResult.data || itemsResult.error) throw new Error("Accessory catalog is unavailable.");
-  const settings = mapSettings(settingsResult.data); let items = (itemsResult.data ?? []).map(mapItem);
+  if (settingsResult.error || !settingsResult.data || itemsResult.error || schedulesResult.error) throw new Error("Accessory catalog is unavailable.");
+  const now = Date.now();
+  const schedules = (schedulesResult.data ?? []) as ActivePriceSchedule[];
+  const settings = mapSettings(settingsResult.data); let items = (itemsResult.data ?? []).map((row) => mapItem(row, schedules, now, pricingProgram.everydayLowPriceEnabled));
   if (!admin) items = items.filter((item) => item.visible && (item.tab !== "aftermarket" || settings.aftermarketEnabled)).map((item) => ({...item, visible: undefined}));
   return { settings, items };
 }

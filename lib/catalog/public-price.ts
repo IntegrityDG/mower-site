@@ -1,6 +1,7 @@
 ﻿import type { CatalogPrice } from "./types";
 import { applyActivePriceSchedule, selectActivePriceSchedule, type ActivePriceSchedule, type PriceScheduleTarget } from "./active-price-schedule";
 import { activeSalePriceCents, sellingPriceCents } from "@/lib/pricing-program/policy";
+import { priceWindowState } from "@/lib/pricing-program/window";
 
 export type PublicPriceRow = {
   display_msrp_price_cents: number | null;
@@ -19,13 +20,11 @@ export function priceFromRow(
   everydayLowPriceEnabled = true
 ): CatalogPrice {
   const saleIsActive = activeSalePriceCents(row, now) !== null;
-  const salePhase = row.sale_price_cents === null
-    ? "none" as const
-    : saleIsActive
-      ? "active" as const
-      : row.sale_starts_at && new Date(row.sale_starts_at).getTime() > now
-        ? "upcoming" as const
-        : "ended" as const;
+  const salePhase = priceWindowState(
+    row.sale_price_cents !== null,
+    { startsAt: row.sale_starts_at, endsAt: row.sale_ends_at },
+    now,
+  );
 
   return {
     displayMsrpPriceCents: row.display_msrp_price_cents,

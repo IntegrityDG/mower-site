@@ -1,3 +1,5 @@
+import { isWithinPriceWindow } from "@/lib/pricing-program/window";
+
 export type PriceScheduleTarget = "product" | "variant" | "option" | "package" | "service" | "product_service";
 
 export type ActivePriceSchedule = {
@@ -32,7 +34,7 @@ export type SchedulePriceRow = {
 export function selectActivePriceSchedule<T extends ActivePriceSchedule>(schedules: readonly T[], target: PriceScheduleTarget, targetId: string, now = Date.now()): T | null {
   const key = `${target}_id` as keyof T;
   return schedules
-    .filter((schedule) => schedule.public_status === "active" && schedule[key] === targetId && new Date(schedule.starts_at).getTime() <= now && (!schedule.ends_at || new Date(schedule.ends_at).getTime() >= now))
+    .filter((schedule) => schedule.public_status === "active" && schedule[key] === targetId && isWithinPriceWindow({ startsAt: schedule.starts_at, endsAt: schedule.ends_at }, now))
     .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime())[0] ?? null;
 }
 

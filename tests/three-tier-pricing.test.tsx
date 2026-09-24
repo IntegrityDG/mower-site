@@ -50,7 +50,7 @@ test("public display renders comparison, IDS everyday, and active temporary sale
   assert.match(html, /Manufacturer MSRP/); assert.match(html, /\$2,999/);
   assert.match(html, /IDS Everyday Low Price/); assert.match(html, /\$2,799/);
   assert.match(html, /Sale Price/); assert.match(html, /\$2,698/);
-  assert.match(html, /Sale ends August 20, 2026/);
+  assert.match(html, /Sale ends August 19, 2026 at 7:00 PM CDT/);
 });
 
 test("public display renders the selected public sale promotion message", () => {
@@ -62,7 +62,7 @@ test("public display renders the selected public sale promotion message", () => 
   };
   const html = renderToStaticMarkup(React.createElement(EverydayPriceDisplay, { item: price, comparisonLabel: "Lymow Everyday Price" }));
   assert.match(html, /Also receive a LYMOW branded Backpack/);
-  assert.ok(html.indexOf("Sale ends August 20, 2026") < html.indexOf("Also receive a LYMOW branded Backpack"));
+  assert.ok(html.indexOf("Sale ends August 19, 2026 at 7:00 PM CDT") < html.indexOf("Also receive a LYMOW branded Backpack"));
 });
 
 test("public display renders a responsive public promotion image with accessible alt text", () => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export default function PricingProgramToggle() {
+export default function PricingProgramToggle({ onChanged }: { onChanged?: () => void | Promise<void> }) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -56,6 +56,7 @@ export default function PricingProgramToggle() {
       }
 
       setEnabled(payload.settings.everydayLowPriceEnabled);
+      await onChanged?.();
       setMessage(
         payload.settings.everydayLowPriceEnabled
           ? "IDS Everyday Low Price Program enabled."

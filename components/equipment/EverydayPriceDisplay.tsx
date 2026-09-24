@@ -91,7 +91,10 @@ export default function EverydayPriceDisplay({
                   month: "long",
                   day: "numeric",
                   year: "numeric",
-                  timeZone: "UTC",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  timeZone: "America/Chicago",
+                  timeZoneName: "short",
                 }).format(new Date(item.saleEndsAt))}
               </p>
             )}
@@ -132,7 +135,10 @@ export default function EverydayPriceDisplay({
                 month: "long",
                 day: "numeric",
                 year: "numeric",
-                timeZone: "UTC",
+                hour: "numeric",
+                minute: "2-digit",
+                timeZone: "America/Chicago",
+                timeZoneName: "short",
               }).format(new Date(item.saleEndsAt))}
             </p>
           )}
