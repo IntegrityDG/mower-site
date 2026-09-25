@@ -2,6 +2,8 @@
 
 Date: September 8, 2026. Status: **complete and commit-ready; no remaining blocker.**
 
+The travel examples and current-policy description below reflect the September 25 correction. The original review's test counts and browser evidence remain historical.
+
 ## Locked Remote Support eligibility rule
 
 The authoritative eligibility source will be the website's own active Remote Support subscription records. IDS confirmed that this subscription system has not been implemented or launched and will be the next feature. The released repository and read-only Supabase schema inspection contain no existing subscriber implementation to connect. The released migration history ends with `20260907235702_installation_stripe_reconciliation`; this patch's migration has not been applied there.
@@ -51,13 +53,13 @@ This is informational equipment policy only. It adds no refund automation and ch
 | Installation only | $1,000 | $250 | $750 |
 | Installation + Setup | $1,500 | $250 | $1,250 |
 | Combined, 150-minute one-way drive | $1,535 | $250 | $1,285 |
-| Combined, 210-minute one-way drive | $1,570 | $250 | $1,320 |
+| Combined, 210-minute one-way drive | $1,605 | $250 | $1,355 |
 | Setup removed before work, no other charges | $1,000 | Original $250 retained | $750 |
 | Setup-only, no travel/parts | $500 | $250 | $250 |
 
 Installation retains $800 labor plus its $200 materials allowance. Setup has no allowance: customer-supplied blades carry no parts charge; actual customer-authorized IDS parts/consumables are reconciled separately. Removing Setup appends the base credit and retains the payment/deposit history and authorized actual parts expenses. It makes no refund call.
 
-Combined travel includes 120 one-way drive minutes from Williamsville, Missouri. It charges $35 per started excess one-way hour **total**: 120 minutes $0; 150 or 180 minutes $35; 210 minutes $70. No return-direction multiplier or second Setup travel line is added. Installation-only and genuinely separate Setup-only visits retain the existing round-trip travel calculation. Reconciliation targets the existing travel total, so repeating it or continuing work cannot accumulate another charge. Adding Setup to an existing Installation explicitly reconciles travel under the combined rule with an audited delta; removing Setup retains already approved travel.
+Every Installation, combined Installation + Setup, and separate Setup-only trip uses the same travel calculation. Four total round-trip drive hours from Williamsville, Missouri are included (up to two hours each way). Additional round-trip time costs $35 per started hour after total excess time is rounded once: 120 one-way minutes $0; 150 minutes $35; 180 minutes $70; 210 minutes $105. Installation + Setup on one physical trip has one travel charge. Repeating an explicit travel approval reconciles the existing ledger total without another charge. Adding or removing Setup preserves historical approved travel; IDS may explicitly recalculate or override travel with an audited operation.
 
 Installation and Setup have separate cumulative 240-minute included labor buckets. Sessions identify their component; corrections cannot switch it. Pause/resume retains each total. Setup overtime is $125/hour in started 15-minute increments: 240 minutes $0; 241 $31.25; 256 $62.50; 300 $125; 315 $156.25. Installation 300 / Setup 180 minutes produces $125 Installation overtime and no Setup overtime. Installation 180 / Setup 315 produces no Installation overtime and $156.25 Setup overtime. Travel, waiting, and lodging are excluded from Setup work time.
 
@@ -104,7 +106,7 @@ The isolated local fixture contains only the Demo structural dependencies needed
 
 ## Corrections found during review
 
-- Adding Setup after Installation approval now reconciles the prior round-trip travel price to the combined-trip price once, with history.
+- The later travel correction uses one round-trip formula for all trip types and preserves previously approved travel when Setup is added or removed; explicit travel approvals remain audited.
 - Legacy draft/approved records receive and retain the intended Setup price; admin fields no longer show an undefined-price value.
 - Add-on changes within 72 hours refresh the full initial amount, including a newly approved Setup price.
 - Setup-only wording and acknowledgment display identify the actual purchased service; zero discounts render as `$0.00`.

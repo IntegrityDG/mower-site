@@ -36,6 +36,20 @@ test("mobile drawer contains every requested destination and correct route links
   assert.match(navigation, /href="\/referral-program"/);
 });
 
+test("both hamburger menus use the existing Schedule Service/Demo link and close on activation", () => {
+  const action = readFileSync(new URL("../components/demo-scheduling/ScheduleDemoModal.tsx", import.meta.url), "utf8");
+  const footer = readFileSync(new URL("../components/footer/FooterActions.tsx", import.meta.url), "utf8");
+  for (const drawer of [navigation, desktopNavigation]) {
+    assert.equal((drawer.match(/<ScheduleDemoModal source="contact_ids"/g) ?? []).length, 1);
+    assert.match(drawer, /<ScheduleDemoModal source="contact_ids" onClick=\{onClose\}/);
+    assert.match(drawer, /overflow-y-auto/);
+    assert.ok(drawer.indexOf("ACCESSORIES &amp; PARTS") < drawer.indexOf('<ScheduleDemoModal source="contact_ids"'));
+  }
+  assert.match(action, /href=\{`\/services-scheduling\?service=demo&source=\$\{encodeURIComponent\(source\)\}#services-top`\}/);
+  assert.match(action, /onClick=\{onClick\}/);
+  assert.match(footer, /<ScheduleDemoModal source="contact_ids"/);
+});
+
 test("mobile home places Sales & Specials before Build and Bulletin Board before Spotlight", () => {
   const homeBranch = mobile.slice(mobile.indexOf('view === "home"'), mobile.indexOf('view !== "home"'));
   assert.match(homeBranch, /MobileHero/);

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
+import ScheduleDemoModal from "@/components/demo-scheduling/ScheduleDemoModal";
 import type { HomeView } from "@/lib/homepage-navigation";
 
 export type DesktopHomeView = HomeView;
@@ -52,7 +53,7 @@ export default function DesktopHomeNavigation({ open, activeView, onClose, onSel
   return (
     <div className="fixed inset-0 z-[100] hidden md:block">
       <button type="button" aria-label="Close desktop navigation" className="absolute inset-0 bg-slate-950/70" onClick={onClose} />
-      <aside id="desktop-navigation" role="dialog" aria-modal="true" aria-label="Desktop navigation" className="absolute right-0 top-0 flex h-full w-[min(34rem,44vw)] min-w-[25rem] flex-col bg-white p-7 shadow-2xl">
+      <aside id="desktop-navigation" role="dialog" aria-modal="true" aria-label="Desktop navigation" className="absolute right-0 top-0 flex h-full w-[min(34rem,44vw)] min-w-[25rem] flex-col overflow-y-auto bg-white p-7 shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 pb-5">
           <div><p className="text-xs font-black uppercase tracking-[.18em] text-emerald-700">Integrity Distribution Systems</p><p className="mt-1 text-xl font-black">Navigation</p></div>
           <button ref={closeButton} type="button" aria-label="Close desktop navigation" onClick={onClose} className="flex h-12 w-12 items-center justify-center rounded-xl text-3xl text-slate-700 hover:bg-slate-100">×</button>
@@ -60,6 +61,7 @@ export default function DesktopHomeNavigation({ open, activeView, onClose, onSel
         <nav className="mt-6 flex flex-col gap-2" aria-label="Desktop homepage">
           {viewItems.slice(0, 3).map((item) => <button key={item.view} type="button" aria-current={activeView === item.view ? "page" : undefined} onClick={() => choose(item.view)} className={buttonClass(item.primary, activeView === item.view)}>{item.label}</button>)}
           <Link href="/equipment/accessories" className="min-h-12 rounded-xl px-5 py-3 font-black tracking-wide text-slate-800 hover:bg-slate-100">ACCESSORIES &amp; PARTS</Link>
+          <ScheduleDemoModal source="contact_ids" onClick={onClose} triggerClassName="min-h-12 rounded-xl px-5 py-3 font-black tracking-wide text-slate-800 hover:bg-slate-100" />
           {viewItems.slice(3).map((item) => <button key={item.view} type="button" aria-current={activeView === item.view ? "page" : undefined} onClick={() => choose(item.view)} className={buttonClass(item.primary, activeView === item.view)}>{item.label}</button>)}
           <Link href="/dealer-tech-resources" className="mt-2 min-h-12 rounded-xl border-2 border-emerald-600 px-5 py-3 text-center font-black tracking-wide text-emerald-800 hover:bg-emerald-50">DEALER PORTAL</Link>
           <Link href="/referral-program" className="min-h-12 rounded-xl px-5 py-3 font-black tracking-wide text-slate-800 hover:bg-slate-100">REFERRAL PROGRAM</Link>

@@ -27,20 +27,25 @@ for (const [setup, total, remaining] of [[false, 100000, 75000], [true, 150000, 
   assert.equal(installationCheckoutAmount(balance(s), "deposit", 25000), 25000);
   s.payments.push(payment()); assert.equal(balance(s).balanceDueCents, remaining); assert.equal(installationCheckoutAmount(balance(s), "deposit", 25000), 0); assert.equal(installationCheckoutAmount(balance(s), "balance", 25000), remaining);
 });
-for (const [minutes, travel, remaining] of [[120, 0, 125000], [150, 3500, 128500], [180, 3500, 128500], [210, 7000, 132000]]) test(`combined ${minutes}-minute one-way trip charges ${travel} cents total`, () => {
+for (const [minutes, travel, remaining] of [[120, 0, 125000], [150, 3500, 128500], [180, 7000, 132000], [210, 10500, 135500]]) test(`combined ${minutes}-minute one-way trip charges ${travel} cents total`, () => {
   const s = state(true); apply(s, "travel", { oneWayMinutes: minutes }); apply(s, "approve"); s.payments.push(payment());
   assert.equal(s.installation.approved_travel_charge_cents, travel); assert.equal(balance(s).balanceDueCents, remaining); assert.equal(s.installation.travel_policy, "combined_visit");
   apply(s, "travel", { oneWayMinutes: minutes }); assert.equal(balance(s).balanceDueCents, remaining);
+  assert.equal(s.adjustments.filter(a=>a.reconciliation_kind==="travel").reduce((sum,a)=>sum+a.amount_cents,0),travel);
 });
-test("separate Installation and Setup-only visits retain existing round-trip travel", () => {
-  for (const job of [{}, { installation_selected: false, setup_selected: true }]) assert.equal(serviceTravelQuote(job, 150, DEFAULT_PRICING).approvedChargeCents, 7000);
+test("Installation-only, combined, and separate Setup-only trips share one corrected travel calculation", () => {
+  for (const job of [{}, { installation_selected: true, setup_selected: true }, { installation_selected: false, setup_selected: true }]) {
+    assert.equal(serviceTravelQuote(job, 150, DEFAULT_PRICING).approvedChargeCents, 3500);
+    assert.equal(serviceTravelQuote(job, 210, DEFAULT_PRICING).approvedChargeCents, 10500);
+  }
 });
-test("adding Setup after Installation approval reconciles existing travel once with an audit delta", () => {
-  const s=state();apply(s,"travel",{oneWayMinutes:150});apply(s,"approve");s.payments.push(payment());
-  const op=apply(s,"setup",{selected:true});assert.equal(s.installation.approved_travel_charge_cents,3500);
-  assert.equal(op.adjustments.find(a=>a.reconciliation_kind==="travel")?.amount_cents,-3500);
-  assert.equal(balance(s).balanceDueCents,128500);assert.equal(s.payments.length,1);
-  apply(s,"setup",{selected:true});assert.equal(balance(s).balanceDueCents,128500);
+test("adding Setup preserves an approved historical travel override and its single ledger charge", () => {
+  const s=state();apply(s,"travel",{oneWayMinutes:150,approvedChargeCents:7000});apply(s,"approve");s.payments.push(payment());
+  const op=apply(s,"setup",{selected:true});assert.equal(s.installation.approved_travel_charge_cents,7000);
+  assert.equal(op.adjustments.find(a=>a.reconciliation_kind==="travel"),undefined);
+  assert.equal(balance(s).balanceDueCents,132000);assert.equal(s.payments.length,1);
+  apply(s,"setup",{selected:true});assert.equal(balance(s).balanceDueCents,132000);
+  assert.equal(s.adjustments.filter(a=>a.reconciliation_kind==="travel").length,1);
 });
 test("legacy draft receives the current Setup default on first approval, then keeps it",()=>{
   const s=state(true);const legacy={...DEFAULT_PRICING};delete legacy.setupLaborCents;s.installation.draft_pricing=legacy;
@@ -76,11 +81,13 @@ test("Setup-only is a real separate service selection with no Installation charg
   apply(s, "setup_materials", { actualCents: 2000 }); assert.equal(balance(s).approvedChargesCents, 52000);
 });
 test("subscriber discount applies once to Setup labor and the one travel charge, excluding parts and Installation labor", () => {
-  const s = state(true); const eligible=(action:string,body={})=>apply(s,action,body,DEFAULT_PRICING,true); eligible("travel", { oneWayMinutes: 150 }); eligible("approve");
-  eligible("setup_materials", { actualCents: 5000 }); assert.equal(balance(s).approvedChargesCents, 145125);
-  s.sessions = [session(256, "setup")]; eligible("labor"); assert.equal(balance(s).approvedChargesCents, 145125 + 4688);
-  const previous = balance(s); eligible("travel", { oneWayMinutes: 150 }); eligible("labor"); assert.deepEqual(balance(s), previous);
-  assert.equal(s.installation.approved_travel_charge_cents, 2625); assert.equal(s.installation.travel_discount_cents, 875); assert.equal(supportDiscount(6250, true), 1562);
+  const s = state(true); const eligible=(action:string,body={})=>apply(s,action,body,DEFAULT_PRICING,true); eligible("travel", { oneWayMinutes: 210 }); eligible("approve");
+  eligible("setup_materials", { actualCents: 5000 }); assert.equal(balance(s).approvedChargesCents, 150375);
+  s.sessions = [session(256, "setup")]; eligible("labor"); assert.equal(balance(s).approvedChargesCents, 150375 + 4688);
+  const previous = balance(s); eligible("travel", { oneWayMinutes: 210 }); eligible("labor"); assert.deepEqual(balance(s), previous);
+  assert.equal(s.installation.approved_travel_charge_cents, 7875); assert.equal(s.installation.travel_discount_cents, 2625); assert.equal(supportDiscount(10500, true), 2625);
+  assert.equal(s.adjustments.filter(a=>a.reconciliation_kind==="travel").length,1);
+  assert.equal(s.adjustments.filter(a=>a.reconciliation_kind==="travel_discount").length,1);
 });
 test("saved Setup override survives future default changes", () => {
   const s = state(true); apply(s, "approve"); apply(s, "pricing", { pricing: { ...DEFAULT_PRICING, setupLaborCents: 60000 } });

@@ -83,8 +83,9 @@ export function prepareAdminOperation(state: AdminState, input: unknown, default
   };
   const approveTravel=(job:typeof i,oneWayMinutes:number,override?:number,approved:PricingSnapshot=pricing)=>{
     const q=serviceTravelQuote(job,oneWayMinutes,approved,override,remoteSupportEligible);
-    Object.assign(patch,{estimated_one_way_drive_minutes:q.estimatedOneWayMinutes,included_one_way_drive_minutes:q.includedOneWayMinutes,excess_one_way_drive_minutes:q.excessOneWayMinutes,
-      billable_travel_hours_per_direction:q.billableHoursPerDirection,total_billable_travel_hours:q.totalBillableHours,calculated_travel_charge_cents:q.calculatedChargeCents,
+    Object.assign(patch,{estimated_one_way_drive_minutes:q.estimatedOneWayMinutes,included_one_way_drive_minutes:q.includedOneWayMinutes,excess_one_way_drive_minutes:Math.max(0,oneWayMinutes-q.includedOneWayMinutes),
+      // The required legacy column is unused by the round-trip calculation.
+      billable_travel_hours_per_direction:0,total_billable_travel_hours:q.totalBillableHours,calculated_travel_charge_cents:q.calculatedChargeCents,
       approved_travel_charge_cents:q.approvedChargeCents,travel_manually_overridden:q.manuallyOverridden,travel_override_reason:q.manuallyOverridden?reason:null,travel_policy:q.policy,travel_discount_cents:q.discountCents});
     if(i.pricing_snapshot){
       reconcile("travel",q.grossChargeCents,`Approved travel: ${reason}`);
@@ -100,11 +101,17 @@ export function prepareAdminOperation(state: AdminState, input: unknown, default
   if(action==="approve") {
     if(i.status!=="requested"||i.safety_status!=="clear")throw new Error("invalid_transition");
     if(i.internet_availability!=="yes"&&!reason)throw new Error("connectivity_review_reason_required");
+    // Reprice an unapproved automatic draft under the current rule. Keep an
+    // explicit IDS override, including one recorded before this correction.
+    if(i.estimated_one_way_drive_minutes!==null&&i.estimated_one_way_drive_minutes!==undefined&&!i.travel_manually_overridden)
+      approveTravel(i,i.estimated_one_way_drive_minutes,undefined,pricing);
+    const approvedTravel=Number(patch.approved_travel_charge_cents??i.approved_travel_charge_cents);
+    const travelDiscount=Number(patch.travel_discount_cents??i.travel_discount_cents??0);
     Object.assign(patch,{pricing_snapshot:pricing,approved_at:now.toISOString(),status:"deposit_due",balance_due_at:balanceDueAt(i.requested_start_at).toISOString(),
-      deposit_due_cents:Date.parse(i.requested_start_at)-now.getTime()<=72*3600000?serviceInitialAmount(i,pricing,remoteSupportEligible)+i.approved_travel_charge_cents:pricing.depositCents});
+      deposit_due_cents:Date.parse(i.requested_start_at)-now.getTime()<=72*3600000?serviceInitialAmount(i,pricing,remoteSupportEligible)+approvedTravel:pricing.depositCents});
     if(hasSetup(i))setupReconciliation(i,pricing);
-    reconcile("travel",i.approved_travel_charge_cents+(i.travel_discount_cents??0),"Approved travel charge");
-    reconcile("travel_discount",-(i.travel_discount_cents??0),"Remote Support discount on one travel charge");
+    reconcile("travel",approvedTravel+travelDiscount,"Approved travel charge");
+    reconcile("travel_discount",-travelDiscount,"Remote Support discount on one travel charge");
   } else if(action==="pricing") {
     if(running)throw new Error("pause_work_before_pricing_change");
     const next=jobPricing(i,approvedPricing(body.pricing));patch.draft_pricing=next;
@@ -121,10 +128,6 @@ export function prepareAdminOperation(state: AdminState, input: unknown, default
       if(Date.parse(i.requested_start_at)-Date.parse(i.approved_at)<=72*3600000)
         patch.deposit_due_cents=serviceInitialAmount({...i,setup_selected:body.selected},next,remoteSupportEligible)+i.approved_travel_charge_cents;
     }
-    // Adding Setup approves the combined-trip calculation with an append-only
-    // travel delta in the same audited operation. Removal retains approved travel.
-    if(body.selected&&!hasSetup(i)&&i.estimated_one_way_drive_minutes!==null&&i.estimated_one_way_drive_minutes!==undefined)
-      approveTravel({...i,setup_selected:true},i.estimated_one_way_drive_minutes,undefined,next);
   } else if(action==="cash") {
     requireOpen();if(!["approved","denied","revoked"].includes(String(body.status))||i.special_cash_failure_reschedule)throw new Error("invalid_cash_arrangement");
     patch.cash_status=body.status;

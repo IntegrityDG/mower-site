@@ -25,13 +25,10 @@ export function serviceInitialAmount(job: ServiceSelection, pricing: PricingSnap
 export function serviceTravelQuote(job: ServiceSelection, minutes: number, pricing: PricingSnapshot, override?: number, eligible = false) {
   const combined = hasInstallation(job) && hasSetup(job);
   const q = travelQuote(minutes, pricing);
-  const totalBillableHours = combined ? Math.ceil(Math.max(0, minutes - 120) / 60) : q.totalBillableHours;
-  const calculatedChargeCents = combined ? totalBillableHours * 3500 : q.calculatedChargeCents;
-  const grossChargeCents = override ?? calculatedChargeCents;
+  const grossChargeCents = override ?? q.calculatedChargeCents;
   const discountCents = supportDiscount(grossChargeCents, eligible === true);
-  return { ...q, billableHoursPerDirection: combined ? 0 : q.billableHoursPerDirection, totalBillableHours,
-    calculatedChargeCents, grossChargeCents, discountCents, approvedChargeCents: grossChargeCents - discountCents,
-    manuallyOverridden: override !== undefined && override !== calculatedChargeCents,
+  return { ...q, grossChargeCents, discountCents, approvedChargeCents: grossChargeCents - discountCents,
+    manuallyOverridden: override !== undefined && override !== q.calculatedChargeCents,
     policy: combined ? "combined_visit" : "round_trip" };
 }
 export const serviceName = (job: ServiceSelection) => !hasInstallation(job) ? "Professional Setup & Optimization" : hasSetup(job) ? "Professional Installation + Setup" : "Professional Installation";

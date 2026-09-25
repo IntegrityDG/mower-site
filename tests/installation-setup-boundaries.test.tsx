@@ -57,7 +57,7 @@ test("customer portal projection retains service charges but excludes internal n
 });
 test("components show separate labor and net approved travel without a public Setup primary card",async()=>{
   const html=renderToStaticMarkup(<InstallationServiceSummary job={{setup_selected:true,pricing_snapshot:DEFAULT_PRICING,approved_travel_charge_cents:3500,travel_policy:"combined_visit"}} sessions={[]} adjustments={[{amount_cents:50000,reconciliation_kind:"setup_base"}]}/>);
-  for(const text of ["Setup selected: Yes","$500.00","$35.00","four cumulative Setup hours","Installation labor recorded","Setup labor recorded","no materials allowance"])assert.ok(html.includes(text),text);
+  for(const text of ["Setup selected: Yes","$500.00","$35.00","four cumulative Setup hours","Installation labor recorded","Setup labor recorded","no materials allowance","four total round-trip drive hours","Installation and Setup share this one trip charge"])assert.ok(html.includes(text),text);
   const Page=servicesSchedulingPage(false),services=renderToStaticMarkup(await Page({searchParams:Promise.resolve({})}));assert.doesNotMatch(services,/>Setup<\/h[23]>/);
   const form=renderToStaticMarkup(<SetupOnlyJobForm slots={[]} onSaved={async()=>{}} disabled={false}/>);assert.ok(form.includes("Create Setup-only"));assert.ok(form.includes("disabled"));
 });

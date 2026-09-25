@@ -17,7 +17,7 @@ export default function InstallationServiceSummary({ job, sessions, adjustments 
         <div><dt className="font-bold">Actual Setup parts/materials</dt><dd>{money(amount("setup_materials"))}</dd></div>
         {p && <div><dt className="font-bold">Setup labor charged / subscriber discount</dt><dd>{money(amount("setup_base") + amount("setup_labor"))} / {money(Math.abs(amount("setup_discount")))}</dd></div>}
       </>}
-      {p && <div><dt className="font-bold">One approved travel charge</dt><dd>{money(job.approved_travel_charge_cents ?? 0)}{amount("travel_discount") !== 0 ? ` after ${money(-amount("travel_discount"))} subscriber discount` : ""}. {job.travel_policy === "combined_visit" ? "Combined visit: $35 per started excess one-way hour total." : "Separate-visit travel policy."}</dd></div>}
+      {p && <div><dt className="font-bold">One approved travel charge</dt><dd>{money(job.approved_travel_charge_cents ?? 0)}{amount("travel_discount") !== 0 ? ` after ${money(-amount("travel_discount"))} subscriber discount` : ""}. The first four total round-trip drive hours are included; additional round-trip time is $35 per started hour. {job.travel_policy === "combined_visit" ? "Installation and Setup share this one trip charge." : ""}</dd></div>}
       {p && <div><dt className="font-bold">One booking deposit</dt><dd>{money(p.depositCents)}, credited toward the shared balance.</dd></div>}
     </dl>
     <p className="mt-3 text-xs">Labor buckets remain separate across pauses and continuation visits. Running time is finalized when the session stops. Travel, waiting, and lodging are not Setup labor. One deposit stays credited to the overall balance.</p>
