@@ -13,7 +13,7 @@ export function createPriceMatchAdminHandlers(dependencies: Dependencies) {
       if (!(await dependencies.isAdmin())) return json({ error: "Unauthorized" }, 401);
       const parsed = validatePriceMatch(await request.json().catch(() => null));
       if (!parsed.ok) return json({ error: parsed.error }, 400);
-      try { return json({ settings: await dependencies.save(parsed.value), success: true }); } catch { return json({ error: "Meet or Beat settings could not be saved." }, 500); }
+      try { return json({ settings: await dependencies.save(parsed.value), success: true }); } catch { return json({ error: "Bulletin Board settings could not be saved." }, 500); }
     },
   };
 }

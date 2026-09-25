@@ -411,7 +411,7 @@ test("Contact IDS reuses Contact Us and a contact_ids scheduler on desktop and m
   assert.match(mobileHome, /view === "contact" && <HomepageContactSection \/>/);
 });
 
-test("Meet or Beat retains Contact Us and scheduling", () => {
+test("Bulletin Board retains Contact Us and scheduling", () => {
   assert.match(priceMatch, /ContactInformationModal[\s\S]*ScheduleDemoModal source="meet_or_beat"/);
 });
 

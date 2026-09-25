@@ -36,13 +36,13 @@ test("mobile drawer contains every requested destination and correct route links
   assert.match(navigation, /href="\/referral-program"/);
 });
 
-test("compact home keeps its existing flow and adds the business spotlight after price match", () => {
+test("mobile home places Sales & Specials before Build and Bulletin Board before Spotlight", () => {
   const homeBranch = mobile.slice(mobile.indexOf('view === "home"'), mobile.indexOf('view !== "home"'));
   assert.match(homeBranch, /MobileHero/);
   assert.match(homeBranch, /BUILD YOUR SYSTEM/);
   assert.match(homeBranch, /HomeSalesSpecial/);
   assert.match(homeBranch, /HomePriceMatch/);
-  assert.match(homeBranch, /HomeSalesSpecial \/><HomePriceMatch \/><HomeBusinessSpotlight \/>/);
+  assert.match(homeBranch, /MobileHero \/><HomeSalesSpecial \/><section[\s\S]*BUILD YOUR SYSTEM[\s\S]*<HomePriceMatch \/><HomeBusinessSpotlight \/>/);
   assert.doesNotMatch(homeBranch, /HomeReviews|EquipmentCatalog|NationwidePurchaseFlow/);
 });
 
@@ -79,7 +79,7 @@ test("responsive boundary selects one homepage below or above 768", () => {
 test("desktop default home is compact and ordered without mounting long-form views", () => {
   const home = desktopHome.slice(desktopHome.indexOf('view === "home"'), desktopHome.indexOf('view !== "home"'));
   for (const expected of ["DesktopHero", "BUILD YOUR SYSTEM", "HomeSalesSpecial", "HomePriceMatch", "HomeBusinessSpotlight"]) assert.match(home, new RegExp(expected));
-  assert.match(home, /DesktopHero \/><section[\s\S]*HomeSalesSpecial \/><HomePriceMatch \/><HomeBusinessSpotlight \/>/);
+  assert.match(home, /DesktopHero \/><HomeSalesSpecial \/><section[\s\S]*BUILD YOUR SYSTEM[\s\S]*<HomePriceMatch \/><HomeBusinessSpotlight \/>/);
   assert.doesNotMatch(home, /EquipmentCatalog|NationwidePurchaseFlow|HomeFinancing|HomeReviews|IdsActionCarousel|HomepageContactSection/);
 });
 

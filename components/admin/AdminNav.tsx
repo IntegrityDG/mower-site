@@ -9,7 +9,7 @@ const links = [
   ["Installations", "/admin/installations"],
   ["Remote Support & Service", "/admin/service"],
   ["Sales & Specials", "/admin/sales-specials"],
-  ["Meet or Beat", "/admin/price-match"],
+  ["Bulletin Board", "/admin/price-match"],
   ["Referrals", "/admin/referrals"],
   ["Accessories", "/admin/accessories"],
   ["Pricing", "/admin/pricing"],

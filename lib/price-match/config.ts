@@ -17,7 +17,7 @@ export const DEFAULT_PRICE_MATCH: PriceMatchConfig = {
 };
 
 export function validatePriceMatch(value: unknown): { ok: true; value: PriceMatchConfig } | { ok: false; error: string } {
-  if (!value || typeof value !== "object") return { ok: false, error: "Invalid Meet or Beat settings." };
+  if (!value || typeof value !== "object") return { ok: false, error: "Invalid Bulletin Board settings." };
   const input = value as Record<string, unknown>;
   const fields = [
     ["heading", PRICE_MATCH_HEADING_MAX],

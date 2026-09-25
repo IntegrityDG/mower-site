@@ -46,7 +46,7 @@ test("the homepage contact section remains an isolated desktop view before the s
   assert.doesNotMatch(homeBranch, /HomepageContactSection|NationwidePurchaseFlow/);
 });
 
-test("the homepage price-match section uses the database-backed Meet or Beat component", () => {
+test("the homepage Bulletin Board keeps its database-backed customer content", () => {
   const homepageSource = readFileSync(
     join(process.cwd(), "components", "home", "DesktopHomepage.tsx"),
     "utf8"
