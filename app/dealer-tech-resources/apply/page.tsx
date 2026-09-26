@@ -1,5 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import ApplicationForm from "@/components/dealer-network/ApplicationForm";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: true },
+};
 
 export default function DealerNetworkApplyPage() {
   return (

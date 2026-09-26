@@ -14,7 +14,7 @@ export default function robots(): MetadataRoute.Robots {
         "/service/manage/",
         "/remote-assistance/manage/",
         "/services-scheduling/manage/",
-        "/dealer-tech-resources/member/",
+        "/dealer-tech-resources/member",
       ],
     },
     sitemap: `${IDS_CANONICAL_ORIGIN}/sitemap.xml`,

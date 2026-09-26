@@ -1,6 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import CatalogHeader from "@/components/equipment/CatalogHeader";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: true },
+};
 
 export default function PandagProjectQuoteReceivedPage() {
   return (

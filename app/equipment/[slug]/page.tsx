@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 import CatalogHeader from "@/components/equipment/CatalogHeader";
 import LymowInformationSections from "@/components/equipment/LymowInformationSections";
@@ -16,7 +17,7 @@ import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPrice
 import { priceLabel } from "@/lib/catalog/pricing";
 import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { loadPublicCatalog } from "@/lib/catalog/load-public-catalog";
-import { findCatalogProductBySlug } from "@/lib/catalog/product-routing";
+import { findCatalogProductBySlug, isPublicEquipmentProductSlug } from "@/lib/catalog/product-routing";
 import { isQuoteOnlyProduct } from "@/lib/catalog/sales-mode";
 import type { CatalogOption, CatalogProduct } from "@/lib/catalog/types";
 import { isYarboProduct } from "@/lib/catalog/yarbo";
@@ -42,6 +43,7 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  if (!isPublicEquipmentProductSlug(slug)) notFound();
   let product: CatalogProduct | null = null;
   let loadFailed = false;
 
@@ -53,6 +55,7 @@ export default async function ProductPage({
   }
 
   if (!product) {
+    if (!loadFailed) notFound();
     return (
       <div className="min-h-screen bg-slate-50">
         <CatalogHeader />
