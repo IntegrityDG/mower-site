@@ -5,6 +5,9 @@ const PUBLIC_ROUTES = [
   "/",
   "/equipment",
   "/equipment/accessories",
+  "/equipment/lymow-one-plus",
+  "/equipment/yarbo",
+  "/equipment/pandag-g1",
   "/services-scheduling",
   "/professional-installation",
   "/remote-assistance",
@@ -12,11 +15,9 @@ const PUBLIC_ROUTES = [
   "/reviews",
   "/referral-program",
   "/featured-businesses",
-  "/featured-businesses/request",
   "/dealer-tech-resources",
-  "/dealer-tech-resources/apply",
   "/ids-in-action",
-  "/contact",
+  "/troubleshoot-your-robot",
 ] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
