@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import CatalogHeader from "@/components/equipment/CatalogHeader";
 import LymowInformationSections from "@/components/equipment/LymowInformationSections";
@@ -21,6 +22,19 @@ import type { CatalogOption, CatalogProduct } from "@/lib/catalog/types";
 import { isYarboProduct } from "@/lib/catalog/yarbo";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  if (slug !== "lymow-one-plus" && slug !== "yarbo" && slug !== "pandag-g1") {
+    return {};
+  }
+
+  return { alternates: { canonical: `/equipment/${slug}` } };
+}
 
 export default async function ProductPage({
   params,

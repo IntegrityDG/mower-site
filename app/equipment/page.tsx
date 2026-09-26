@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import CatalogHeader from "@/components/equipment/CatalogHeader";
 import EquipmentCatalog from "@/components/equipment/EquipmentCatalog";
 
-export const metadata: Metadata = { title: "Equipment Catalog | Integrity Distribution Systems", description: "Browse robotic mower systems, accessories, and replacement parts." };
+export const metadata: Metadata = { title: "Equipment Catalog | Integrity Distribution Systems", description: "Browse robotic mower systems, accessories, and replacement parts.", alternates: { canonical: "/equipment" } };
 
 export default function EquipmentPage() {
   return <div className="min-h-screen bg-slate-50 text-slate-950"><CatalogHeader />

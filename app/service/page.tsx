@@ -5,7 +5,7 @@ import { readPublicServiceAvailability } from "@/lib/service/availability";
 import { publicServicePricing } from "@/lib/service/server";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Service | IDS" };
+export const metadata = { title: "Service | IDS", alternates: { canonical: "/service" } };
 
 export default async function ServicePage() {
   const [pricing, availability] = await Promise.all([

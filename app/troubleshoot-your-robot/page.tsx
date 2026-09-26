@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   title: "Troubleshoot Your Robot | Integrity Distribution Systems",
   description:
     "Search real-world robotic mower issues and proven technical solutions published by Integrity Distribution Systems.",
+  alternates: { canonical: "/troubleshoot-your-robot" },
 };
 
 type SearchParameters = Record<string, string | string[] | undefined>;

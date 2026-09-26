@@ -4,8 +4,10 @@ import type { FeaturedBusiness } from "@/lib/featured-businesses/types";
 import { filterBusinesses } from "@/lib/featured-businesses/search";
 import { US_STATES } from "@/lib/featured-businesses/location";
 import Link from "next/link";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { alternates: { canonical: "/featured-businesses" } };
 
 export default async function FeaturedBusinessesPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}) {
   let businesses: FeaturedBusiness[] = [];

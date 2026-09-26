@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Professional Installation | Integrity Distribution Systems",
   description: "Request IDS professional autonomous mower installation.",
+  alternates: { canonical: "/professional-installation" },
 };
 
 export default async function Page() {

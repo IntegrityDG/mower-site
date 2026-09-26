@@ -11,6 +11,7 @@ import { readPublicServiceAvailability } from "@/lib/service/availability";
 export const metadata: Metadata = {
   title: "Services & Scheduling | Integrity Distribution Systems",
   description: "Request an IDS private equipment demo or Demo Party and learn about install, setup, and service scheduling.",
+  alternates: { canonical: "/services-scheduling" },
 };
 
 const descriptions = {

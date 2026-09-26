@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "Dealer & Tech Community Resources | IDS",
   description:
     "A private U.S.-based professional network for robotic mower dealers and repair technicians.",
+  alternates: { canonical: "/dealer-tech-resources" },
 };
 
 export default function DealerTechResourcesPage() {

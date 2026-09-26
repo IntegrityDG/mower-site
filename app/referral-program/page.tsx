@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-export const metadata: Metadata = { title: "Referral Program | Integrity Distribution Systems", description: "Referral rewards for qualifying Lymow, Yarbo, and Pandag equipment purchases through IDS." };
+export const metadata: Metadata = { title: "Referral Program | Integrity Distribution Systems", description: "Referral rewards for qualifying Lymow, Yarbo, and Pandag equipment purchases through IDS.", alternates: { canonical: "/referral-program" } };
 const rewards = [
   { brand: "Lymow", reward: "$50 first 5", afterFive: "$75 after 5" },
   { brand: "Yarbo", reward: "$100 first 5", afterFive: "$150 after 5" },

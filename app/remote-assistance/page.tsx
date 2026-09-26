@@ -8,7 +8,7 @@ import {
 import { readPublicServiceAvailability } from "@/lib/service/availability";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Remote Assistance | IDS" };
+export const metadata = { title: "Remote Assistance | IDS", alternates: { canonical: "/remote-assistance" } };
 
 export default async function RemoteAssistancePage() {
   const availability = await readPublicServiceAvailability();
