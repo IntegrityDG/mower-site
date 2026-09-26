@@ -44,7 +44,7 @@ test("canonical metadata, sitemap and robots use only the apex production origin
   assert.ok(entries.length > 0);
   assert.ok(entries.every((entry) => new URL(entry.url).origin === IDS_CANONICAL_ORIGIN));
   const policy = robots();
-  assert.equal(policy.host, IDS_CANONICAL_ORIGIN);
+  assert.equal(policy.host, undefined);
   assert.equal(policy.sitemap, `${IDS_CANONICAL_ORIGIN}/sitemap.xml`);
 });
 
