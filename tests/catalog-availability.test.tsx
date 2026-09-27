@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ProductConfiguration from "../components/customer-paths/purchase/ProductConfiguration";
 import ProductSelection from "../components/customer-paths/purchase/ProductSelection";
 import ServiceSelection from "../components/customer-paths/purchase/ServiceSelection";
-import { EquipmentCards } from "../components/equipment/EquipmentCatalog";
+import EquipmentCatalog, { EquipmentCards } from "../components/equipment/EquipmentCatalog";
 import { validatePricingPatch } from "../lib/admin-pricing/validation";
 import { selectActivePriceSchedule, type ActivePriceSchedule } from "../lib/catalog/active-price-schedule";
 import {
@@ -150,6 +150,34 @@ test("unavailable Featured Machines remain visible and informational", () => {
   assert.match(html, /View Details/);
   assert.doesNotMatch(html, /Build Your System/);
   assert.match(source("components/mobile/MobileHomepage.tsx"), /<EquipmentCatalog \/>/);
+});
+
+test("equipment catalog initial HTML contains the existing product-card links", () => {
+  const products = [
+    product(),
+    product({ id: "yarbo", slug: "yarbo", brand: "Yarbo", name: "Yarbo Core", variants: [] }),
+    product({ id: "pandag", slug: "pandag-g1", brand: "Pandag", name: "Pandag G1", salesMode: "quote_only", variants: [] }),
+  ];
+  const accessories = {
+    settings: {
+      lymowEnabled: true, lymowLabel: "Lymow",
+      yarboEnabled: true, yarboLabel: "Yarbo",
+      pandagEnabled: true, pandagLabel: "Pandag", pandagMessage: "Contact for parts and pricing",
+      aftermarketEnabled: true, aftermarketLabel: "Aftermarket",
+      featuredAftermarketEnabled: false, featuredAftermarketImageUrl: null,
+      featuredAftermarketImageAlt: null, featuredAftermarketHeading: null,
+      featuredAftermarketDescription: null, featuredAftermarketIdsExclusive: false,
+      aftermarketDisclaimer: "Aftermarket disclaimer",
+    },
+    items: [],
+  };
+  const html = renderToStaticMarkup(<EquipmentCatalog initialData={{ catalog: { products, generatedAt: "2026-08-04T00:00:00.000Z" }, accessories }} />);
+
+  for (const slug of ["lymow-one-plus", "yarbo", "pandag-g1"]) {
+    assert.equal((html.match(new RegExp(`<a[^>]*href="/equipment/${slug}"`, "g")) ?? []).length, 1);
+  }
+  assert.equal(html, renderToStaticMarkup(<EquipmentCards products={products} aftermarketEnabled />));
+  assert.match(renderToStaticMarkup(<EquipmentCatalog />), /Loading equipment catalog/);
 });
 
 test("unavailable products cannot start a desktop or mobile build", () => {

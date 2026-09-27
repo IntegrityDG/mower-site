@@ -28,9 +28,9 @@ export function EquipmentCards({ products, aftermarketEnabled }: { products: Cat
   </div>;
 }
 
-export default function EquipmentCatalog() {
-  const [catalog, setCatalog] = useState<CatalogResponse | null>(null); const [accessories, setAccessories] = useState<AccessoryCatalogResponse | null>(null); const [error, setError] = useState("");
-  useEffect(() => { const controller = new AbortController(); Promise.all([fetchCatalog({ signal: controller.signal }), fetch("/api/accessories", { cache: "no-store", signal: controller.signal }).then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load accessories.")))]).then(([catalogValue, accessoryValue]) => { setCatalog(catalogValue); setAccessories(accessoryValue); }).catch((reason) => { if (reason?.name !== "AbortError") setError(reason instanceof Error ? reason.message : "Unable to load equipment."); }); return () => controller.abort(); }, []);
+export default function EquipmentCatalog({ initialData }: { initialData?: { catalog: CatalogResponse; accessories: AccessoryCatalogResponse } }) {
+  const [catalog, setCatalog] = useState<CatalogResponse | null>(initialData?.catalog ?? null); const [accessories, setAccessories] = useState<AccessoryCatalogResponse | null>(initialData?.accessories ?? null); const [error, setError] = useState("");
+  useEffect(() => { if (initialData) return; const controller = new AbortController(); Promise.all([fetchCatalog({ signal: controller.signal }), fetch("/api/accessories", { cache: "no-store", signal: controller.signal }).then((response) => response.ok ? response.json() : Promise.reject(new Error("Unable to load accessories.")))]).then(([catalogValue, accessoryValue]) => { setCatalog(catalogValue); setAccessories(accessoryValue); }).catch((reason) => { if (reason?.name !== "AbortError") setError(reason instanceof Error ? reason.message : "Unable to load equipment."); }); return () => controller.abort(); }, [initialData]);
   if (error) return <p className="rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800">{error}</p>;
   if (!catalog || !accessories) return <p className="py-16 text-center font-bold text-slate-500">Loading equipment catalog...</p>;
   return <EquipmentCards products={catalog.products} aftermarketEnabled={accessories.settings.aftermarketEnabled} />;
