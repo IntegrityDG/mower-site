@@ -42,15 +42,36 @@ export function validateSettings(input: unknown) {
 export function validateItem(input: unknown) {
   if (!input || typeof input !== "object") return null; const value = input as Record<string, unknown>;
   const tab = value.tab as AccessoryTab; const actionType = value.actionType as AccessoryAction; const publicStatus = value.publicStatus as AccessoryAvailabilityStatus;
-  if (!["lymow", "yarbo", "aftermarket"].includes(tab) || !["builder", "contact", "external", "none"].includes(actionType) || !ACCESSORY_AVAILABILITY_STATUSES.includes(publicStatus)) return null;
+  if (!["lymow", "yarbo", "pandag", "aftermarket"].includes(tab) || !["builder", "contact", "external", "none"].includes(actionType) || !ACCESSORY_AVAILABILITY_STATUSES.includes(publicStatus)) return null;
   const regularPriceCents = dollarsToCents(value.regularPrice); const salePriceCents = dollarsToCents(value.salePrice);
   const actionUrl = safeActionUrl(value.actionUrl, actionType === "external" || tab === "aftermarket");
-  const result = { tab, publicStatus, name: text(value.name, 160, true), description: text(value.description, 2000), imageUrl: safeImageUrl(value.imageUrl), imageAlt: text(value.imageAlt, 300), badge: text(value.badge, 80), manufacturer: text(value.manufacturer, 160), idsExclusive: value.idsExclusive === true, visible: value.visible === true, showInBuilder: value.showInBuilder === true, sortOrder: Number(value.sortOrder), regularPriceCents, salePriceCents, promotionLabel: text(value.promotionLabel, 80), showPublicPrice: value.showPublicPrice === true, contactForPricing: value.contactForPricing === true, actionType, actionLabel: text(value.actionLabel, 80), actionUrl, priceText: text(value.priceText, 100) };
-  if (!result.name || result.description === null || result.imageUrl === null || result.imageAlt === null || result.badge === null || result.manufacturer === null || result.promotionLabel === null || result.actionLabel === null || result.actionUrl === null || result.priceText === null || regularPriceCents === undefined || salePriceCents === undefined || !Number.isSafeInteger(result.sortOrder) || result.sortOrder < 0) return null;
+  const result = { tab, publicStatus, name: text(value.name, 160, true), description: text(value.description, 2000), imageUrl: safeImageUrl(value.imageUrl), imageAlt: text(value.imageAlt, 300), badge: text(value.badge, 80), manufacturer: text(value.manufacturer, 160), idsExclusive: value.idsExclusive === true, visible: value.visible === undefined ? publicStatus !== "hidden" : value.visible === true, isIncluded: value.isIncluded === true, isRecommended: value.isRecommended === true, showInBuilder: value.showInBuilder === true, sortOrder: Number(value.sortOrder), regularPriceCents, salePriceCents, promotionLabel: text(value.promotionLabel, 80), showPublicPrice: value.showPublicPrice === true, contactForPricing: value.contactForPricing === true, actionType, actionLabel: text(value.actionLabel, 80), actionUrl, priceText: text(value.priceText, 100), variantRelationships: validateVariantRelationships(value.variantRelationships), packageRelationships: validatePackageRelationships(value.packageRelationships) };
+  if (!result.name || result.description === null || result.imageUrl === null || result.imageAlt === null || result.badge === null || result.manufacturer === null || result.promotionLabel === null || result.actionLabel === null || result.actionUrl === null || result.priceText === null || result.variantRelationships === undefined || result.packageRelationships === undefined || regularPriceCents === undefined || salePriceCents === undefined || !Number.isSafeInteger(result.sortOrder) || result.sortOrder < 0 || (salePriceCents !== null && (regularPriceCents === null || salePriceCents > regularPriceCents))) return null;
+  if (result.publicStatus === "hidden") result.visible = false;
+  if (tab === "pandag" && result.showInBuilder) return null;
   if (tab === "aftermarket") {
     result.actionLabel ||= "Go to Manufacturer's Site";
     if (result.showInBuilder && (result.contactForPricing || result.regularPriceCents === null)) return null;
   }
   if (result.actionType === "builder" && (!result.showInBuilder || result.contactForPricing || result.regularPriceCents === null)) return null;
+  if (result.isIncluded && result.showInBuilder) return null;
   return result;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function validateVariantRelationships(value: unknown) {
+  if (value === undefined) return null;
+  if (!Array.isArray(value) || value.length > 100) return undefined;
+  const rows = value as { variantId?: unknown; relationshipType?: unknown }[];
+  if (rows.some((row) => !row || typeof row.variantId !== "string" || !UUID.test(row.variantId) || !["compatible", "included", "required", "excluded"].includes(String(row.relationshipType)))) return undefined;
+  if (new Set(rows.map((row) => row.variantId)).size !== rows.length) return undefined;
+  return rows as { variantId: string; relationshipType: "compatible" | "included" | "required" | "excluded" }[];
+}
+function validatePackageRelationships(value: unknown) {
+  if (value === undefined) return null;
+  if (!Array.isArray(value) || value.length > 100) return undefined;
+  const rows = value as { packageId?: unknown; quantity?: unknown; includedInPackagePrice?: unknown }[];
+  if (rows.some((row) => !row || typeof row.packageId !== "string" || !UUID.test(row.packageId) || !Number.isSafeInteger(row.quantity) || Number(row.quantity) < 1 || Number(row.quantity) > 10 || typeof row.includedInPackagePrice !== "boolean")) return undefined;
+  if (new Set(rows.map((row) => row.packageId)).size !== rows.length) return undefined;
+  return rows as { packageId: string; quantity: number; includedInPackagePrice: boolean }[];
 }

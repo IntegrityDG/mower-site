@@ -25,6 +25,18 @@ export type AccessoryItem = {
   contactForPricing: boolean; showInBuilder: boolean; actionType: AccessoryAction;
   actionLabel: string | null; actionUrl: string | null; priceText: string | null; sortOrder: number;
   visible?: boolean; publicStatus: AccessoryAvailabilityStatus;
+  isIncluded: boolean; isRecommended: boolean;
+  variantRelationships: AccessoryVariantRelationship[];
+  packageRelationships: AccessoryPackageRelationship[];
+  compatibilityLabels: string[];
 };
 
-export type AccessoryCatalogResponse = { settings: AccessorySettings; items: AccessoryItem[] };
+export type AccessoryVariantRelationship = { variantId: string; relationshipType: "compatible" | "included" | "required" | "excluded" };
+export type AccessoryPackageRelationship = { packageId: string; quantity: number; includedInPackagePrice: boolean };
+export type AccessoryRelationshipTarget = { id: string; productId: string; name: string; tab: AccessoryTab };
+export type AccessoryCatalogResponse = {
+  settings: AccessorySettings;
+  items: AccessoryItem[];
+  variants?: AccessoryRelationshipTarget[];
+  packages?: AccessoryRelationshipTarget[];
+};
