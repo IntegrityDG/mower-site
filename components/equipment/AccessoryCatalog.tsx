@@ -33,12 +33,16 @@ function Card({ item }: { item: AccessoryItem }) {
   </article>;
 }
 
-export default function AccessoryCatalog() {
-  const [data, setData] = useState<AccessoryCatalogResponse | null>(null);
+function initialTab(settings: AccessoryCatalogResponse["settings"]): AccessoryTab | null {
+  return settings.lymowEnabled ? "lymow" : settings.yarboEnabled ? "yarbo" : settings.pandagEnabled ? "pandag" : settings.aftermarketEnabled ? "aftermarket" : null;
+}
+
+export default function AccessoryCatalog({ initialData }: { initialData?: AccessoryCatalogResponse }) {
+  const [data, setData] = useState<AccessoryCatalogResponse | null>(initialData ?? null);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<AccessoryTab | null>(null);
+  const [tab, setTab] = useState<AccessoryTab | null>(() => initialData ? initialTab(initialData.settings) : null);
   const [page, setPage] = useState(1);
-  useEffect(() => { fetch("/api/accessories", { cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Unable to load accessories."); return response.json(); }).then((value: AccessoryCatalogResponse) => { setData(value); const settings = value.settings; setTab(settings.lymowEnabled ? "lymow" : settings.yarboEnabled ? "yarbo" : settings.pandagEnabled ? "pandag" : settings.aftermarketEnabled ? "aftermarket" : null); }).catch((reason) => setError(reason.message)); }, []);
+  useEffect(() => { if (initialData) return; fetch("/api/accessories", { cache: "no-store" }).then(async (response) => { if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Unable to load accessories."); return response.json(); }).then((value: AccessoryCatalogResponse) => { setData(value); setTab(initialTab(value.settings)); }).catch((reason) => setError(reason.message)); }, [initialData]);
   const items = useMemo(() => data?.items.filter((item) => item.tab === tab).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)) ?? [], [data, tab]);
   const pages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   useEffect(() => setPage((current) => Math.min(current, pages)), [pages]);
