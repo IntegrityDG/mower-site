@@ -49,6 +49,7 @@ export function validateItem(input: unknown) {
   if (!result.name || result.description === null || result.imageUrl === null || result.imageAlt === null || result.badge === null || result.manufacturer === null || result.promotionLabel === null || result.actionLabel === null || result.actionUrl === null || result.priceText === null || result.variantRelationships === undefined || result.packageRelationships === undefined || regularPriceCents === undefined || salePriceCents === undefined || !Number.isSafeInteger(result.sortOrder) || result.sortOrder < 0 || (salePriceCents !== null && (regularPriceCents === null || salePriceCents > regularPriceCents))) return null;
   if (result.publicStatus === "hidden") result.visible = false;
   if (tab === "pandag" && result.showInBuilder) return null;
+  if ((tab === "pandag" || tab === "aftermarket") && result.actionType === "builder") return null;
   if (tab === "aftermarket") {
     result.actionLabel ||= "Go to Manufacturer's Site";
     if (result.showInBuilder && (result.contactForPricing || result.regularPriceCents === null)) return null;
