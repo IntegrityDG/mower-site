@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import PublicTroubleshootingEntry from "@/components/troubleshooting/PublicTroubleshootingEntry";
+import BreadcrumbJsonLd, { HOME_BREADCRUMB, TROUBLESHOOTING_BREADCRUMB } from "@/components/seo/BreadcrumbJsonLd";
 import { readPublicTroubleshootingEntry } from "@/lib/public-troubleshooting/server";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export default async function PublicTroubleshootingDetailPage({
 
   return (
     <main className="min-h-screen bg-slate-100 px-6 py-10 text-slate-950 md:px-10 md:py-14">
+      <BreadcrumbJsonLd items={[HOME_BREADCRUMB, TROUBLESHOOTING_BREADCRUMB, { name: entry.title, path: `/troubleshoot-your-robot/${entry.id}` }]} />
       <div className="mx-auto max-w-7xl">
         {/* A full navigation prevents stale public records in the Next.js router cache. */}
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}

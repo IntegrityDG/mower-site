@@ -2,6 +2,7 @@ import SetupTerms from "@/components/installations/SetupTerms";
 import { SETUP_DESCRIPTION } from "@/lib/installations/setup";
 import InstallationRefundNotice from "@/components/installations/InstallationRefundNotice";
 import InstallationBookingForm from "@/components/installations/InstallationBookingForm";
+import BreadcrumbJsonLd, { HOME_BREADCRUMB, SERVICES_BREADCRUMB } from "@/components/seo/BreadcrumbJsonLd";
 import { readPublicServiceAvailability } from "@/lib/service/availability";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ export default async function Page() {
   const setup = availability.professional_setup;
   return (
     <main className="min-h-screen bg-slate-100 text-slate-950">
+      <BreadcrumbJsonLd items={[HOME_BREADCRUMB, SERVICES_BREADCRUMB, { name: "Professional Installation", path: "/professional-installation" }]} />
       <section className="bg-gradient-to-br from-slate-950 to-emerald-950 px-5 py-14 text-white">
         <div className="mx-auto max-w-4xl">
           <p className="font-black uppercase tracking-[.2em] text-emerald-400">

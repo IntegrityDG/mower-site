@@ -14,6 +14,7 @@ import ProductPageSections from "@/components/equipment/ProductPageSections";
 import QuoteOnlyNotice from "@/components/equipment/QuoteOnlyNotice";
 import YarboInformationSections from "@/components/equipment/YarboInformationSections";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
+import BreadcrumbJsonLd, { EQUIPMENT_BREADCRUMB, HOME_BREADCRUMB } from "@/components/seo/BreadcrumbJsonLd";
 import ProductJsonLd from "@/components/seo/ProductJsonLd";
 import { priceLabel } from "@/lib/catalog/pricing";
 import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
@@ -78,6 +79,7 @@ export default async function ProductPage({
   return (
     <>
       <ProductJsonLd product={product} />
+      <BreadcrumbJsonLd items={[HOME_BREADCRUMB, EQUIPMENT_BREADCRUMB, { name: product.name, path: `/equipment/${product.slug}` }]} />
       {page}
     </>
   );

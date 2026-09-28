@@ -1,5 +1,6 @@
 import Link from "next/link";
 import ServiceShell from "@/components/service/ServiceShell";
+import BreadcrumbJsonLd, { HOME_BREADCRUMB, SERVICES_BREADCRUMB } from "@/components/seo/BreadcrumbJsonLd";
 import { SupportTerms } from "@/components/service/ServiceTerms";
 import {
   ServiceIntake,
@@ -16,6 +17,7 @@ export default async function RemoteAssistancePage() {
   const subscriptions = availability.new_remote_support_subscriptions;
   return (
     <ServiceShell title="Remote Assistance">
+      <BreadcrumbJsonLd items={[HOME_BREADCRUMB, SERVICES_BREADCRUMB, { name: "Remote Assistance", path: "/remote-assistance" }]} />
       <section className="rounded-2xl bg-white p-5 sm:p-8">
         <h2 className="mb-4 text-2xl font-black">Remote Support</h2>
         <SupportTerms />

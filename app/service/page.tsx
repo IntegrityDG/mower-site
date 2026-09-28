@@ -1,4 +1,5 @@
 import ServiceShell from "@/components/service/ServiceShell";
+import BreadcrumbJsonLd, { HOME_BREADCRUMB, SERVICES_BREADCRUMB } from "@/components/seo/BreadcrumbJsonLd";
 import { ServiceTerms } from "@/components/service/ServiceTerms";
 import { ServiceIntake } from "@/components/service/CustomerIntake";
 import { readPublicServiceAvailability } from "@/lib/service/availability";
@@ -14,6 +15,7 @@ export default async function ServicePage() {
   ]);
   return (
     <ServiceShell title="Service">
+      <BreadcrumbJsonLd items={[HOME_BREADCRUMB, SERVICES_BREADCRUMB, { name: "Service", path: "/service" }]} />
       <section className="rounded-2xl bg-white p-5 sm:p-8">
         <h2 className="mb-4 text-2xl font-black">Remote and On-Site Service</h2>
         <ServiceTerms pricing={pricing} />
