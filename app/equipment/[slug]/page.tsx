@@ -14,6 +14,7 @@ import ProductPageSections from "@/components/equipment/ProductPageSections";
 import QuoteOnlyNotice from "@/components/equipment/QuoteOnlyNotice";
 import YarboInformationSections from "@/components/equipment/YarboInformationSections";
 import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPriceDisplay";
+import ProductJsonLd from "@/components/seo/ProductJsonLd";
 import { priceLabel } from "@/lib/catalog/pricing";
 import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { loadPublicCatalog } from "@/lib/catalog/load-public-catalog";
@@ -66,15 +67,20 @@ export default async function ProductPage({
     );
   }
 
-  if (isYarboProduct(product)) {
-    return <YarboProductPage product={product} />;
-  }
+  const page = isYarboProduct(product) ? (
+    <YarboProductPage product={product} />
+  ) : isQuoteOnlyProduct(product) ? (
+    <PandagProductPage product={product} />
+  ) : (
+    <StandardProductPage product={product} />
+  );
 
-  if (isQuoteOnlyProduct(product)) {
-    return <PandagProductPage product={product} />;
-  }
-
-  return <StandardProductPage product={product} />;
+  return (
+    <>
+      <ProductJsonLd product={product} />
+      {page}
+    </>
+  );
 }
 
 function PandagProductPage({ product }: { product: CatalogProduct }) {
