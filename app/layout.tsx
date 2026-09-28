@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { WebAnalytics } from "@/components/analytics/WebAnalytics";
-import { IDS_CANONICAL_ORIGIN } from "@/lib/site-origin";
+import SiteIdentityJsonLd from "@/components/seo/SiteIdentityJsonLd";
+import { IDS_CANONICAL_ORIGIN, IDS_SITE_NAME } from "@/lib/site-origin";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -20,7 +21,7 @@ export const metadata: Metadata = {
   description: "Browse autonomous mowers and build a property-specific robotic lawn care system with Integrity Distribution Systems.",
   openGraph: {
     type: "website",
-    siteName: "Integrity Distribution Systems",
+    siteName: IDS_SITE_NAME,
     title: "Integrity Distribution Systems | Autonomous Lawn Care",
     description: "Browse autonomous mowers and build a property-specific robotic lawn care system with Integrity Distribution Systems.",
   },
@@ -36,6 +37,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <SiteIdentityJsonLd />
         {children}
         <WebAnalytics />
       </body>

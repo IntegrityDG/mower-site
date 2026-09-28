@@ -1,4 +1,5 @@
 export const IDS_CANONICAL_ORIGIN = "https://integrityautomowers.com";
+export const IDS_SITE_NAME = "Integrity Distribution Systems";
 export const IDS_CANONICAL_HOST = "integrityautomowers.com";
 export const IDS_WWW_HOST = "www.integrityautomowers.com";
 
