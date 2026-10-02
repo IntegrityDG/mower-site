@@ -1,19 +1,30 @@
+import type { Metadata } from "next";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import PublicTroubleshootingEntry from "@/components/troubleshooting/PublicTroubleshootingEntry";
 import BreadcrumbJsonLd, { HOME_BREADCRUMB, TROUBLESHOOTING_BREADCRUMB } from "@/components/seo/BreadcrumbJsonLd";
 import { readPublicTroubleshootingEntry } from "@/lib/public-troubleshooting/server";
+import { publicTroubleshootingMetadata } from "@/lib/public-troubleshooting/metadata";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const readEntry = cache(async (id: string) =>
+  readPublicTroubleshootingEntry(id).catch(() => null),
+);
+
+type DetailProps = { params: Promise<{ id: string }> };
+
+export async function generateMetadata({ params }: DetailProps): Promise<Metadata> {
+  const entry = await readEntry((await params).id);
+  if (!entry) notFound();
+  return publicTroubleshootingMetadata(entry);
+}
+
 export default async function PublicTroubleshootingDetailPage({
   params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const entry = await readPublicTroubleshootingEntry((await params).id).catch(
-    () => null,
-  );
+}: DetailProps) {
+  const entry = await readEntry((await params).id);
   if (!entry) notFound();
 
   return (
