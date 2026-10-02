@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ServiceShell from "@/components/service/ServiceShell";
 import BreadcrumbJsonLd, { HOME_BREADCRUMB, SERVICES_BREADCRUMB } from "@/components/seo/BreadcrumbJsonLd";
+import ServiceJsonLd from "@/components/seo/ServiceJsonLd";
 import { SupportTerms } from "@/components/service/ServiceTerms";
 import {
   ServiceIntake,
@@ -18,6 +19,7 @@ export default async function RemoteAssistancePage() {
   return (
     <ServiceShell title="Remote Assistance">
       <BreadcrumbJsonLd items={[HOME_BREADCRUMB, SERVICES_BREADCRUMB, { name: "Remote Assistance", path: "/remote-assistance" }]} />
+      <ServiceJsonLd path="/remote-assistance" />
       <section className="rounded-2xl bg-white p-5 sm:p-8">
         <h2 className="mb-4 text-2xl font-black">Remote Support</h2>
         <SupportTerms />
