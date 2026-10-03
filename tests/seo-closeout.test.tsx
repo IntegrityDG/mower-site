@@ -9,6 +9,7 @@ import Reviews from "../components/reviews/ReviewsPageContent";
 import { PUBLIC_REVIEW_COLUMNS, toPublicReview } from "../lib/reviews/public";
 import type { IdsActionEntry } from "../lib/ids-action/types";
 import { homeViewFromHash } from "../lib/homepage-navigation";
+import LocalizedDate, { formatLocalizedDate } from "../components/LocalizedDate";
 
 const source = (file: string) => readFileSync(file, "utf8");
 const entry: IdsActionEntry = { id: "public-gallery-record", title: "A real property demonstration", description: "Published demonstration description", category: "Equipment Demo", location: "Missouri", eventDate: "2026-09-01", featured: false, published: true, sortOrder: 100, createdAt: "2026-09-01", updatedAt: "2026-09-01", media: [{ id: "photo", entryId: "public-gallery-record", mediaType: "image", mediaUrl: "https://example.com/demo.jpg", storagePath: null, thumbnailUrl: null, altText: "Demonstration mower", sortOrder: 0, createdAt: "2026-09-01" }] };
@@ -90,4 +91,23 @@ test("legacy contact redirect resolves the existing contact view without changin
   assert.equal(homeViewFromHash("#contact-us"), "contact");
   assert.equal(homeViewFromHash("#contact"), "contact");
   assert.equal(homeViewFromHash("#location-and-customer-path"), "build");
+});
+
+test("initial publication dates are identical across server time zones", () => {
+  const previous = process.env.TZ;
+  try {
+    for (const zone of ["UTC", "America/Chicago", "Pacific/Kiritimati"]) {
+      process.env.TZ = zone;
+      const html = renderToStaticMarkup(<LocalizedDate value="2026-08-13T02:09:57.286+00:00" locale="en-US" options={{year:"numeric", month:"long", day:"numeric"}} />);
+      assert.match(html, /August 13, 2026/);
+      assert.match(html, /dateTime="2026-08-13T02:09:57.286\+00:00"/);
+      assert.equal(formatLocalizedDate({value:"2026-08-13",dateOnly:true},true), "8/13/2026");
+    }
+    process.env.TZ = "America/Chicago";
+    assert.equal(formatLocalizedDate({value:"2026-08-13T02:09:57.286+00:00",locale:"en-US",options:{year:"numeric",month:"long",day:"numeric"}}), "August 12, 2026");
+    assert.equal(formatLocalizedDate({value:"2026-08-13",dateOnly:true,locale:"en-GB"}), "13/08/2026");
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
 });
