@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import sitemap from "../app/sitemap";
 
 const pages = [
   ["/", "app/page.tsx", "Robot Mowers, Installation & Service | Integrity Distribution Systems"],
@@ -81,13 +82,22 @@ test("Batch 1 public metadata is unique and retains each route's canonical", () 
   assert.match(productSource, /return \{ \.\.\.productMetadata\[slug\], alternates: \{ canonical: `\/equipment\/\$\{slug\}` \} \};/);
   const quote = objectFromVariable(readFileSync("app/pandag/project-quote/layout.tsx", "utf8"), "metadata");
   assert.equal(stringProperty(quote, "title"), "Pandag G1 Project Quote Request | IDS");
+  assert.equal(stringProperty(quote, "description"), "Tell IDS about a commercial mowing project to request a Pandag G1 review. IDS evaluates the site and operating needs before recommending equipment and pricing.");
+  const quoteRobots = property(quote, "robots");
+  assert.ok(ts.isObjectLiteralExpression(quoteRobots));
+  assert.equal(property(quoteRobots, "index").kind, ts.SyntaxKind.FalseKeyword);
+  assert.equal(property(quoteRobots, "follow").kind, ts.SyntaxKind.TrueKeyword);
+  assert.ok(!sitemap().some((entry) => new URL(entry.url).pathname === "/pandag/project-quote"));
   titles.push(stringProperty(quote, "title"));
   descriptions.push(stringProperty(quote, "description"));
   assert.equal(new Set(titles).size, 17);
   assert.equal(new Set(descriptions).size, 17);
   const received = objectFromVariable(readFileSync("app/pandag/project-quote/received/page.tsx", "utf8"), "metadata");
   assert.equal(stringProperty(received, "title"), "Pandag Project Request Received | IDS");
-  assert.ok(ts.isObjectLiteralExpression(property(received, "robots")), "request receipt keeps its noindex directive");
+  const receivedRobots = property(received, "robots");
+  assert.ok(ts.isObjectLiteralExpression(receivedRobots));
+  assert.equal(property(receivedRobots, "index").kind, ts.SyntaxKind.FalseKeyword);
+  assert.equal(property(receivedRobots, "follow").kind, ts.SyntaxKind.TrueKeyword);
 });
 
 test("primary headings and contextual links support the intended journeys", () => {
