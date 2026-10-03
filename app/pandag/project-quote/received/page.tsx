@@ -4,6 +4,8 @@ import Link from "next/link";
 import CatalogHeader from "@/components/equipment/CatalogHeader";
 
 export const metadata: Metadata = {
+  title: "Pandag Project Request Received | IDS",
+  description: "IDS received your Pandag commercial project request for review.",
   robots: { index: false, follow: true },
 };
 

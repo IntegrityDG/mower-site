@@ -79,8 +79,15 @@ test("Batch 1 public metadata is unique and retains each route's canonical", () 
     descriptions.push(description);
   }
   assert.match(productSource, /return \{ \.\.\.productMetadata\[slug\], alternates: \{ canonical: `\/equipment\/\$\{slug\}` \} \};/);
-  assert.equal(new Set(titles).size, 16);
-  assert.equal(new Set(descriptions).size, 16);
+  const quote = objectFromVariable(readFileSync("app/pandag/project-quote/layout.tsx", "utf8"), "metadata");
+  assert.equal(stringProperty(quote, "title"), "Pandag G1 Project Quote Request | IDS");
+  titles.push(stringProperty(quote, "title"));
+  descriptions.push(stringProperty(quote, "description"));
+  assert.equal(new Set(titles).size, 17);
+  assert.equal(new Set(descriptions).size, 17);
+  const received = objectFromVariable(readFileSync("app/pandag/project-quote/received/page.tsx", "utf8"), "metadata");
+  assert.equal(stringProperty(received, "title"), "Pandag Project Request Received | IDS");
+  assert.ok(ts.isObjectLiteralExpression(property(received, "robots")), "request receipt keeps its noindex directive");
 });
 
 test("primary headings and contextual links support the intended journeys", () => {
