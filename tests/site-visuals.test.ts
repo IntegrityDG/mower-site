@@ -36,7 +36,7 @@ test("reviews and IDS in Action use the approved responsive page backgrounds", (
   const css = source("app/globals.css");
   assert.match(css, /\.ids-reviews-background[\s\S]*reviews-background\.webp/);
   assert.match(css, /\.ids-action-background[\s\S]*ids-in-action-background\.webp/);
-  assert.match(source("app/reviews/page.tsx"), /ids-reviews-background/);
+  assert.match(source("components/reviews/ReviewsPageContent.tsx"), /ids-reviews-background/);
   assert.match(source("components/reviews/HomeReviews.tsx"), /ids-reviews-background/);
   assert.match(source("app/ids-in-action/page.tsx"), /ids-action-background/);
 });

@@ -16,6 +16,7 @@ const LEGACY_BUILD_HASH = "location-and-customer-path";
 export function homeViewFromHash(hash: string): HomeView {
   const normalized = hash.replace(/^#/, "");
   if (normalized === LEGACY_BUILD_HASH) return "build";
+  if (normalized === "contact-us") return "contact";
   return homeViews.has(normalized) ? normalized as HomeView : "home";
 }
 

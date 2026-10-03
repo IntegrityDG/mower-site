@@ -438,7 +438,7 @@ test("mobile IDS IN ACTION is an internal featured view, not a direct gallery li
 test("standalone IDS Action gallery remains the unfeatured full gallery", () => {
   assert.match(gallery, /\/api\/ids-in-action\?limit=24&category=/);
   assert.doesNotMatch(gallery, /featured=true/);
-  assert.match(source("app/ids-in-action/page.tsx"), /<IdsActionGallery\/>/);
+  assert.match(source("app/ids-in-action/page.tsx"), /<IdsActionGallery initialEntries=\{initialEntries\}\/>/);
 });
 
 const fingerprintBase = {

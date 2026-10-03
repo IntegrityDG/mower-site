@@ -45,4 +45,19 @@ test("long issue and fix excerpts preserve published words without adding techni
   assert.match(String(metadata.description), /Fix: Support performed an update/);
   assert.doesNotMatch(String(metadata.description), /Further detail follows/);
   assert.ok(!("structuredData" in metadata));
+  assert.ok(String(metadata.description).length <= 160);
+});
+
+test("long troubleshooting titles and unbroken input cannot create oversized descriptions", () => {
+  for (const title of ["A lengthy published troubleshooting title ".repeat(8), "A".repeat(300)]) {
+    const metadata = publicTroubleshootingMetadata({
+      id: entries[0].id, title,
+      issueDescription: "A".repeat(300),
+      fixDescription: "B".repeat(300),
+    });
+    assert.ok(String(metadata.description).length <= 160);
+    assert.match(String(metadata.description), /Problem: /);
+    assert.match(String(metadata.description), /Fix: /);
+    assert.equal(metadata.title, `${title} | ${IDS_SITE_NAME}`);
+  }
 });
