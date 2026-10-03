@@ -7,7 +7,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { alternates: { canonical: "/featured-businesses" } };
+export const metadata: Metadata = { title: "Supporting Small Business Spotlight | IDS", description: "Discover independent small businesses highlighted by IDS. Search the community spotlight by business, service, state, county or area code.", alternates: { canonical: "/featured-businesses" } };
 
 export default async function FeaturedBusinessesPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}) {
   let businesses: FeaturedBusiness[] = [];

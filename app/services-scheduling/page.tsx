@@ -9,8 +9,8 @@ import { APPOINTMENT_TYPES_IN_ORDER } from "@/lib/scheduling/config";
 import { readPublicServiceAvailability } from "@/lib/service/availability";
 
 export const metadata: Metadata = {
-  title: "Services & Scheduling | Integrity Distribution Systems",
-  description: "Request an IDS private equipment demo or Demo Party and learn about install, setup, and service scheduling.",
+  title: "Robot Mower Demos & Demo Parties | IDS",
+  description: "See robotic mowers work on a real property with an IDS private demo or Demo Party. Review scheduling, property fit, fees and host rewards before requesting.",
   alternates: { canonical: "/services-scheduling" },
 };
 
@@ -31,7 +31,7 @@ export default async function ServicesSchedulingPage({ searchParams }: { searchP
       </header>
 
       <section className="bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 px-5 py-20 text-white sm:px-8">
-        <div className="mx-auto max-w-6xl"><p className="font-black uppercase tracking-[.2em] text-emerald-400">Services &amp; Scheduling</p><h1 className="mt-4 max-w-5xl text-4xl font-black tracking-tight sm:text-6xl">SEE IT WORK. BRING SOME FRIENDS. GET REWARDED.</h1><p className="mt-6 max-w-3xl text-lg leading-8 text-slate-200">Request a hands-on demonstration today. Installation with optional Setup & Optimization and field-service scheduling share this appointment system and open when IDS activates them.</p></div>
+        <div className="mx-auto max-w-6xl"><p className="font-black uppercase tracking-[.2em] text-emerald-400">Services &amp; Scheduling</p><h1 className="mt-4 max-w-5xl text-4xl font-black tracking-tight sm:text-6xl">Robot Mower Demos &amp; Demo Parties</h1><p className="mt-4 text-xl font-black text-emerald-300">SEE IT WORK. BRING SOME FRIENDS. GET REWARDED.</p><p className="mt-6 max-w-3xl text-lg leading-8 text-slate-200">See robotic mowers operate on real property in a hands-on demonstration. Installation with optional Setup & Optimization and field-service scheduling share this appointment system and open when IDS activates them.</p></div>
       </section>
 
       <section aria-labelledby="service-types" className="px-5 py-14 sm:px-8"><div className="mx-auto max-w-6xl"><h2 id="service-types" className="text-3xl font-black">Choose a service</h2><div className="mt-7 grid gap-5 md:grid-cols-2 lg:grid-cols-3">{APPOINTMENT_TYPES_IN_ORDER.filter(type=>type.type!=="setup").map((service) => {

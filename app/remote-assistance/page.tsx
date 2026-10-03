@@ -10,14 +10,14 @@ import {
 import { readPublicServiceAvailability } from "@/lib/service/availability";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Remote Assistance | IDS", alternates: { canonical: "/remote-assistance" } };
+export const metadata = { title: "Robot Mower Remote Support & Technical Assistance | IDS", description: "Get robot mower technical support by phone or Facebook Messenger through IDS Remote Support. Review subscription terms and request assistance.", alternates: { canonical: "/remote-assistance" } };
 
 export default async function RemoteAssistancePage() {
   const availability = await readPublicServiceAvailability();
   const assistance = availability.existing_subscriber_assistance;
   const subscriptions = availability.new_remote_support_subscriptions;
   return (
-    <ServiceShell title="Remote Assistance">
+    <ServiceShell title="Remote Robot Mower Support">
       <BreadcrumbJsonLd items={[HOME_BREADCRUMB, SERVICES_BREADCRUMB, { name: "Remote Assistance", path: "/remote-assistance" }]} />
       <ServiceJsonLd path="/remote-assistance" />
       <section className="rounded-2xl bg-white p-5 sm:p-8">

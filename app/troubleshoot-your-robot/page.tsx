@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const metadata: Metadata = {
-  title: "Troubleshoot Your Robot | Integrity Distribution Systems",
+  title: "Robot Mower Troubleshooting & Support Guides | IDS",
   description:
-    "Search real-world robotic mower issues and proven technical solutions published by Integrity Distribution Systems.",
+    "Search published robot mower troubleshooting guides from IDS dealers and technicians. Filter by brand, model or system area and find service options.",
   alternates: { canonical: "/troubleshoot-your-robot" },
 };
 
@@ -165,6 +165,7 @@ export default async function TroubleshootYourRobotPage({
               </p>
             </div>
           )}
+          <p className="mt-8 text-sm leading-7 text-slate-700">Need more help? Review <Link href="/service" className="font-bold text-emerald-800 underline">robot mower service options</Link> or <Link href="/remote-assistance" className="font-bold text-emerald-800 underline">remote assistance</Link>.</p>
         </div>
       </section>
     </main>

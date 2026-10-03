@@ -7,7 +7,7 @@ import { readPublicServiceAvailability } from "@/lib/service/availability";
 import { publicServicePricing } from "@/lib/service/server";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Service | IDS", alternates: { canonical: "/service" } };
+export const metadata = { title: "Robot Mower Service, Repair & Maintenance | IDS", description: "Request IDS robot mower diagnostics, repair or maintenance for supported equipment. Review remote and on-site service options and current rates.", alternates: { canonical: "/service" } };
 
 export default async function ServicePage() {
   const [pricing, availability] = await Promise.all([
@@ -15,7 +15,7 @@ export default async function ServicePage() {
     readPublicServiceAvailability(),
   ]);
   return (
-    <ServiceShell title="Service">
+    <ServiceShell title="Robot Mower Service & Repair">
       <BreadcrumbJsonLd items={[HOME_BREADCRUMB, SERVICES_BREADCRUMB, { name: "Service", path: "/service" }]} />
       <ServiceJsonLd path="/service" />
       <section className="rounded-2xl bg-white p-5 sm:p-8">

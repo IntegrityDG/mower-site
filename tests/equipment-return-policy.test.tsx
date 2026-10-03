@@ -36,7 +36,7 @@ for (const variant of ["Desktop", "Mobile"] as const) test(`${variant} public fo
   for (const panel of ["contact/HomepageContactSection", "customer-paths/purchase/NationwidePurchaseFlow", "demo-scheduling/ScheduleDemoModal", "equipment/EquipmentCatalog", "featured-businesses/HomeBusinessSpotlight", "ids-action/IdsActionCarousel", "home/HomeFinancing", "promotions/HomePriceMatch", "promotions/HomeSalesSpecial", "reviews/HomeReviews"]) modules[`@/components/${panel}`] = () => null;
   const Page = load<{ default: React.ComponentType }>(`components/${variant === "Desktop" ? "home" : "mobile"}/${variant}Homepage.tsx`, modules).default;
   const content = footer(renderToStaticMarkup(<Page />));
-  for (const retained of ["Integrity Distribution Systems", "Nationwide autonomous mower sales", "Regional Service Coverage", "Southern Missouri", "Northern Arkansas", "Western Kentucky", "Western Tennessee", "Southern Illinois"]) assert.ok(content.includes(retained), retained);
+  for (const retained of ["Integrity Distribution Systems", "Nationwide autonomous mower sales", "Regional Service Coverage", "Missouri", "Northeast Arkansas", "Western Kentucky", "Western Tennessee", "Southern Illinois"]) assert.ok(content.includes(retained), retained);
 });
 
 test("Services & Scheduling footer retains its home link and adds the same policy control", async () => {

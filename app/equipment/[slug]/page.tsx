@@ -26,6 +26,21 @@ import { isYarboProduct } from "@/lib/catalog/yarbo";
 
 export const dynamic = "force-dynamic";
 
+const productMetadata = {
+  "lymow-one-plus": {
+    title: "Lymow One Plus Robot Mower | Dealer, Demo & Installation | IDS",
+    description: "Explore the Lymow One Plus tracked robot mower with RTK and VSLAM navigation. Compare configurations and ask IDS about demos, installation and support.",
+  },
+  yarbo: {
+    title: "Yarbo Pro Robot Mower | Dealer, Demo & Installation | IDS",
+    description: "Explore Yarbo Pro mowing with a tracked modular Core, RTK navigation and compatible task modules. Compare configurations and ask IDS about demos and installation.",
+  },
+  "pandag-g1": {
+    title: "Pandag G1 Commercial Robot Mower | IDS",
+    description: "Explore Pandag G1 commercial robotic mowers for parks, campuses and other large properties. Review model options and request an IDS project quote.",
+  },
+} as const;
+
 export async function generateMetadata({
   params,
 }: {
@@ -36,7 +51,7 @@ export async function generateMetadata({
     return {};
   }
 
-  return { alternates: { canonical: `/equipment/${slug}` } };
+  return { ...productMetadata[slug], alternates: { canonical: `/equipment/${slug}` } };
 }
 
 export default async function ProductPage({
@@ -106,8 +121,8 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
               </p>
               {!product.isAvailable && <UnavailableBadge />}
               <h1 className="mt-3 max-w-3xl text-4xl font-black tracking-tight sm:text-6xl">
-                Autonomous mowing built for large properties and demanding
-                commercial operations.
+                Pandag G1 commercial robotic mowing for large properties and
+                demanding operations.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-200">
                 {product.homepageSummary ??
@@ -143,6 +158,7 @@ function PandagProductPage({ product }: { product: CatalogProduct }) {
 
         <section className="mx-auto max-w-7xl px-5 py-14 sm:px-8">
           <PandagInformationSections product={product} />
+          <p className="mt-8 text-sm leading-7 text-slate-600">Planning a commercial property? Review <Link href="/services-scheduling" className="font-bold text-emerald-800 underline">IDS demonstration options</Link> as you evaluate a Pandag project.</p>
         </section>
       </main>
     </div>
@@ -222,6 +238,8 @@ function YarboProductPage({ product }: { product: CatalogProduct }) {
           </div>
 
           <YarboInformationSections product={product} />
+
+          <ProductNextSteps />
 
           <ProductBuildCta
             supportingText="Choose your Yarbo configuration and compatible accessories first, then check delivery and service availability."
@@ -374,6 +392,8 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
             </>
           )}
 
+          {isLymowOnePlus && <ProductNextSteps />}
+
           {isLymowOnePlus ? (
             <ProductBuildCta
               supportingText="Choose your Lymow One Plus configuration and compatible accessories first, then check delivery and service availability."
@@ -402,6 +422,10 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
       </main>
     </div>
   );
+}
+
+function ProductNextSteps() {
+  return <p className="mt-8 text-sm leading-7 text-slate-600">Planning your mower system? Review <Link href="/professional-installation" className="font-bold text-emerald-800 underline">professional installation</Link>, <Link href="/services-scheduling" className="font-bold text-emerald-800 underline">demo options</Link>, and <Link href="/equipment/accessories" className="font-bold text-emerald-800 underline">compatible accessories and parts</Link>.</p>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {

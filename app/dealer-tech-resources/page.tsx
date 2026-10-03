@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Dealer & Tech Community Resources | IDS",
+  title: "Robot Mower Dealer & Technician Resources | IDS",
   description:
-    "A private U.S.-based professional network for robotic mower dealers and repair technicians.",
+    "Explore IDS resources for robotic mower dealers and repair technicians. Apply to the reviewed professional network or sign in as an approved member.",
   alternates: { canonical: "/dealer-tech-resources" },
 };
 

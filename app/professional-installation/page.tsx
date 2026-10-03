@@ -1,4 +1,5 @@
 import SetupTerms from "@/components/installations/SetupTerms";
+import Link from "next/link";
 import { SETUP_DESCRIPTION } from "@/lib/installations/setup";
 import InstallationRefundNotice from "@/components/installations/InstallationRefundNotice";
 import InstallationBookingForm from "@/components/installations/InstallationBookingForm";
@@ -8,8 +9,8 @@ import { readPublicServiceAvailability } from "@/lib/service/availability";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Professional Installation | Integrity Distribution Systems",
-  description: "Request IDS professional autonomous mower installation.",
+  title: "Robot Mower Installation & Professional Setup | IDS",
+  description: "Plan professional robot mower installation with IDS, with optional setup and optimization. Review published labor, materials and travel terms before requesting.",
   alternates: { canonical: "/professional-installation" },
 };
 
@@ -27,7 +28,7 @@ export default async function Page() {
             Integrity Distribution Systems
           </p>
           <h1 className="mt-3 text-4xl font-black md:text-6xl">
-            Professional Installation
+            Professional Robot Mower Installation
           </h1>
           <p className="mt-5 max-w-3xl text-lg text-slate-200">
             Standard initial amount: $1,000 — $800 labor including up to four
@@ -77,6 +78,7 @@ export default async function Page() {
           </div>
         </section>
       )}
+      <p className="mx-auto max-w-4xl px-5 pb-10 text-sm leading-7 text-slate-700">Still choosing equipment? <Link href="/equipment" className="font-bold text-emerald-800 underline">Compare robot mowers</Link> or <Link href="/services-scheduling" className="font-bold text-emerald-800 underline">request a demonstration</Link> before planning installation.</p>
     </main>
   );
 }
