@@ -18,6 +18,13 @@ const PUBLIC_ROUTES = [
   "/dealer-tech-resources",
   "/ids-in-action",
   "/troubleshoot-your-robot",
+  "/robot-mowers",
+  "/commercial-robot-mowers",
+  "/robot-mowers/missouri",
+  "/robot-mowers/southern-illinois",
+  "/robot-mowers/northeast-arkansas",
+  "/robot-mowers/western-kentucky",
+  "/robot-mowers/western-tennessee",
 ] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
