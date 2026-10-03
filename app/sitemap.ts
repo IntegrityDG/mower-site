@@ -25,6 +25,10 @@ const PUBLIC_ROUTES = [
   "/robot-mowers/northeast-arkansas",
   "/robot-mowers/western-kentucky",
   "/robot-mowers/western-tennessee",
+  "/robot-mowers/large-acreage",
+  "/robot-mowers/hills-rough-terrain",
+  "/robot-mowers/wire-free",
+  "/robot-mower-financing",
 ] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {

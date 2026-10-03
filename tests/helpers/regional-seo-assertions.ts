@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import type { RegionalSeoCase } from "../fixtures/regional-seo";
+
+export type SeoPageExpectation = {
+  path: string; breadcrumb: readonly string[]; title: string; description: string;
+  h1: string; text: string; links: readonly string[];
+};
 
 export const SEO_ORIGIN = "https://integrityautomowers.com";
 
@@ -29,7 +33,7 @@ export function jsonLdFromHtml(html: string): Record<string, unknown>[] {
     });
 }
 
-export function assertPageBody(html: string, expected: RegionalSeoCase) {
+export function assertPageBody(html: string, expected: SeoPageExpectation) {
   const h1s = [...html.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)];
   assert.equal(h1s.length, 1, `${expected.path}: exactly one H1`);
   assert.equal(textFromHtml(h1s[0][1]), expected.h1);
@@ -51,7 +55,7 @@ export function assertPageBody(html: string, expected: RegionalSeoCase) {
   return { words, links: [...new Set(hrefs)], breadcrumb: expected.breadcrumb.join(" → ") };
 }
 
-export function assertRawPage(html: string, expected: RegionalSeoCase, headers?: Headers) {
+export function assertRawPage(html: string, expected: SeoPageExpectation, headers?: Headers) {
   const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1];
   assert.ok(head, `${expected.path}: initial head metadata`);
   const titles = [...head.matchAll(/<title>([\s\S]*?)<\/title>/g)];

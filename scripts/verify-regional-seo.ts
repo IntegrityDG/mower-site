@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { REGIONAL_SEO_CASES, EXISTING_SITEMAP_PATHS } from "../tests/fixtures/regional-seo";
+import { APPROVED_SEO_PATHS, PRE_BATCH_THREE_PATHS, PROPERTY_SEO_CASES } from "../tests/fixtures/property-seo";
 import { assertRawPage, attributes, jsonLdFromHtml, SEO_ORIGIN } from "../tests/helpers/regional-seo-assertions";
 
 const origin = process.argv[2] ?? "http://127.0.0.1:3100";
 const output = process.argv[3];
+const batchThree = process.argv.includes("--batch-three");
+const pageCases = batchThree ? PROPERTY_SEO_CASES : REGIONAL_SEO_CASES;
 const report: Record<string, unknown> = { origin, verifiedAt: new Date().toISOString(), pages: [] };
 const pages: Record<string, unknown>[] = [];
 
@@ -16,7 +19,7 @@ async function fetchPage(path: string) {
 }
 
 async function main() {
-  for (const expected of REGIONAL_SEO_CASES) {
+  for (const expected of pageCases) {
     const { response, html } = await fetchPage(expected.path);
     const body = assertRawPage(html, expected, response.headers);
     pages.push({ ...expected, ...body, canonical: `${SEO_ORIGIN}${expected.path}`, status: response.status });
@@ -26,15 +29,15 @@ async function main() {
 
   const { html: sitemap } = await fetchPage("/sitemap.xml");
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
-  assert.equal(locations.length, 23);
-  assert.equal(new Set(locations).size, 23);
-  assert.deepEqual(locations.sort(), [...EXISTING_SITEMAP_PATHS, ...REGIONAL_SEO_CASES.map((entry) => entry.path)].map((path) => new URL(path, SEO_ORIGIN).href).sort());
-  report.sitemap = { status: 200, before: 16, after: 23, locations };
-  console.log("PASS sitemap: exactly 23 approved apex URLs; all existing 16 preserved");
+  assert.equal(locations.length, 27);
+  assert.equal(new Set(locations).size, 27);
+  assert.deepEqual(locations.sort(), APPROVED_SEO_PATHS.map((path) => new URL(path, SEO_ORIGIN).href).sort());
+  report.sitemap = { status: 200, before: batchThree ? 23 : 16, after: 27, locations };
+  console.log("PASS sitemap: exactly 27 approved apex URLs; all previous 23 preserved");
 
   const { html: robots } = await fetchPage("/robots.txt");
   assert.match(robots, /Allow: \/\s/);
-  for (const expected of REGIONAL_SEO_CASES) {
+  for (const expected of [...REGIONAL_SEO_CASES, ...PROPERTY_SEO_CASES]) {
     const disallowed = [...robots.matchAll(/^Disallow:\s*(\S+)/gm)].map((match) => match[1]);
     assert.ok(!disallowed.some((prefix) => expected.path.startsWith(prefix)));
   }
@@ -52,7 +55,8 @@ async function main() {
   }
 
   const existing: Record<string, unknown>[] = [];
-  for (const path of EXISTING_SITEMAP_PATHS) {
+  const existingPaths = batchThree ? PRE_BATCH_THREE_PATHS : EXISTING_SITEMAP_PATHS;
+  for (const path of existingPaths) {
     const { response, html } = await fetchPage(path);
     assert.ok(html.includes("<main"), `${path}: meaningful route response`);
     const schemas = jsonLdFromHtml(html);
@@ -68,10 +72,16 @@ async function main() {
     if (["/", "/equipment"].includes(path)) {
       assert.ok([...html.matchAll(/<a\b[^>]*>/g)].some((match) => attributes(match[0]).href === "/robot-mowers"));
     }
+    const regional = REGIONAL_SEO_CASES.find((entry) => entry.path === path);
+    if (regional) assertRawPage(html, regional, response.headers);
+    if (path === "/robot-mowers") {
+      const links = [...html.matchAll(/<a\b[^>]*>/g)].map((match) => attributes(match[0]).href);
+      for (const guide of PROPERTY_SEO_CASES) assert.ok(links.includes(guide.path), `Hub link: ${guide.path}`);
+    }
     existing.push({ path, status: response.status, schemas: schemas.map((entity) => entity["@type"]) });
   }
   report.existingRoutes = existing;
-  console.log("PASS existing routes: all 16 return HTTP 200; identity, Product, Service and Breadcrumb schema preserved");
+  console.log(`PASS existing routes: all ${existingPaths.length} return HTTP 200; identity, Product, Service and Breadcrumb schema preserved`);
   if (output) {
     mkdirSync(output, { recursive: true });
     writeFileSync(`${output}/verification.json`, JSON.stringify(report, null, 2));
