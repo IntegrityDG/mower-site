@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 export type SeoPageExpectation = {
   path: string; breadcrumb: readonly string[]; title: string; description: string;
   h1: string; text: string; links: readonly string[];
+  breadcrumbPaths?: readonly string[];
+  minWords?: number;
 };
 
 export const SEO_ORIGIN = "https://integrityautomowers.com";
@@ -42,12 +44,12 @@ export function assertPageBody(html: string, expected: SeoPageExpectation) {
   const bodyText = textFromHtml(main);
   assert.ok(bodyText.includes(expected.text), `${expected.path}: distinctive visible content`);
   const words = bodyText.split(/\s+/).length;
-  assert.ok(words >= 650, `${expected.path}: substantial visible content (${words} words)`);
+  assert.ok(words >= (expected.minWords ?? 650), `${expected.path}: substantial visible content (${words} words)`);
   const hrefs = [...main.matchAll(/<a\b[^>]*>/g)].map((match) => attributes(match[0]).href);
   for (const href of expected.links) assert.ok(hrefs.includes(href), `${expected.path}: server-rendered link ${href}`);
   const breadcrumbs = jsonLdFromHtml(html).filter((entity) => entity["@type"] === "BreadcrumbList");
   assert.equal(breadcrumbs.length, 1, `${expected.path}: one BreadcrumbList`);
-  const paths = expected.breadcrumb.length === 3 ? ["/", "/robot-mowers", expected.path] : ["/", expected.path];
+  const paths = expected.breadcrumbPaths ?? (expected.breadcrumb.length === 3 ? ["/", "/robot-mowers", expected.path] : ["/", expected.path]);
   assert.deepEqual(breadcrumbs[0].itemListElement, expected.breadcrumb.map((name, index) => ({
     "@type": "ListItem", position: index + 1, name,
     item: index === 0 ? SEO_ORIGIN : `${SEO_ORIGIN}${paths[index]}`,

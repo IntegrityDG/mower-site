@@ -10,7 +10,8 @@ import Hub from "../app/robot-mowers/page";
 import Commercial from "../app/commercial-robot-mowers/page";
 import sitemap from "../app/sitemap";
 import robots from "../app/robots";
-import { APPROVED_SEO_PATHS, PRE_BATCH_THREE_PATHS, PROPERTY_SEO_CASES } from "./fixtures/property-seo";
+import { PRE_BATCH_THREE_PATHS, PROPERTY_SEO_CASES } from "./fixtures/property-seo";
+import { BATCH_FIVE_SITEMAP_PATHS } from "./fixtures/guide-seo";
 import { REGIONAL_SEO_CASES } from "./fixtures/regional-seo";
 import { assertPageBody, attributes, SEO_ORIGIN, textFromHtml } from "./helpers/regional-seo-assertions";
 
@@ -47,12 +48,12 @@ test("Batch 3 metadata is unique across the new guides and previous authority pa
   }
 });
 
-test("sitemap contains exactly 27 approved URLs, preserving all previous 23", () => {
+test("sitemap contains exactly 33 approved URLs, preserving the Batch 3 baseline", () => {
   assert.equal(PRE_BATCH_THREE_PATHS.length, 23);
   const urls = sitemap().map((entry) => entry.url);
-  assert.equal(urls.length, 27);
-  assert.equal(new Set(urls).size, 27);
-  assert.deepEqual(urls.sort(), APPROVED_SEO_PATHS.map((path) => new URL(path, SEO_ORIGIN).href).sort());
+  assert.equal(urls.length, 33);
+  assert.equal(new Set(urls).size, 33);
+  assert.deepEqual(urls.sort(), BATCH_FIVE_SITEMAP_PATHS.map((path) => new URL(path, SEO_ORIGIN).href).sort());
   for (const url of urls) assert.doesNotMatch(url, /[?#]|\/admin|\/login|\/member|\/received|\/checkout|\/project-quote/);
 });
 

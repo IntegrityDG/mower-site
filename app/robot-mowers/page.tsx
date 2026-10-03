@@ -39,6 +39,7 @@ export default function RobotMowersPage() {
       <p>Vision and RTK do not eliminate the need to inspect the site. Tree canopy, buildings and reference-station placement can influence navigation. Plan safe pathways and no-go zones, and revisit the map when landscaping or property use changes.</p>
     </Section>
     <Section title="Installation, demonstrations and ownership support">
+      <p>For a closer explanation of connectivity, navigation, traction and ownership costs, explore the <A href="/robot-mower-guides">robot mower guides and buying resources</A>. Use those educational articles to prepare questions for equipment selection.</p>
       <p><A href="/professional-installation">Professional installation and optional setup</A> can address equipment placement, work zones, transitions, operating schedules, testing and a customer walkthrough as applicable to the machine and property. Review the published labor, materials, travel and booking terms before requesting work.</p>
       <p>A <A href="/services-scheduling">demo or Demo Party</A> helps you discuss controls, configuration and real operating questions. Confirm the available machine, location and scheduling arrangements with IDS. A demonstration is part of evaluation, not a guarantee of identical results on every property.</p>
       <p>Plan for blade care, cleaning, inspection and assistance after purchase. <A href="/service">Service, repair and maintenance</A> depend on the supported equipment, diagnosis and current availability. Remote assistance and on-site work have separate terms.</p>

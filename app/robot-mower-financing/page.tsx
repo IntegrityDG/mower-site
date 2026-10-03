@@ -42,6 +42,7 @@ export default function RobotMowerFinancingPage() {
       <p>If you want to ask about a separately arranged cash purchase or another payment arrangement, contact IDS first. Confirm availability and the agreed purchase terms rather than assuming cash appears among the online payment choices.</p>
     </Section>
     <Section title="Commercial buyers need a project and eligibility discussion">
+      <p>Separate ownership costs from payment timing with the <A href="/robot-mower-guides/robot-mower-vs-zero-turn">robot mower versus zero-turn comparison</A> and <A href="/robot-mower-guides/commercial-roi-labor-planning">commercial ROI planning guide</A>. Both use your actual costs rather than assumed savings.</p>
       <p>For a commercial robotic mower, start with the <A href="/commercial-robot-mowers">commercial and municipal planning guide</A> and an equipment proposal suited to the site. Identify the purchasing organization, approval process and responsible operator before discussing payment arrangements.</p>
       <p>The presence of the existing Hearth link is not a promise that every business, municipal buyer or Pandag project is eligible for that financing path. Ask IDS about the proposed purchase and confirm any borrowing eligibility and permitted use directly with the lender. Equipment cost and projected operating savings do not guarantee financing approval or ROI.</p>
     </Section>

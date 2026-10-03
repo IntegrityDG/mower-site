@@ -35,6 +35,7 @@ export default function CommercialRobotMowersPage() {
       </div>
     </Section>
     <Section title="Evaluate labor reduction and return on investment">
+      <p>The <A href="/robot-mower-guides/commercial-roi-labor-planning">commercial ROI and labor planning guide</A> explains how to build that comparison with your own records and distinguish operating differences from staff redeployment and cash flow.</p>
       <p>Robotic mowing can shift repetitive mowing work away from an operator, but the useful comparison is the complete maintenance process. Record current mowing hours and labor costs, then identify which passes a proposed system could handle and which tasks remain manual.</p>
       <p>Include equipment, installation, charging infrastructure, training, supervision, transport, blades, parts, service, financing and eventual replacement in the ownership estimate. Compare those costs with the existing equipment and crew plan over a period appropriate to your organization.</p>
       <p>Weather, grass growth, public access, utilization and downtime can change the result. Use your own records and a site-specific operating plan to evaluate ROI; IDS does not promise a fixed saving, payback period or guaranteed coverage figure. Review the <A href="/robot-mower-financing">financing and payment guide</A> before discussing an eligible purchase and final lender terms.</p>
