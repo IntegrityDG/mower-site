@@ -17,6 +17,7 @@ import PandagInformationSections from "../components/equipment/PandagInformation
 import { PANDAG_BROCHURE_IMAGE_PATHS } from "../components/equipment/pandagBrochureContent";
 import ProductPageSections from "../components/equipment/ProductPageSections";
 import QuoteOnlyNotice from "../components/equipment/QuoteOnlyNotice";
+import GenericProductDetail from "../components/equipment/GenericProductDetail";
 import YarboInformationSections from "../components/equipment/YarboInformationSections";
 import {
   YARBO_BROCHURE_IMAGE_PATHS,
@@ -433,7 +434,56 @@ test("equipment detail routing resolves lymow-one-plus from the catalog payload"
   assert.match(routeSource, /export const dynamic = "force-dynamic"/);
   assert.match(routeSource, /loadPublicCatalog\(\)/);
   assert.match(routeSource, /findCatalogProductBySlug\(payload, slug\)/);
-  assert.doesNotMatch(routeSource, /loadPublicCatalog\(slug\)/);
+  const pageHandlerSource = routeSource.slice(routeSource.indexOf("export default async function ProductPage"));
+  // Known detail pages still resolve from the full catalog. New managed-product
+  // metadata may independently perform a scoped read for its own identity.
+  assert.doesNotMatch(pageHandlerSource, /loadPublicCatalog\(slug\)/);
+});
+
+test("equipment routing exposes newly managed offerings while keeping unrelated catalog containers private", () => {
+  const existing = yarboProduct({ id: "aftermarket", slug: "ids-aftermarket", name: "IDS Aftermarket" });
+  const created = yarboProduct({ id: "new-product", slug: "new-product", name: "New Product", brand: "New Brand", adminManaged: true });
+  const catalog = { products: [existing, created], generatedAt: "2026-10-05T12:00:00.000Z" };
+  assert.equal(findCatalogProductBySlug(catalog, existing.slug), null);
+  assert.equal(findCatalogProductBySlug(catalog, created.slug), created);
+  assert.equal(productRequestedByBuildSearch(catalog, "?product=new-product"), created);
+  existing.hasManagedPackages = true;
+  assert.equal(findCatalogProductBySlug(catalog, existing.slug), existing);
+  assert.equal(productRequestedByBuildSearch(catalog, "?product=ids-aftermarket"), existing);
+  created.isAvailable = false;
+  assert.equal(productRequestedByBuildSearch(catalog, "?product=new-product"), null);
+});
+
+test("new quote-only product details use their own identity and uploaded media without G1 content or self-service actions", () => {
+  const product = yarboProduct({ id: "new-commercial", slug: "new-commercial-part", brand: "Pandag", name: "Commercial Replacement Attachment", fullDescription: "Replacement attachment supplied for IDS review.", salesMode: "quote_only", adminManaged: true, imageUrl: "https://example.supabase.co/storage/v1/object/public/catalog/attachment.png", imageAlt: "Commercial replacement attachment", variants: [], packages: [], optionGroups: [], ungroupedOptions: [], page: null });
+  const html = renderToStaticMarkup(<GenericProductDetail product={product}/>);
+  assert.match(html, /<h1[^>]*>Commercial Replacement Attachment<\/h1>/);
+  assert.match(html, /Replacement attachment supplied for IDS review/);
+  assert.match(html, /src="https:\/\/example\.supabase\.co\/storage\/v1\/object\/public\/catalog\/attachment\.png"/);
+  assert.match(html, /Commercial Replacement Attachment requires IDS review/);
+  assert.match(html, /href="\/contact"/);
+  assert.doesNotMatch(html, /Pandag G1|Build Your System|_next\/image|pandag\/brochure|pandag\/project-quote|Starting at/);
+  const routeSource = readFileSync(join(process.cwd(), "app", "equipment", "[slug]", "page.tsx"), "utf8");
+  assert.match(routeSource, /product\.slug === "pandag-g1" \? \([\s\S]*<PandagProductPage/);
+  assert.match(routeSource, /<GenericProductDetail product=\{product\}/);
+});
+
+test("new self-service product details render remote uploads directly and keep their product-specific build route", () => {
+  const product = yarboProduct({ id: "new-product", slug: "new-product", brand: "New Brand", name: "New Product", fullDescription: "Catalog product description.", salesMode: "self_service", adminManaged: true, imageUrl: "https://example.supabase.co/storage/v1/object/public/catalog/product.webp", imageAlt: "New Product", variants: [], packages: [], optionGroups: [], ungroupedOptions: [], page: null });
+  const html = renderToStaticMarkup(<GenericProductDetail product={product}/>);
+  assert.match(html, /<h1[^>]*>New Product<\/h1>/);
+  assert.match(html, /src="https:\/\/example\.supabase\.co\/storage\/v1\/object\/public\/catalog\/product\.webp"/);
+  assert.match(html, /href="\/\?product=new-product#location-and-customer-path"/);
+  assert.match(html, /Build Your System/);
+  assert.doesNotMatch(html, /Pandag G1|_next\/image|Request Pricing &amp; Information/);
+});
+
+test("unavailable new quote-only details retain information without offering a new pricing request", () => {
+  const product = yarboProduct({ id: "new-quote", slug: "new-quote", name: "Unavailable Product", salesMode: "quote_only", adminManaged: true, isAvailable: false, variants: [], packages: [], optionGroups: [], ungroupedOptions: [] });
+  const html = renderToStaticMarkup(<GenericProductDetail product={product}/>);
+  assert.match(html, /Unavailable Product/);
+  assert.match(html, /Unavailable/);
+  assert.doesNotMatch(html, /href="\/contact"|Build Your System|Pandag G1/);
 });
 
 test("quote-only notice renders the required Pandag language and existing request route", () => {

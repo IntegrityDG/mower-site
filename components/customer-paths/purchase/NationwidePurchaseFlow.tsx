@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatCents } from "@/lib/catalog/pricing";
+import { packageComponentKey, packageComponentName } from "@/lib/catalog/package-components";
 import {
   productBuildIsComplete,
   resolveBuildSelection,
@@ -199,7 +200,7 @@ export function productRequestedByBuildSearch(
     catalog.products.find(
       (product) =>
         product.slug === requestedSlug &&
-        isPublicEquipmentProductSlug(product.slug) &&
+        isPublicEquipmentProductSlug(product.slug, product) &&
         isSelfServiceProduct(product) &&
         product.isAvailable
     ) ?? null
@@ -554,6 +555,10 @@ export default function NationwidePurchaseFlow({
   }
 
   function handleSelectPackage(packageId: string) {
+    if (!packageId && selectedProduct && !isYarboProduct(selectedProduct)) {
+      setBuildSelection((current) => ({ ...current, packageId: "", variantId: "" }));
+      return;
+    }
     const selectedPackage = selectedProduct?.packages.find(
       (catalogPackage) => catalogPackage.id === packageId
     );
@@ -578,6 +583,7 @@ export default function NationwidePurchaseFlow({
     setBuildSelection((currentSelection) => ({
       ...currentSelection,
       packageId,
+      ...(selectedPackage.adminManaged ? { variantId: "" } : {}),
       optionQuantities: Object.fromEntries(
         Object.entries(currentSelection.optionQuantities).filter(
           ([optionId]) => !includedOptionIds.has(optionId)
@@ -724,7 +730,7 @@ export default function NationwidePurchaseFlow({
       ? [
           ...YARBO_INCLUDED_PLATFORM_EQUIPMENT,
           ...build.packageIncludedItems.map((item) =>
-            item.option ? yarboOptionDisplayName(item.option) : "Yarbo module"
+            packageComponentName(item)
           ),
         ]
       : [];
@@ -850,8 +856,8 @@ export default function NationwidePurchaseFlow({
       selectedYarboPackage
         ? `Included equipment: ${yarboIncludedPackageItems.join(", ")}`
         : build.packageIncludedItems.length
-          ? `Package includes: Base machine/core, ${build.packageIncludedItems
-              .map((item) => item.option?.name ?? "Catalog option")
+          ? `Package includes: ${build.packageIncludedItems
+              .map((item) => `${packageComponentName(item)}${item.quantity > 1 ? ` x ${item.quantity}` : ""}`)
               .join(", ")}`
           : null,
       selectedYarboPackage
@@ -1266,12 +1272,8 @@ function EquipmentSelectionReview({
                   <p key={item}>{item}</p>
                 ))}
               {build.packageIncludedItems.map((item) => (
-                <p key={item.optionId}>
-                  {item.option
-                    ? selectedProductIsYarbo
-                      ? yarboOptionDisplayName(item.option)
-                      : item.option.name
-                    : "Catalog option"}
+                <p key={packageComponentKey(item)}>
+                  {packageComponentName(item)}
                   {item.quantity > 1 ? ` x ${item.quantity}` : ""}
                 </p>
               ))}

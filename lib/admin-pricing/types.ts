@@ -47,8 +47,11 @@ export type PricingItem = {
   pricingProgramEnabled?: boolean;
   activeScheduleName: string | null;
   updatedAt?: string;
+  coreAvailabilityUpdatedAt?: string;
+  compatibility?: string[];
+  priceContextBlocked?: boolean;
 
-  /** Dealer cost currently used for IDS profit/margin calculations. */
+  /** Private IDS dealer cost, never part of the public catalog projection. */
   dealerCostCents: number | null;
 
   /** Permanent/base dealer cost stored in catalog_internal_pricing. */

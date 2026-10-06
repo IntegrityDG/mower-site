@@ -17,7 +17,7 @@ export function createPricingAdminHandlers(deps: Dependencies) {
       if (!isUuid(id)) return json({ error: "Invalid record id." }, 400);
       const input = await request.json().catch(() => null);
       if (!input || typeof input !== "object" || Array.isArray(input)) return json({ error: "A JSON object is required." }, 422);
-      const { expectedUpdatedAt, ...patch } = input as Record<string, unknown>;
+      const { expectedUpdatedAt, expectedCoreAvailabilityUpdatedAt, ...patch } = input as Record<string, unknown>;
       const parsed = validatePricingPatch(kind, patch);
       if (!parsed.ok) return json({ error: parsed.error }, 422);
       try {
@@ -28,12 +28,16 @@ export function createPricingAdminHandlers(deps: Dependencies) {
         const dateError = validatePricingDateWindow(kind, { ...existing, ...parsed.value });
         if (dateError) return json({ error: dateError }, 422);
         if (storedVersion && storedVersion !== expectedUpdatedAt) return json({ error: "Pricing record changed after you opened it. Reload the item and review the newer values before saving." }, 409);
+        if ("public_status" in parsed.value && typeof existing.core_availability_expected_updated_at === "string") {
+          if (existing.core_availability_expected_updated_at !== expectedCoreAvailabilityUpdatedAt) return json({ error: "Pricing record changed: Core availability changed after you opened it. Reload before saving." }, 409);
+          parsed.value.core_availability_expected_updated_at = expectedCoreAvailabilityUpdatedAt;
+        }
         return json({ item: await deps.update(kind, id, parsed.value, typeof expectedUpdatedAt === "string" ? expectedUpdatedAt : ""), success: true });
       }
       catch (error) {
         const message = error instanceof Error ? error.message : "";
         if (message === "Pricing record not found.") return json({ error: message }, 404);
-        if (message.startsWith("Pricing record changed")) return json({ error: message }, 409);
+        if (message.startsWith("Pricing record changed") || message.startsWith("Catalog changed") || message.startsWith("Core availability changed")) return json({ error: message }, 409);
         return json({ error: "Pricing update failed." }, 500);
       }
     },

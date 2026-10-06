@@ -18,7 +18,11 @@ import {
 import { sellingPriceDecision } from "@/lib/pricing-program/policy";
 import { isWithinPriceWindow } from "@/lib/pricing-program/window";
 import { readPricingProgramSettingsFailSafe } from "@/lib/pricing-program/server";
-import { salesModeForProductSlug } from "@/lib/catalog/sales-mode";
+import { catalogProductRequiresQuote } from "@/lib/catalog/sales-mode";
+import { loadPublicCatalog } from "@/lib/catalog/load-public-catalog";
+import { updateCatalogPricing } from "@/lib/catalog-management/server";
+import { catalogVariantAvailability } from "@/lib/catalog/preorder";
+import { yarboCoreCanBeSelected, yarboCorePrice } from "@/lib/catalog/yarbo-core";
 
 const tables: Record<PricingKind, string> = {
   products: "catalog_products",
@@ -261,6 +265,9 @@ function rowToItem(
 
   const effectiveDealerCostCents =
     promotionalCost?.dealerCostCents ?? normalDealerCostCents;
+  if (["products", "variants", "packages", "options"].includes(kind)) {
+    values.dealer_cost_cents = normalDealerCostCents;
+  }
 
   const rawPriceRow = basePriceRow(kind, row, maps);
   const appliedPriceRow = applyActivePriceSchedule(rawPriceRow, activeSchedule);
@@ -274,7 +281,7 @@ function rowToItem(
     ...appliedPriceRow,
     display_msrp_price_cents: displayMsrpPriceCents ?? null,
   }, everydayLowPriceEnabled, now);
-  const quoteOnly = productSlug ? salesModeForProductSlug(productSlug) === "quote_only" : false;
+  const quoteOnly = productSlug ? catalogProductRequiresQuote({ slug: productSlug, brand: brand ?? undefined }) : false;
   const showPublicPrice = appliedPriceRow.show_public_price !== false;
   const contactForPricing = appliedPriceRow.contact_for_pricing === true;
   const isLymowParent = kind === "products" && productSlug === "lymow-one-plus";
@@ -322,6 +329,7 @@ function rowToItem(
         : "No priced source";
   let effectiveExplanation = `${storedAtLabel} currently controls this amount.`;
 
+  if (productSlug === "yarbo") effectiveSourceLabel = storedAtLabel + " · " + effectiveSourceLabel;
   if (activeSchedule) {
     effectiveSource = "active_schedule";
     effectiveSourceLabel = `Active schedule: ${activeSchedule.schedule_name ?? "Unnamed schedule"}`;
@@ -389,6 +397,7 @@ function rowToItem(
     pricingProgramEnabled: everydayLowPriceEnabled,
     activeScheduleName: activeSchedule?.schedule_name ?? null,
     updatedAt: typeof row.updated_at === "string" ? row.updated_at : "",
+    compatibility: Array.isArray(row.compatibility) ? row.compatibility.filter((value): value is string => typeof value === "string") : [],
 
     dealerCostCents: effectiveDealerCostCents,
     normalDealerCostCents,
@@ -413,7 +422,7 @@ export async function readPricingCatalog(): Promise<PricingCatalog> {
 
         return [
           kind,
-          (data ?? []) as Record<string, unknown>[],
+          ((data ?? []) as Record<string, unknown>[]).filter((row) => !row.retired_at && row.catalog_category !== "catalog_family"),
         ] as const;
       },
     ),
@@ -432,7 +441,7 @@ export async function readPricingCatalog(): Promise<PricingCatalog> {
       .from("catalog_internal_pricing")
       .select(
         "product_id,variant_id,option_id,package_id,service_id,product_service_id,dealer_cost_cents,updated_at",
-      ),
+      ).order("updated_at"),
 
     privateClient
       .from("catalog_promotional_dealer_costs")
@@ -606,7 +615,7 @@ export async function readPricingCatalog(): Promise<PricingCatalog> {
 
   const now = Date.now();
 
-  return {
+  const result: PricingCatalog = {
     items: entries.flatMap(([kind, rows]) =>
       rows.map((row) => {
         const id = String(row.id);
@@ -639,6 +648,71 @@ export async function readPricingCatalog(): Promise<PricingCatalog> {
       }),
     ),
   };
+
+  // Use the customer projection for effective price and dependency availability.
+  // Its public allowlist carries no private dealer costs.
+  const [publicCatalog, coreRelations] = await Promise.all([
+    loadPublicCatalog(),
+    client.from("catalog_package_core_prices").select("package_id,core_variant_id,public_status,updated_at").eq("price_mode", "package"),
+  ]);
+  if (coreRelations.error) throw coreRelations.error;
+  const publicByTarget = new Map<string, { currentPriceCents: number | null; showPublicPrice: boolean; contactForPricing: boolean; isAvailable: boolean }>();
+  for (const product of publicCatalog.products) {
+    publicByTarget.set(targetKey("products", product.id), product);
+    for (const variant of product.variants) publicByTarget.set(targetKey("variants", variant.id), { ...variant, isAvailable: product.isAvailable && variant.isAvailable });
+    for (const pkg of product.packages) publicByTarget.set(targetKey("packages", pkg.id), { ...pkg, isAvailable: product.isAvailable && pkg.isAvailable });
+    for (const option of [...product.ungroupedOptions, ...product.optionGroups.flatMap((group) => group.options)]) {
+      publicByTarget.set(targetKey("options", option.id), { ...option, isAvailable: product.isAvailable && option.isAvailable });
+    }
+  }
+  result.items = result.items.map((item) => {
+    if (!["products", "variants", "packages", "options"].includes(item.kind)) return item;
+    const parentRow = (byKind.get("products") ?? []).find((row) => row.id === item.productId);
+    item = { ...item, priceContextBlocked: item.kind === "products" ? item.slug === "yarbo" && parentRow?.public_status === "hidden" : !parentRow || parentRow.public_status === "hidden" };
+    const publicItem = publicByTarget.get(targetKey(item.kind, item.id));
+    let priceProjection = publicItem;
+    if (item.kind === "packages" && item.productSlug === "yarbo" && item.values.core_selectable === true) {
+      const relationship = coreRelations.data?.find((row) => row.package_id === item.id);
+      const product = publicCatalog.products.find((row) => row.id === item.productId);
+      const pkg = product?.packages.find((row) => row.id === item.id);
+      const core = product?.variants.find((row) => row.slug === "yarbo-y40");
+      const corePrice = product && pkg && core ? yarboCorePrice(product, core, pkg) : null;
+      item.priceContextBlocked = !product || !pkg || !core;
+      priceProjection = corePrice ? { ...corePrice, isAvailable: Boolean(product && pkg && core && yarboCoreCanBeSelected(product, core, pkg)) } : undefined;
+      if (relationship) item = { ...item, publicStatus: relationship.public_status,
+        availabilityStatus: relationship.public_status, values: { ...item.values, public_status: relationship.public_status },
+        coreAvailabilityUpdatedAt: relationship.updated_at,
+        isAvailable: Boolean(product && pkg && core && yarboCoreCanBeSelected(product, core, pkg)),
+      };
+    }
+    if (item.kind === "products" && item.slug === "yarbo") {
+      const y40 = (byKind.get("variants") ?? []).find((row) => row.product_id === item.id && row.variant_slug === "yarbo-y40");
+      if (y40) {
+        const availability = catalogVariantAvailability(y40 as Parameters<typeof catalogVariantAvailability>[0], now);
+        item = { ...item, publicStatus: String(y40.public_status), availabilityStatus: String(y40.public_status),
+          values: { ...item.values, public_status: String(y40.public_status) },
+          coreAvailabilityUpdatedAt: String(y40.updated_at), isAvailable: Boolean(publicItem?.isAvailable && availability.isAvailable),
+        };
+        if (!publicCatalog.products.find((product) => product.id === item.id)?.variants.some((core) => core.slug === "yarbo-y40")) priceProjection = undefined;
+      }
+    }
+    if (item.effectiveSource === "unpriced" && (item.slug === "yarbo-y40" || item.slug === "lymow-one-plus")) {
+      return { ...item, checkoutPriceCents: null };
+    }
+    if (!priceProjection) {
+      return { ...item, isAvailable: false, effectivePriceCents: null, checkoutPriceCents: null,
+        effectiveExplanation: item.effectiveExplanation + " This offering is not currently in the public catalog." };
+    }
+    const customerPrice = priceProjection.showPublicPrice && !priceProjection.contactForPricing ? priceProjection.currentPriceCents : null;
+    return {
+      ...item,
+      isAvailable: item.coreAvailabilityUpdatedAt ? item.isAvailable : priceProjection.isAvailable,
+      effectivePriceCents: customerPrice,
+      checkoutPriceCents: (item.coreAvailabilityUpdatedAt ? item.isAvailable : priceProjection.isAvailable) ? customerPrice : null,
+      effectiveExplanation: item.effectiveExplanation + ((item.coreAvailabilityUpdatedAt ? item.isAvailable : priceProjection.isAvailable) ? "" : " Checkout is currently blocked by this offering or a required dependency."),
+    };
+  });
+  return result;
 }
 
 export async function updatePricingRecord(
@@ -649,6 +723,21 @@ export async function updatePricingRecord(
 ): Promise<PricingItem> {
   const client = getSupabaseServiceClient();
 
+  if (["products", "variants", "packages", "options"].includes(kind)) {
+    const source = kind === "products" ? await client.from("catalog_products").select("slug").eq("id", id).single() : null;
+    if (source?.error) throw source.error;
+    let targetKind: "products" | "variants" | "packages" | "options" | "yarbo-y40-core" | "yarbo-y40-package" = source?.data?.slug === "yarbo" ? "yarbo-y40-core" : kind as "products" | "variants" | "packages" | "options";
+    if (kind === "packages") {
+      const pkg = await client.from("catalog_packages").select("core_selectable,product_id").eq("id", id).single();
+      if (pkg.error) throw pkg.error;
+      if (pkg.data.core_selectable) {
+        const product = await client.from("catalog_products").select("slug").eq("id", pkg.data.product_id).single();
+        if (product.error) throw product.error;
+        if (product.data.slug === "yarbo") targetKind = "yarbo-y40-package";
+      }
+    }
+    await updateCatalogPricing(targetKind, id, values, expectedUpdatedAt);
+  } else {
   const { data, error } = await client
     .from(tables[kind])
     .update({
@@ -662,6 +751,7 @@ export async function updatePricingRecord(
 
   if (error) throw error;
   if (!data) throw new Error("Pricing record changed after you opened it. Reload the item and review the newer values before saving.");
+  }
 
   const catalog = await readPricingCatalog();
   const item = catalog.items.find(
@@ -682,14 +772,36 @@ export async function readPricingRecordValues(
 
   const { data, error } = await client
     .from(tables[kind])
-    .select([...editablePricingFields[kind], "updated_at"].join(","))
+    .select([...editablePricingFields[kind].filter((key) => key !== "dealer_cost_cents"), "updated_at"].join(","))
     .eq("id", id)
     .limit(1)
     .maybeSingle();
 
   if (error) throw error;
-
-  return data as Record<string, unknown> | null;
+  const result = data as Record<string, unknown> | null;
+  if (kind === "products" && result) {
+    const product = await client.from("catalog_products").select("slug").eq("id", id).single();
+    if (product.error) throw product.error;
+    if (product.data.slug === "yarbo") {
+      const core = await client.from("catalog_product_variants").select("public_status,updated_at").eq("product_id", id).eq("variant_slug", "yarbo-y40").single();
+      if (core.error) throw core.error;
+      result.public_status = core.data.public_status;
+      result.core_availability_expected_updated_at = core.data.updated_at;
+    }
+  }
+  if (kind === "packages" && result) {
+    const pkg = await client.from("catalog_packages").select("core_selectable,product_id").eq("id", id).single();
+    if (pkg.error) throw pkg.error;
+    if (pkg.data.core_selectable) {
+      const core = await client.from("catalog_product_variants").select("id").eq("product_id", pkg.data.product_id).eq("variant_slug", "yarbo-y40").single();
+      if (core.error) throw core.error;
+      const relation = await client.from("catalog_package_core_prices").select("public_status,updated_at").eq("package_id", id).eq("core_variant_id", core.data.id).single();
+      if (relation.error) throw relation.error;
+      result.public_status = relation.data.public_status;
+      result.core_availability_expected_updated_at = relation.data.updated_at;
+    }
+  }
+  return result;
 }
 
 

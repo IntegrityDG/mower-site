@@ -6,17 +6,18 @@ const publicEquipmentProductSlugs = new Set([
   "pandag-g1",
 ]);
 
-export function isPublicEquipmentProductSlug(slug: string): boolean {
-  return publicEquipmentProductSlugs.has(slug);
+export function isPublicEquipmentProductSlug(slug: string, product?: Pick<CatalogProduct, "adminManaged" | "hasManagedPackages">): boolean {
+  return publicEquipmentProductSlugs.has(slug) || product?.adminManaged === true || product?.hasManagedPackages === true;
 }
 
 export function findCatalogProductBySlug(
   catalog: CatalogResponse,
   slug: string
 ): CatalogProduct | null {
-  if (!isPublicEquipmentProductSlug(slug)) {
+  const product = catalog.products.find((product) => product.slug === slug);
+  if (!isPublicEquipmentProductSlug(slug, product)) {
     return null;
   }
 
-  return catalog.products.find((product) => product.slug === slug) ?? null;
+  return product ?? null;
 }

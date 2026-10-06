@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import CatalogHeader from "@/components/equipment/CatalogHeader";
+import GenericProductDetail from "@/components/equipment/GenericProductDetail";
 import LymowInformationSections from "@/components/equipment/LymowInformationSections";
 import LymowPriceDisplay from "@/components/equipment/LymowPriceDisplay";
 import { lymowImages } from "@/components/equipment/lymowBrochureContent";
@@ -17,10 +18,10 @@ import YarboStartingPriceDisplay from "@/components/equipment/YarboStartingPrice
 import BreadcrumbJsonLd, { EQUIPMENT_BREADCRUMB, HOME_BREADCRUMB } from "@/components/seo/BreadcrumbJsonLd";
 import ProductJsonLd from "@/components/seo/ProductJsonLd";
 import { priceLabel } from "@/lib/catalog/pricing";
+import { managedProductStartingPrice } from "@/lib/catalog/starting-price";
 import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { loadPublicCatalog } from "@/lib/catalog/load-public-catalog";
-import { findCatalogProductBySlug, isPublicEquipmentProductSlug } from "@/lib/catalog/product-routing";
-import { isQuoteOnlyProduct } from "@/lib/catalog/sales-mode";
+import { findCatalogProductBySlug } from "@/lib/catalog/product-routing";
 import type { CatalogOption, CatalogProduct } from "@/lib/catalog/types";
 import { isYarboProduct } from "@/lib/catalog/yarbo";
 
@@ -48,7 +49,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   if (slug !== "lymow-one-plus" && slug !== "yarbo" && slug !== "pandag-g1") {
-    return {};
+    const catalog = await loadPublicCatalog(slug).catch(() => null);
+    const product = catalog ? findCatalogProductBySlug(catalog, slug) : null;
+    return product ? { title: `${product.name} | IDS`, description: product.homepageSummary ?? product.fullDescription ?? undefined, alternates: { canonical: `/equipment/${slug}` } } : {};
   }
 
   return { ...productMetadata[slug], alternates: { canonical: `/equipment/${slug}` } };
@@ -60,7 +63,6 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  if (!isPublicEquipmentProductSlug(slug)) notFound();
   let product: CatalogProduct | null = null;
   let loadFailed = false;
 
@@ -85,10 +87,12 @@ export default async function ProductPage({
 
   const page = isYarboProduct(product) ? (
     <YarboProductPage product={product} />
-  ) : isQuoteOnlyProduct(product) ? (
+  ) : product.slug === "pandag-g1" ? (
     <PandagProductPage product={product} />
-  ) : (
+  ) : product.slug === "lymow-one-plus" ? (
     <StandardProductPage product={product} />
+  ) : (
+    <GenericProductDetail product={product} />
   );
 
   return (
@@ -260,7 +264,7 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950">
-      <CatalogHeader productSlug={isLymowOnePlus ? product.slug : undefined} isAvailable={product.isAvailable} />
+      <CatalogHeader productSlug={product.slug} isAvailable={product.isAvailable} />
       <main>
         <section className="bg-gradient-to-br from-slate-950 to-emerald-950 px-5 py-14 text-white sm:px-8">
           <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-2">
@@ -311,14 +315,14 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                 </div>
               ) : (
                 <p className="mt-7 text-3xl font-black">
-                  {priceLabel(product)}
+                  {priceLabel(managedProductStartingPrice(product) ?? product)}
                 </p>
               ))}
               {product.isAvailable && <Link
                 href={
                   isLymowOnePlus
                     ? "/?product=lymow-one-plus#location-and-customer-path"
-                    : "/#location-and-customer-path"
+                    : `/?product=${encodeURIComponent(product.slug)}#location-and-customer-path`
                 }
                 className="mt-7 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 text-center font-black text-slate-950 hover:bg-emerald-400"
               >
@@ -406,12 +410,11 @@ function StandardProductPage({ product }: { product: CatalogProduct }) {
                 Ready to plan the complete system?
               </h2>
               <p className="mt-3 max-w-2xl leading-7 text-slate-300">
-                Choose the machine and compatible equipment first, then check
-                delivery and service availability. No payment is collected
-                online.
+                Choose available equipment or packages, then review delivery
+                and checkout options.
               </p>
               {product.isAvailable ? <Link
-                  href="/#location-and-customer-path"
+                  href={`/?product=${encodeURIComponent(product.slug)}#location-and-customer-path`}
                   className="mt-6 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950"
                 >
                   Build Your System

@@ -276,13 +276,13 @@ test("package/Core pricing admin denies unauthenticated reads and writes", async
 });
 
 test("admin validates exact Core price and promotion fields and cannot edit inherited Y40 relationship", async () => {
-  assert.equal(validatePackageCorePricePatch({ dealer_cost_cents: 1 }, adminValues).ok, false);
-  assert.equal(validatePackageCorePricePatch({ regular_price_cents: null }, adminValues).ok, false);
+  assert.equal(validatePackageCorePricePatch({ dealer_cost_cents: 1 }, adminValues).ok, true);
+  assert.equal(validatePackageCorePricePatch({ regular_price_cents: null }, adminValues).ok, true);
   assert.equal(validatePackageCorePricePatch({ sale_ends_at: start }, adminValues).ok, false);
   let saved: Record<string, unknown> | null = null;
   const handlers = createPackageCorePriceAdminHandlers({ isAdmin: async () => true, read: async () => [adminRow], readValues: async (id) => id === adminId ? adminValues : null, update: async (_id, patch) => { saved = patch; return adminRow; } });
   const patch = (body: unknown, id = adminId) => handlers.PATCH(new Request("http://localhost", { method: "PATCH", body: JSON.stringify(body) }), { params: Promise.resolve({ id }) });
-  assert.equal((await patch({ dealer_cost_cents: 1 })).status, 422);
+  assert.equal((await patch({ dealer_cost_cents: -1 })).status, 422);
   assert.equal((await patch({ regular_price_cents: 800000 })).status, 200);
   assert.deepEqual(saved, { regular_price_cents: 800000 });
   assert.equal((await patch({ regular_price_cents: 1 }, "22222222-2222-4222-8222-222222222222")).status, 404);

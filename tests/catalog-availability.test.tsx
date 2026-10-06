@@ -115,20 +115,15 @@ test("invalid availability payloads are rejected without weakening special statu
 
 test("Pricing Management exposes distinct ON, OFF, and HIDDEN public-status controls", () => {
   const admin = source("app/admin/pricing/page.tsx");
-  assert.match(admin, />Available</);
-  assert.match(admin, />ON</);
-  assert.match(admin, />OFF</);
-  assert.match(admin, />HIDDEN</);
-  assert.match(admin, /setAvailability\(item, "active"\)/);
-  assert.match(admin, /setAvailability\(item, "unavailable"\)/);
-  assert.match(admin, /setAvailability\(item, "hidden"\)/);
-  assert.match(admin, /item\.availabilityField === "public_status"/);
-  assert.match(admin, /aria-pressed=\{item\.availabilityStatus === "hidden"\}/);
-  assert.match(admin, /item\.availabilityStatus === "hidden" \? "bg-red-700 text-white"/);
+  const card = source("components/admin/PricingCatalogCard.tsx");
+  assert.match(card, /"ON" : status === "unavailable" \? "OFF" : "HIDDEN"/);
+  assert.match(card, /onAvailability\(status\)/);
+  assert.match(card, /item\.availabilityField === "public_status"/);
+  assert.match(card, /aria-pressed=\{item\.availabilityStatus === status\}/);
   assert.match(admin, /public_status: nextStatus/);
   assert.match(admin, /is_available: available/);
   assert.match(admin, /setItems\(previousItems\)/);
-  assert.match(admin, /disabled=\{Boolean\(availabilitySavingKey\)\}/);
+  assert.match(card, /disabled=\{availabilitySaving\}/);
   assert.match(source("app/api/admin/pricing/[kind]/[id]/route.ts"), /isReviewAdmin/);
 });
 

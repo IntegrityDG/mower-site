@@ -5,6 +5,7 @@ import type {
   ProductBuildSelection,
 } from "./types";
 import { customerFacingProductOptions } from "./customer-facing-options";
+import { packageComponentName } from "./package-components";
 
 export const YARBO_PRODUCT_SLUG = "yarbo";
 
@@ -75,7 +76,7 @@ export function isYarboModuleSlug(slug: string) {
 }
 
 export function isYarboModuleOption(option: CatalogOption) {
-  return isYarboModuleSlug(option.slug);
+  return isYarboModuleSlug(option.slug) || option.catalogCategory === "module";
 }
 
 export function yarboOptionDisplayName(option: CatalogOption) {
@@ -88,15 +89,15 @@ export function yarboPackageDisplayName(catalogPackage: CatalogPackage) {
 
 export function yarboPackageModuleNames(catalogPackage: CatalogPackage) {
   return catalogPackage.items
-    .filter((item) => item.option && isYarboModuleOption(item.option))
+    .filter((item) => item.component || (item.option && isYarboModuleOption(item.option)))
     .map((item) => {
-      const name = item.option ? yarboOptionDisplayName(item.option) : "Yarbo module";
+      const name = packageComponentName(item);
       return item.quantity > 1 ? `${name} x ${item.quantity}` : name;
     });
 }
 
 function packageHasModule(catalogPackage: CatalogPackage, slug: string) {
-  return catalogPackage.items.some((item) => item.option?.slug === slug);
+  return catalogPackage.items.some((item) => (item.component?.slug ?? item.option?.slug) === slug);
 }
 
 export function yarboPackageMowerType(catalogPackage: CatalogPackage) {

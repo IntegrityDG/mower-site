@@ -36,13 +36,13 @@ async function resolveAccessoryOnlyPricing(input: CheckoutRequest): Promise<Orde
     const product = products.find((row) => row.id === option.product_id);
     const correctTab = product?.slug === "lymow-one-plus" ? "lymow" : product?.slug === "yarbo" ? "yarbo" : product?.slug === "ids-aftermarket" ? "aftermarket" : null;
     if (!product || !correctTab) throw new CheckoutRejectionError("QUOTE_ONLY_PRODUCT", "This accessory is not eligible for checkout.");
-    if (product.public_status !== "active") throw new CheckoutRejectionError("INACTIVE_CATALOG_RECORD", `${product.name} is currently unavailable. Please update your configuration before continuing.`);
-    if (option.public_status !== "active") throw new CheckoutRejectionError("INACTIVE_CATALOG_RECORD", `${option.name} is currently unavailable. Please update your configuration before continuing.`);
-    if (option.accessory_listing_enabled !== true || option.accessory_tab !== correctTab || option.show_in_builder !== true || (correctTab !== "aftermarket" && option.accessory_action_type !== "builder") || option.contact_for_pricing || option.regular_price_cents === null || ACCESSORY_BLOCKLIST.has(option.option_slug)) throw new CheckoutRejectionError("INCOMPATIBLE_SELECTION", "This accessory is not available for IDS checkout.");
+    if (product.public_status !== "active" || product.retired_at) throw new CheckoutRejectionError("INACTIVE_CATALOG_RECORD", `${product.name} is currently unavailable. Please update your configuration before continuing.`);
+    if (option.public_status !== "active" || option.retired_at) throw new CheckoutRejectionError("INACTIVE_CATALOG_RECORD", `${option.name} is currently unavailable. Please update your configuration before continuing.`);
+    if (option.accessory_listing_enabled !== true || option.accessory_tab !== correctTab || option.show_in_builder !== true || (correctTab !== "aftermarket" && option.accessory_action_type !== "builder") || option.contact_for_pricing || ACCESSORY_BLOCKLIST.has(option.option_slug)) throw new CheckoutRejectionError("INCOMPATIBLE_SELECTION", "This accessory is not available for IDS checkout.");
     const maximum = Math.min(option.maximum_quantity ?? 10, 10);
     if (selected.quantity < Math.max(1, option.minimum_quantity) || selected.quantity > maximum) throw new CheckoutRejectionError("INVALID_QUANTITY", "Accessory quantity is outside its allowed range.");
   }
-  const schedulesResult = await supabase.from("catalog_price_schedules").select("id, option_id, regular_price_cents, sale_price_cents, starts_at, ends_at, public_status").in("option_id", optionIds).eq("public_status", "active");
+  const schedulesResult = await supabase.from("catalog_price_schedules").select("id, option_id, regular_price_cents, sale_price_cents, starts_at, ends_at, public_status,show_public_price,contact_for_pricing").in("option_id", optionIds).eq("public_status", "active");
   const schedules = ensure(schedulesResult, "Price schedules");
   const now = Date.now();
   const sources: CatalogSourceReference[] = products.map((product) => ({ table: "catalog_products", id: product.id }));
@@ -75,12 +75,29 @@ async function resolveEquipmentPricing(input: CheckoutRequest): Promise<OrderPri
     supabase.from("catalog_packages").select("*").eq("product_id", product.id),
     supabase.from("catalog_variant_options").select("*"),
     supabase.from("catalog_package_items").select("*"),
-    supabase.from("catalog_price_schedules").select("id, product_id, variant_id, option_id, package_id, regular_price_cents, sale_price_cents, starts_at, ends_at, public_status").eq("public_status", "active"),
+    supabase.from("catalog_price_schedules").select("id, product_id, variant_id, option_id, package_id, regular_price_cents, sale_price_cents, starts_at, ends_at, public_status,show_public_price,contact_for_pricing").eq("public_status", "active"),
     product.slug === "yarbo" && input.selection.variantId
       ? supabase.from("catalog_package_core_prices").select("*").eq("product_id", product.id)
       : Promise.resolve({ data: [], error: null }),
   ]);
   const catalog: CheckoutCatalog = { product, variants: ensure(variantsResult, "Variants"), options: ensure(optionsResult, "Options"), packages: ensure(packagesResult, "Packages"), variantOptions: ensure(variantOptionsResult, "Variant options"), packageItems: ensure(packageItemsResult, "Package items"), corePrices: ensure(corePricesResult, "Package Core prices") };
+  const selectedItems = catalog.packageItems.filter((item) => item.package_id === input.selection.packageId);
+  const productIds = selectedItems.flatMap((item) => item.component_product_id ? [item.component_product_id] : []);
+  const variantIds = selectedItems.flatMap((item) => item.component_variant_id ? [item.component_variant_id] : []);
+  const optionIds = selectedItems.flatMap((item) => item.option_id ? [item.option_id] : []);
+  const emptyRows = { data: [], error: null };
+  const [componentProductsResult, componentVariantsResult, componentOptionsResult] = await Promise.all([
+    productIds.length ? supabase.from("catalog_products").select("*").in("id", productIds) : emptyRows,
+    variantIds.length ? supabase.from("catalog_product_variants").select("*").in("id", variantIds) : emptyRows,
+    optionIds.length ? supabase.from("catalog_options").select("*").in("id", optionIds) : emptyRows,
+  ]);
+  catalog.componentProducts = ensure(componentProductsResult, "Package component products");
+  catalog.componentVariants = ensure(componentVariantsResult, "Package component variants");
+  catalog.componentOptions = ensure(componentOptionsResult, "Package component options");
+  const requiredOptionIds = catalog.variantOptions.filter((link) => variantIds.includes(link.variant_id) && ["defines_variant", "included", "required"].includes(link.relationship_type)).map((link) => link.option_id);
+  if (requiredOptionIds.length) catalog.componentOptions.push(...ensure(await supabase.from("catalog_options").select("*").in("id", requiredOptionIds), "Required package variant equipment"));
+  const parentIds = [...new Set([...catalog.componentVariants, ...catalog.componentOptions].map((row) => row.product_id))];
+  if (parentIds.length) catalog.componentProducts.push(...ensure(await supabase.from("catalog_products").select("*").in("id", parentIds), "Package component parents"));
   const schedules = ensure(schedulesResult, "Price schedules");
   return resolveEquipmentCatalogPricing(input, catalog, schedules, Date.now(), everydayLowPriceEnabled);
 }

@@ -5,6 +5,7 @@ import CoreAvailabilityBadge from "@/components/equipment/CoreAvailabilityBadge"
 import { selectedYarboCore, yarboCorePrice } from "@/lib/catalog/yarbo-core";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
+import { packageComponentKey, packageComponentName } from "@/lib/catalog/package-components";
 import { resolveBuildSelection } from "@/lib/catalog/selection";
 import type { CatalogProduct, ProductBuildSelection } from "@/lib/catalog/types";
 import {
@@ -290,8 +291,8 @@ function YarboSummaryGrid({
               <p key={item}>{item}</p>
             ))}
             {build.packageIncludedItems.map((item) => (
-              <p key={item.optionId}>
-                {item.option ? yarboOptionDisplayName(item.option) : "Yarbo module"}
+              <p key={packageComponentKey(item)}>
+                {packageComponentName(item)}
                 {item.quantity > 1 ? ` x ${item.quantity}` : ""}
               </p>
             ))}
@@ -377,10 +378,10 @@ function StandardSummaryGrid({
             Included in Package
           </p>
           <div className="mt-3 space-y-2 text-sm font-semibold leading-6 text-slate-700">
-            <p>Base machine/core</p>
+            {!build.selectedPackage?.adminManaged && <p>Base machine/core</p>}
             {build.packageIncludedItems.map((item) => (
-              <p key={item.optionId}>
-                {item.option?.name ?? "Catalog option"}
+              <p key={packageComponentKey(item)}>
+                {packageComponentName(item)}
                 {item.quantity > 1 ? ` x ${item.quantity}` : ""}
               </p>
             ))}

@@ -8,6 +8,13 @@ export type PackageCorePriceAdminRow = {
   coreName: string;
   coreStatus: string;
   priceMode: "package" | "core_specific";
+  displayMsrpPriceCents?: number | null;
+  dealerCostCents?: number | null;
+  normalDealerCostCents?: number | null;
+  effectiveAvailabilityStatus?: string;
+  isAvailable?: boolean;
+  availabilityExplanation?: string;
+  priceContextBlocked?: boolean;
   regularPriceCents: number | null;
   salePriceCents: number | null;
   saleStartsAt: string | null;
@@ -15,6 +22,8 @@ export type PackageCorePriceAdminRow = {
   promotionLabel: string | null;
   showPublicPrice: boolean;
   contactForPricing: boolean;
+  storedShowPublicPrice?: boolean;
+  storedContactForPricing?: boolean;
   publicStatus: string;
   effectivePriceCents?: number | null;
   checkoutPriceCents?: number | null;
@@ -26,7 +35,7 @@ export type PackageCorePriceAdminRow = {
 };
 
 const editable = new Set([
-  "regular_price_cents", "sale_price_cents", "sale_starts_at", "sale_ends_at",
+  "display_msrp_price_cents", "dealer_cost_cents", "regular_price_cents", "sale_price_cents", "sale_starts_at", "sale_ends_at",
   "promotion_label", "show_public_price", "contact_for_pricing", "public_status",
 ]);
 
@@ -40,7 +49,6 @@ export function validatePackageCorePricePatch(input: unknown, existing: Record<s
   const parsed = validatePricingPatch("packages", body);
   if (!parsed.ok) return parsed;
   const next = { ...existing, ...parsed.value };
-  if (next.regular_price_cents === null) return { ok: false as const, error: "A Core-specific regular price is required." };
   if (next.sale_price_cents !== null && (!next.sale_starts_at || !next.sale_ends_at)) {
     return { ok: false as const, error: "A temporary sale requires a start and end date." };
   }
@@ -86,7 +94,7 @@ export function createPackageCorePriceAdminHandlers(deps: Dependencies) {
         return json({ row: await deps.update(id, parsed.value, typeof expectedUpdatedAt === "string" ? expectedUpdatedAt : "") });
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
-        if (message.startsWith("Pricing record changed")) return json({ error: message }, 409);
+        if (message.startsWith("Pricing record changed") || message.startsWith("Catalog changed")) return json({ error: message }, 409);
         return json({ error: "Package/Core pricing update failed." }, 503);
       }
     },

@@ -4,6 +4,8 @@ import { scheduledPublicPrice } from "@/lib/catalog/public-price";
 import type { ActivePriceSchedule } from "@/lib/catalog/active-price-schedule";
 import { readPricingProgramSettingsFailSafe } from "@/lib/pricing-program/server";
 import { getSupabaseServiceClient } from "@/lib/supabase";
+import { packageComponentName } from "@/lib/catalog/package-components";
+import { catalogPackageIsAvailable } from "@/lib/catalog/availability";
 import { applyCatalogSnapshots } from "./catalog-snapshot";
 import type { CatalogInvoiceReference, InvoiceDraftInput } from "./types";
 
@@ -18,10 +20,14 @@ export async function readInvoiceCatalogReferences(): Promise<CatalogInvoiceRefe
     for (const group of product.optionGroups) for (const option of group.options) rows.push({ id: option.id, sourceType: "option", name: `${product.name} / ${option.name}`, description: option.description, sku: null, priceCents: option.currentPriceCents, status: option.publicStatus, purchaseState: null, parentId: product.id, parentName: product.name, availabilityWarning: warning(option.publicStatus, null) });
     for (const option of product.ungroupedOptions) rows.push({ id: option.id, sourceType: "option", name: `${product.name} / ${option.name}`, description: option.description, sku: null, priceCents: option.currentPriceCents, status: option.publicStatus, purchaseState: null, parentId: product.id, parentName: product.name, availabilityWarning: warning(option.publicStatus, null) });
     for (const item of product.packages) {
+      const componentDescription = item.items.map((component) => `${component.quantity} × ${packageComponentName(component)}`).join(", ");
+      const packageDescription = [item.description, componentDescription ? `Included equipment: ${componentDescription}.` : null].filter(Boolean).join("\n") || null;
+      const packageAvailable = product.isAvailable && catalogPackageIsAvailable(item);
       if (item.corePrices?.length) for (const corePrice of item.corePrices) {
         const variant = product.variants.find((candidate) => candidate.id === corePrice.coreVariantId);
-        rows.push({ id: item.id, sourceType: "package", name: `${product.name} / ${variant?.name ?? "Core"} / ${item.name}`, description: item.description, sku: variant?.sku ?? null, priceCents: corePrice.currentPriceCents, status: corePrice.publicStatus, purchaseState: variant?.purchaseState ?? null, parentId: corePrice.coreVariantId, parentName: variant?.name ?? product.name, availabilityWarning: warning(corePrice.publicStatus, variant?.purchaseState ?? null) });
-      } else rows.push({ id: item.id, sourceType: "package", name: `${product.name} / ${item.name}`, description: item.description, sku: null, priceCents: item.currentPriceCents, status: item.publicStatus, purchaseState: null, parentId: product.id, parentName: product.name, availabilityWarning: warning(item.publicStatus, null) });
+        const status = packageAvailable && variant?.isAvailable ? corePrice.publicStatus : "unavailable";
+        rows.push({ id: item.id, sourceType: "package", name: `${product.name} / ${variant?.name ?? "Core"} / ${item.name}`, description: packageDescription, sku: variant?.sku ?? null, priceCents: corePrice.currentPriceCents, status, purchaseState: variant?.purchaseState ?? null, parentId: corePrice.coreVariantId, parentName: variant?.name ?? product.name, availabilityWarning: warning(status, variant?.purchaseState ?? null) });
+      } else rows.push({ id: item.id, sourceType: "package", name: `${product.name} / ${item.name}`, description: packageDescription, sku: null, priceCents: item.currentPriceCents, status: packageAvailable ? item.publicStatus : "unavailable", purchaseState: null, parentId: product.id, parentName: product.name, availabilityWarning: warning(packageAvailable ? item.publicStatus : "unavailable", null) });
     }
   }
   const client = getSupabaseServiceClient();

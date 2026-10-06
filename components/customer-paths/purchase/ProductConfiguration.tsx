@@ -9,6 +9,7 @@ import PreorderNotice from "@/components/equipment/PreorderNotice";
 import { selectedYarboCore, yarboCoreCanBeSelected, yarboCorePrice, yarboCoreVariants } from "@/lib/catalog/yarbo-core";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
+import { packageComponentKey, packageComponentName } from "@/lib/catalog/package-components";
 import { catalogPackageIsAvailable } from "@/lib/catalog/availability";
 import {
   builderAccessoryOptions,
@@ -795,7 +796,7 @@ function StandardProductConfiguration({
         equipment and add any compatible modules or accessories you want.
       </p>
 
-      {product.variants.length > 0 && (
+      {product.variants.length > 0 && !selectedPackage?.adminManaged && (
         <section className="mt-8 rounded-[2rem] border border-slate-300 bg-slate-50 p-5 md:p-7">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
@@ -872,22 +873,22 @@ function StandardProductConfiguration({
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
-                Required Package
+                {product.packages.every((item) => item.adminManaged) ? "Package Options" : "Required Package"}
               </p>
               <h4 className="mt-2 text-xl font-black text-slate-950">
                 Choose one complete package
               </h4>
               <p className="mt-2 leading-7 text-slate-600">
-                Package pricing includes the base machine and every module
-                listed inside the selected package.
+                Package pricing includes every item listed inside the selected package.
               </p>
             </div>
             <span className="w-fit rounded-full bg-emerald-700 px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-white">
-              Required
+              {product.packages.every((item) => item.adminManaged) && (product.adminManaged || product.slug === "lymow-one-plus") ? "Optional" : "Required"}
             </span>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
+            {product.packages.every((item) => item.adminManaged) && (product.adminManaged || product.slug === "lymow-one-plus") && <button type="button" onClick={() => onSelectPackage("")} aria-pressed={!selection.packageId} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">Use individual configuration</button>}
             {packageFilters.map((filter) => (
               <button
                 key={filter.key}
@@ -949,10 +950,10 @@ function StandardProductConfiguration({
                         Included Equipment
                       </p>
                       <div className="mt-2 space-y-1 text-sm font-semibold text-slate-700">
-                        <p>{product.name}</p>
+                        {!catalogPackage.adminManaged && <p>{product.name}</p>}
                         {catalogPackage.items.map((item) => (
-                          <p key={`${catalogPackage.id}-${item.optionId}`}>
-                            {item.option?.name ?? "Catalog option"}
+                          <p key={`${catalogPackage.id}-${packageComponentKey(item)}`}>
+                            {packageComponentName(item)}
                             {item.quantity > 1 ? ` x ${item.quantity}` : ""}
                           </p>
                         ))}

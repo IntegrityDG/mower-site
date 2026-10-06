@@ -233,10 +233,14 @@ export function productBuildIsComplete(
     return false;
   }
 
+  const selectedPackage = product.packages.find((item) => item.id === selection.packageId);
+  if (selectedPackage?.adminManaged) return selectedPackage.isAvailable;
+  if (product.hasManagedPackages && !product.adminManaged && product.slug !== "lymow-one-plus") return false;
+
   const variantComplete =
     product.variants.length === 0 || Boolean(selection.variantId);
   const packageComplete =
-    product.packages.length === 0 || Boolean(selection.packageId);
+    product.packages.every((item) => item.adminManaged) || Boolean(selection.packageId);
 
   return variantComplete && packageComplete && optionGroupIsComplete(product, selection);
 }

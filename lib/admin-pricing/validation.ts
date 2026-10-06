@@ -4,16 +4,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const common = ["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "sale_starts_at", "sale_ends_at", "promotion_label", "show_public_price", "contact_for_pricing"] as const;
 const statusFields = [...common, "public_status"] as const;
 const fields: Record<PricingKind, readonly string[]> = {
-  products: ["name", ...statusFields],
-  variants: ["name", "preorder_enabled", ...statusFields],
-  packages: ["package_name", ...statusFields],
-  options: ["name", ...statusFields],
+  products: ["name", "dealer_cost_cents", ...statusFields],
+  variants: ["name", "preorder_enabled", "dealer_cost_cents", ...statusFields],
+  packages: ["package_name", "dealer_cost_cents", ...statusFields],
+  options: ["name", "dealer_cost_cents", ...statusFields],
   services: statusFields,
   "service-payment-options": ["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "is_available"],
   "product-services": ["override_display_msrp_price_cents", "override_regular_price_cents", "override_sale_price_cents", "override_sale_starts_at", "override_sale_ends_at", "override_promotion_label", "override_show_public_price", "override_contact_for_pricing", "is_available"],
   schedules: ["schedule_name", "starts_at", "ends_at", "regular_price_cents", "sale_price_cents", "promotion_label", "show_public_price", "contact_for_pricing", "public_status"],
 };
-const priceFields = new Set(["display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "override_display_msrp_price_cents", "override_regular_price_cents", "override_sale_price_cents"]);
+const priceFields = new Set(["dealer_cost_cents", "display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "override_display_msrp_price_cents", "override_regular_price_cents", "override_sale_price_cents"]);
 const dateFields = new Set(["sale_starts_at", "sale_ends_at", "override_sale_starts_at", "override_sale_ends_at", "starts_at", "ends_at"]);
 const booleanFields = new Set(["preorder_enabled", "show_public_price", "contact_for_pricing", "override_show_public_price", "override_contact_for_pricing", "is_available"]);
 const stringFields = new Set(["promotion_label", "override_promotion_label", "schedule_name"]);
@@ -45,7 +45,7 @@ export function validatePricingPatch(kind: PricingKind, input: unknown): Pricing
   for (const [key, raw] of Object.entries(body)) {
     if (priceFields.has(key)) {
       if (raw === null) value[key] = null;
-      else if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0) return { ok: false, error: `${key} must be null or a non-negative integer number of cents.` };
+      else if (typeof raw !== "number" || !Number.isSafeInteger(raw) || raw < 0 || raw > 2147483647) return { ok: false, error: `${key} must be null or a non-negative integer number of cents within the supported range.` };
       else value[key] = raw;
     } else if (dateFields.has(key)) {
       if (kind === "schedules" && key === "starts_at" && (raw === null || raw === "")) return { ok: false, error: "starts_at is required and must be a valid date." };

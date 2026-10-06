@@ -89,6 +89,7 @@ export type CatalogProductPage = {
 };
 
 export type CatalogOption = CatalogPrice & CatalogAvailability & {
+  catalogCategory?: string;
   id: string;
   slug: string;
   name: string;
@@ -144,7 +145,16 @@ export type CatalogVariant = CatalogPrice & CatalogAvailability & {
 };
 
 export type CatalogPackageItem = {
+  id?: string;
   optionId: string;
+  /** Identity and safe display snapshot for a product, variant, or option component. */
+  component?: {
+    id: string;
+    kind: "product" | "variant" | "option";
+    name: string;
+    slug: string;
+    isAvailable: boolean;
+  } | null;
   quantity: number;
   includedInPackagePrice: boolean;
   option: CatalogOption | null;
@@ -157,6 +167,7 @@ export type CatalogPackageCorePrice = CatalogPrice & CatalogAvailability & {
 };
 
 export type CatalogPackage = CatalogPrice & CatalogAvailability & {
+  adminManaged?: boolean;
   id: string;
   slug: string;
   name: string;
@@ -196,6 +207,8 @@ export type CatalogService = CatalogPrice & CatalogAvailability & {
 };
 
 export type CatalogProduct = CatalogPrice & CatalogAvailability & {
+  adminManaged?: boolean;
+  hasManagedPackages?: boolean;
   id: string;
   slug: string;
   brand: string;

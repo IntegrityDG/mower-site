@@ -63,6 +63,8 @@ export type NormalizedSelection = CheckoutRequest["selection"];
 export type CatalogSourceReference = { table: "catalog_products" | "catalog_product_variants" | "catalog_options" | "catalog_packages" | "catalog_package_core_prices" | "catalog_package_items" | "catalog_variant_options" | "catalog_price_schedules"; id: string };
 
 export type OrderPriceItem = {
+  /** Included components use the same immutable item shape without assuming an option FK. */
+  componentSourceType?: "product" | "variant" | "option";
   itemType: "product" | "variant" | "option" | "package" | "package_component" | "fee";
   sourceId: string; sku: string | null; name: string; description: string | null;
   quantity: number; unitAmountCents: number; extendedAmountCents: number;

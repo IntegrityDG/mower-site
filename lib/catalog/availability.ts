@@ -30,7 +30,7 @@ export function catalogPackageIsAvailable(
 ) {
   return (
     catalogPackage.isAvailable &&
-    catalogPackage.items.every((item) => item.option?.isAvailable === true)
+    catalogPackage.items.every((item) => (item.component ?? item.option)?.isAvailable === true)
   );
 }
 

@@ -1,5 +1,5 @@
 import { catalogPurchaseState, preorderItemName, PREORDER_FULFILLMENT_NOTICE } from "@/lib/catalog/preorder";
-import { checkoutDisplayName, validateCheckoutEligibility, type CheckoutCatalog, type PriceableRow } from "./eligibility";
+import { checkoutDisplayName, validateCheckoutEligibility, type CheckoutCatalog, type CheckoutOptionRow, type CheckoutVariantRow, type PriceableRow } from "./eligibility";
 import { CheckoutRejectionError, type CatalogSourceReference, type CheckoutRequest, type OrderPriceItem, type OrderPriceSnapshot } from "./types";
 import { resolvePaymentAdjustments } from "./payment-pricing";
 import { applyActivePriceSchedule, selectActivePriceSchedule, type ActivePriceSchedule } from "@/lib/catalog/active-price-schedule";
@@ -7,6 +7,7 @@ import { operationalPriceCents } from "./operational-price";
 import { yarboPackagePriceSource } from "./yarbo-package-price";
 
 export function currentPrice(row: PriceableRow, now: number, everydayLowPriceEnabled: boolean) {
+  if (row.show_public_price === false || row.contact_for_pricing) throw new CheckoutRejectionError("UNPRICED_ITEM", "A selected catalog item requires a pricing request.");
   const price = operationalPriceCents(row, now, everydayLowPriceEnabled);
   if (price === null || !Number.isSafeInteger(price) || price < 0) throw new CheckoutRejectionError("UNPRICED_ITEM", "A selected catalog item does not have a valid current price.");
   return price;
@@ -37,7 +38,33 @@ export function resolveEquipmentCatalogPricing(input: CheckoutRequest, catalog: 
   };
   const chargeable: OrderPriceItem[] = [];
   const included: OrderPriceItem[] = [];
-  if (product.slug === "lymow-one-plus" && eligibility.variant) {
+  const appendPackageComponents = () => {
+    for (const component of eligibility.packageComponents ?? []) {
+      const { row, item, kind } = component;
+      const sourceTable = kind === "product" ? "catalog_products" : kind === "variant" ? "catalog_product_variants" : "catalog_options";
+      sources.push({ table: "catalog_package_items", id: item.id }, { table: sourceTable, id: row.id });
+      included.push({ itemType: "package_component", componentSourceType: kind, sourceId: row.id,
+        sku: kind === "variant" ? (row as CheckoutVariantRow).sku : null,
+        name: kind === "option" ? checkoutDisplayName(row as CheckoutOptionRow) : row.name,
+        description: row.description ?? null, quantity: item.quantity, unitAmountCents: 0, extendedAmountCents: 0,
+        includedInPackagePrice: true, parentSourceId: eligibility.selectedPackage!.id });
+    }
+  };
+  if (product.slug !== "yarbo" && eligibility.selectedPackage) {
+    const amount = effectivePrice(eligibility.selectedPackage, "package");
+    sources.push({ table: "catalog_packages", id: eligibility.selectedPackage.id });
+    chargeable.push({ itemType: "package", sourceId: eligibility.selectedPackage.id, sku: null,
+      name: eligibility.selectedPackage.package_name, description: eligibility.selectedPackage.description,
+      quantity: 1, unitAmountCents: amount, extendedAmountCents: amount, includedInPackagePrice: false, parentSourceId: null });
+    appendPackageComponents();
+    for (const selected of eligibility.selectedOptions) {
+      const amount = effectivePrice(selected.option, "option");
+      sources.push({ table: "catalog_options", id: selected.option.id });
+      chargeable.push({ itemType: "option", sourceId: selected.option.id, sku: null, name: selected.option.name,
+        description: selected.option.description, quantity: selected.quantity, unitAmountCents: amount,
+        extendedAmountCents: amount * selected.quantity, includedInPackagePrice: false, parentSourceId: null });
+    }
+  } else if (product.slug === "lymow-one-plus" && eligibility.variant) {
     if (eligibility.selectedPackage) throw new CheckoutRejectionError("INCOMPATIBLE_SELECTION", "Lymow package checkout is unavailable.");
     const amount = effectivePrice(eligibility.variant, "variant"); sources.push({ table: "catalog_product_variants", id: eligibility.variant.id });
     chargeable.push({ itemType: "variant", sourceId: eligibility.variant.id, sku: eligibility.variant.sku, name: eligibility.variant.name, description: eligibility.variant.description, quantity: 1, unitAmountCents: amount, extendedAmountCents: amount, includedInPackagePrice: false, parentSourceId: null });
@@ -51,12 +78,12 @@ export function resolveEquipmentCatalogPricing(input: CheckoutRequest, catalog: 
     if (eligibility.variant) sources.push({ table: "catalog_product_variants", id: eligibility.variant.id });
     if (eligibility.corePrice) sources.push({ table: "catalog_package_core_prices", id: eligibility.corePrice.id });
     chargeable.push({ itemType: "package", sourceId: eligibility.selectedPackage.id, sku: null, name: preorderItemName(`${eligibility.variant?.name ?? "Y40 Core"} + ${eligibility.selectedPackage.package_name.replaceAll("Leaf Blower", "Blower")}`, isPreorder), description: preorder?.notice ?? eligibility.selectedPackage.description, quantity: 1, unitAmountCents: amount, extendedAmountCents: amount, includedInPackagePrice: false, parentSourceId: null });
-    for (const item of eligibility.packageItems ?? []) { const option = catalog.options.find((row) => row.id === item.option_id)!; sources.push({ table: "catalog_package_items", id: item.id }, { table: "catalog_options", id: option.id }); included.push({ itemType: "package_component", sourceId: option.id, sku: null, name: checkoutDisplayName(option), description: option.description, quantity: item.quantity, unitAmountCents: 0, extendedAmountCents: 0, includedInPackagePrice: true, parentSourceId: eligibility.selectedPackage.id }); }
+    appendPackageComponents();
     for (const selected of eligibility.selectedOptions) { const accessoryAmount = effectivePrice(selected.option, "option"); sources.push({ table: "catalog_options", id: selected.option.id }); chargeable.push({ itemType: "option", sourceId: selected.option.id, sku: null, name: selected.option.name, description: selected.option.description, quantity: selected.quantity, unitAmountCents: accessoryAmount, extendedAmountCents: accessoryAmount * selected.quantity, includedInPackagePrice: false, parentSourceId: null }); }
   } else {
-    if (input.selection.includeBaseProduct) {
-      const core = product.slug === "yarbo" ? eligibility.variant : null;
-      const amount = core && core.variant_slug === "yarbo-y40p"
+    if (input.selection.includeBaseProduct || product.admin_managed) {
+      const core = product.slug === "yarbo" || product.admin_managed ? eligibility.variant : null;
+      const amount = core && (core.variant_slug === "yarbo-y40p" || product.admin_managed)
         ? effectivePrice(core, "variant")
         : effectivePrice(product, "product");
       if (core) sources.push({ table: "catalog_product_variants", id: core.id });

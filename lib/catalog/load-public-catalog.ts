@@ -9,7 +9,8 @@ import type {
   CatalogSpecificationCategory,
   CatalogSpecifications,
 } from "@/lib/catalog/types";
-import { salesModeForProductSlug } from "@/lib/catalog/sales-mode";
+import { salesModeForCatalogProduct } from "@/lib/catalog/sales-mode";
+import { publicPackageComponentIsAvailable } from "@/lib/catalog/package-components";
 import { customerFacingOptions } from "@/lib/catalog/customer-facing-options";
 import {
   getSupabaseCatalogClient,
@@ -67,6 +68,7 @@ export async function loadPublicCatalog(
     let productsQuery = supabase
       .from("catalog_products")
       .select("*")
+      .is("retired_at", null)
       .in("public_status", [...PUBLIC_CATALOG_STATUSES]);
 
     if (productSlug) {
@@ -102,6 +104,7 @@ export async function loadPublicCatalog(
       supabase
         .from("catalog_product_variants")
         .select("*")
+        .is("retired_at", null)
         .in("product_id", productIds)
         .in("public_status", [...PUBLIC_CATALOG_STATUSES])
         .order("sort_order")
@@ -115,6 +118,7 @@ export async function loadPublicCatalog(
       supabase
         .from("catalog_options")
         .select("*")
+        .is("retired_at", null)
         .in("product_id", productIds)
         .in("public_status", [...PUBLIC_CATALOG_STATUSES])
         .order("sort_order")
@@ -122,6 +126,7 @@ export async function loadPublicCatalog(
       supabase
         .from("catalog_packages")
         .select("*")
+        .is("retired_at", null)
         .in("product_id", productIds)
         .in("public_status", [...PUBLIC_CATALOG_STATUSES])
         .order("sort_order")
@@ -224,7 +229,7 @@ export async function loadPublicCatalog(
       packageIds.length && variants.some((variant) => variant.variant_slug === "yarbo-y40")
         ? supabase
             .from("catalog_package_core_prices")
-            .select("id,product_id,package_id,core_variant_id,price_mode,regular_price_cents,sale_price_cents,sale_starts_at,sale_ends_at,promotion_label,show_public_price,contact_for_pricing,public_status")
+            .select("id,product_id,package_id,core_variant_id,price_mode,display_msrp_price_cents,regular_price_cents,sale_price_cents,sale_starts_at,sale_ends_at,promotion_label,show_public_price,contact_for_pricing,public_status")
             .in("package_id", packageIds)
             .in("public_status", [...PUBLIC_CATALOG_STATUSES])
         : emptyResult,
@@ -238,6 +243,28 @@ export async function loadPublicCatalog(
       variantSpecificationValuesResult
     );
     const corePrices = ensureData("Package Core prices", corePricesResult);
+    const componentProductIds = packageItems.flatMap((item) => item.component_product_id ? [item.component_product_id] : []);
+    const componentVariantIds = packageItems.flatMap((item) => item.component_variant_id ? [item.component_variant_id] : []);
+    const componentOptionIds = packageItems.flatMap((item) => item.option_id ? [item.option_id] : []);
+    const [componentProductsResult, componentVariantsResult, componentOptionsResult] = await Promise.all([
+      componentProductIds.length ? supabase.from("catalog_products").select("*").in("id", componentProductIds) : emptyResult,
+      componentVariantIds.length ? supabase.from("catalog_product_variants").select("*").in("id", componentVariantIds) : emptyResult,
+      componentOptionIds.length ? supabase.from("catalog_options").select("*").in("id", componentOptionIds) : emptyResult,
+    ]);
+    const componentProducts = ensureData("Package component products", componentProductsResult);
+    const componentVariants = ensureData("Package component variants", componentVariantsResult);
+    const componentOptions = ensureData("Package component options", componentOptionsResult);
+    const componentVariantLinks = componentVariantIds.length
+      ? ensureData("Package variant relationships", await supabase.from("catalog_variant_options").select("*").in("variant_id", componentVariantIds))
+      : [];
+    const requiredOptionIds = componentVariantLinks.filter((link) => ["defines_variant", "included", "required"].includes(link.relationship_type)).map((link) => link.option_id);
+    if (requiredOptionIds.length) componentOptions.push(...ensureData("Required package configuration equipment", await supabase.from("catalog_options").select("*").in("id", requiredOptionIds)));
+    const parentIds = [...new Set([...componentVariants, ...componentOptions].map((row) => row.product_id))];
+    const componentParents = parentIds.length
+      ? ensureData("Package component parents", await supabase.from("catalog_products").select("*").in("id", parentIds))
+      : [];
+    const componentParentById = new Map([...products, ...componentProducts, ...componentParents].map((row) => [row.id, row]));
+    for (const row of componentOptions) if (!options.some((option) => option.id === row.id)) options.push(row);
     const definitionIds = [
       ...new Set(
         variantSpecificationValues.map(
@@ -326,7 +353,9 @@ export async function loadPublicCatalog(
       accessoryActionUrl: option.accessory_action_url ?? null,
       accessoryPriceText: option.accessory_price_text ?? null,
       manufacturerName: option.manufacturer_name ?? null,
+      catalogCategory: option.catalog_category ?? "accessory",
       ...catalogAvailabilityFromPublicStatus(option.public_status),
+      isAvailable: option.public_status === "active" && !option.retired_at && componentParentById.get(option.product_id)?.public_status === "active" && !componentParentById.get(option.product_id)?.retired_at,
       ...publicPriceFor(
         option as PublicPriceRow,
         "option",
@@ -335,7 +364,7 @@ export async function loadPublicCatalog(
     }));
 
     const normalizedProducts: CatalogProduct[] = products.map((product) => {
-      const salesMode = salesModeForProductSlug(product.slug);
+      const salesMode = salesModeForCatalogProduct(product);
       const publicPrice = (
         row: PublicPriceRow,
         target: PublicPromotionTargetKind,
@@ -428,19 +457,35 @@ export async function loadPublicCatalog(
         .map((catalogPackage) => {
           const items = packageItems
             .filter((item) => item.package_id === catalogPackage.id)
-            .map((item) => ({
-              optionId: item.option_id,
-              quantity: item.quantity,
-              includedInPackagePrice: item.included_in_package_price,
-              option:
-                productOptionRows.find(
-                  (option) => option.id === item.option_id
-                ) ?? null,
-            }));
+            .map((item) => {
+              const option = normalizedOptions.find((option) => option.id === item.option_id) ?? null;
+              const kind = item.option_id ? "option" as const : item.component_variant_id ? "variant" as const : "product" as const;
+              const row = kind === "option" ? componentOptions.find((row) => row.id === item.option_id)
+                : kind === "variant" ? componentVariants.find((row) => row.id === item.component_variant_id)
+                : componentProducts.find((row) => row.id === item.component_product_id);
+              const parent = row ? componentParentById.get(kind === "product" ? row.id : row.product_id) : null;
+              const ownAvailable = row && !row.retired_at && (kind === "variant" ? catalogVariantAvailability(row, now).isAvailable : row.public_status === "active");
+              const requiredEquipmentAvailable = kind !== "variant" || componentVariantLinks.filter((link) => link.variant_id === row?.id && ["defines_variant", "included", "required"].includes(link.relationship_type)).every((link) => componentOptions.some((option) => option.id === link.option_id && option.public_status === "active" && !option.retired_at));
+              const available = publicPackageComponentIsAvailable(Boolean(ownAvailable), parent, requiredEquipmentAvailable);
+              return {
+                id: item.id,
+                optionId: item.option_id ?? "",
+                quantity: item.quantity,
+                includedInPackagePrice: item.included_in_package_price,
+                option,
+                component: row ? { id: row.id, kind, name: row.name, slug: row.option_slug ?? row.variant_slug ?? row.slug, isAvailable: available } : null,
+              };
+            });
           const availability = catalogAvailabilityFromPublicStatus(catalogPackage.public_status);
+          const variantComponents = items.filter((item) => item.component?.kind === "variant");
+          const componentOptionIds = new Set(items.filter((item) => item.component?.kind === "option").map((item) => item.component!.id));
+          const componentsCompatible = variantComponents.every((item) => componentVariantLinks.filter((link) => link.variant_id === item.component!.id).every((link) =>
+            link.relationship_type === "excluded" ? !componentOptionIds.has(link.option_id)
+              : link.relationship_type === "required" ? componentOptionIds.has(link.option_id) : true));
           const packagePrice = publicPrice(catalogPackage, "package", catalogPackage.id);
           return {
             id: catalogPackage.id,
+            adminManaged: catalogPackage.admin_managed === true,
             slug: catalogPackage.package_slug,
             name: catalogPackage.package_name,
             description: catalogPackage.description,
@@ -455,16 +500,18 @@ export async function loadPublicCatalog(
                 ...catalogAvailabilityFromPublicStatus(row.public_status),
                 ...(row.price_mode === "package"
                   ? packagePrice
-                  : priceFromRow({ ...row, display_msrp_price_cents: null } as PublicPriceRow, now, everydayLowPriceEnabled)),
+                  : priceFromRow(row as PublicPriceRow, now, everydayLowPriceEnabled)),
               })),
             ...availability,
-            isAvailable: availability.isAvailable && items.every((item) => item.option?.isAvailable === true),
+            isAvailable: availability.isAvailable && componentsCompatible && items.every((item) => item.component?.isAvailable === true),
             ...packagePrice,
           };
         });
 
       return {
         id: product.id,
+        adminManaged: product.admin_managed === true,
+        hasManagedPackages: normalizedPackages.some((item) => item.adminManaged),
         slug: product.slug,
         brand: product.brand,
         name: product.name,
@@ -475,8 +522,8 @@ export async function loadPublicCatalog(
         customerGuidance: product.customer_guidance,
         brochureUrl: product.brochure_url,
         videoUrl: product.video_url,
-        imageUrl: primaryMedia?.url ?? fallbackImages[product.slug] ?? "/logo.png",
-        imageAlt: primaryMedia?.altText ?? `${product.name} autonomous mower`,
+        imageUrl: primaryMedia?.url ?? product.image_url ?? fallbackImages[product.slug] ?? "/logo.png",
+        imageAlt: primaryMedia?.altText ?? (["lymow-one-plus", "yarbo", "pandag-g1"].includes(product.slug) ? `${product.name} autonomous mower` : product.name),
         sortOrder: product.sort_order,
         salesMode,
         ...catalogAvailabilityFromPublicStatus(product.public_status),

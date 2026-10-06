@@ -74,7 +74,7 @@ export function publicProduct(now = during, preorderEnabled = true): CatalogProd
       description: null, sortOrder: 1, ...catalogAvailabilityFromPublicStatus(row.public_status),
       ...priceFromRow({ ...priceRow(null), ...row }, now),
       items: catalog.packageItems.filter((item) => item.package_id === row.id).map((item) => ({
-        optionId: item.option_id, quantity: item.quantity, includedInPackagePrice: true, option: options.find((option) => option.id === item.option_id)!,
+        optionId: item.option_id ?? "", quantity: item.quantity, includedInPackagePrice: true, option: options.find((option) => option.id === item.option_id)!,
       })),
       corePrices: catalog.corePrices!.filter((price) => price.package_id === row.id).map((price) => ({
         id: price.id, coreVariantId: price.core_variant_id, priceMode: price.price_mode,
