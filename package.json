@@ -18,9 +18,12 @@
   },
   "dependencies": {
     "@nickgraffis/us-counties": "0.0.2",
+    "@opentelemetry/api": "1.9.1",
+    "@opentelemetry/core": "2.12.0",
     "@supabase/supabase-js": "2.112.3",
     "@vercel/analytics": "^2.0.1",
     "heic-to": "1.5.2",
+    "ical.js": "2.2.1",
     "next": "16.3.5",
     "pdf-lib": "1.17.1",
     "react": "19.2.3",
@@ -29,6 +32,7 @@
     "sharp": "0.35.4",
     "stripe": "^22.3.2",
     "tus-js-client": "^4.3.1",
+    "undici": "8.11.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
