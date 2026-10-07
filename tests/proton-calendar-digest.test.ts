@@ -125,6 +125,44 @@ test("query overrides, request bodies, preview builds and opt-in transport debug
   assert.equal(fake.readCalls, 0);
 });
 
+test("bodyless POSTs represented by an empty string or zero-length stream are accepted", async () => {
+  const emptyString = fakeDependencies();
+  const response = await runDailyDigest(request("POST", bridgeToken, "", ""), env, emptyString.dependencies, now);
+  assert.deepEqual(await response.json(), { date: "2026-10-06", status: "sent", eventCount: 1 });
+  assert.equal(emptyString.sent.length, 1);
+
+  const emptyStream = fakeDependencies();
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new Uint8Array(0)); controller.enqueue(new Uint8Array(0)); controller.close(); },
+  });
+  const streamRequest = new Request("https://example.test/api/cron/proton-calendar-digest", {
+    method: "POST", headers: { Authorization: `Bearer ${bridgeToken}` }, body, duplex: "half",
+  } as RequestInit);
+  assert.equal((await runDailyDigest(streamRequest, env, emptyStream.dependencies, now)).status, 200);
+  assert.equal(emptyStream.sent.length, 1);
+});
+
+test("nonempty, endless zero-chunk, errored and stalled body streams reject without private work", async () => {
+  const bodies = [
+    new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new TextEncoder().encode("{}")); controller.close(); } }),
+    new ReadableStream<Uint8Array>({ pull(controller) { controller.enqueue(new Uint8Array(0)); } }),
+    new ReadableStream<Uint8Array>({ start(controller) { controller.error(new Error("synthetic body failure")); } }),
+    new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue("invalid chunk" as unknown as Uint8Array); controller.close(); } }),
+    new ReadableStream<Uint8Array>({ pull() {}, cancel() { return new Promise<void>(() => {}); } }),
+  ];
+  for (const body of bodies) {
+    const fake = fakeDependencies();
+    const streamed = new Request("https://example.test/api/cron/proton-calendar-digest", {
+      method: "POST", headers: { Authorization: `Bearer ${bridgeToken}` }, body, duplex: "half",
+    } as RequestInit);
+    const response = await runDailyDigest(streamed, env, fake.dependencies, now);
+    assert.equal(response.status, 400);
+    assert.equal(fake.readCalls, 0);
+    assert.equal(fake.feedCalls, 0);
+    assert.equal(fake.sent.length, 0);
+  }
+});
+
 test("wrong-hour cron returns only skip metadata and makes no network requests", async () => {
   const fake = fakeDependencies();
   const response = await runDailyDigest(request("GET"), env, fake.dependencies, new Date("2026-10-06T15:30:00Z"));

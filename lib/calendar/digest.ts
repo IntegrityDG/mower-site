@@ -130,6 +130,40 @@ function authorized(request: Request, expected: string) {
   );
 }
 
+async function emptyRequestBody(request: Request) {
+  if (request.body === null) return true;
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  try {
+    reader = request.body.getReader();
+  } catch {
+    return false;
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>(resolve => {
+    timer = setTimeout(() => resolve(null), 1500);
+  });
+  try {
+    // Vercel can provide an empty readable stream for a bodyless POST. Check
+    // for EOF without buffering content; any byte rejects the request. Bound
+    // both waiting time and zero-length chunks from unusual stream sources.
+    for (let chunks = 0; chunks < 16; chunks++) {
+      const result = await Promise.race([reader.read(), timeout]);
+      if (result === null) return false;
+      if (result.done) return true;
+      if (!(result.value instanceof Uint8Array) || result.value.byteLength > 0) return false;
+    }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    // An untrusted stream's cancellation can also stall. Start cancellation
+    // without waiting on it, then release the lock and keep the handler bounded.
+    void reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
+}
+
 function digestFeedUrl(env: NodeJS.ProcessEnv) {
   const feed = env.PROTON_CALENDAR_ICS_URL?.trim();
   if (!feed) throw new Error("Digest unavailable");
@@ -216,7 +250,7 @@ export async function runDailyDigest(
     return reply({ error: "Calendar digest unavailable" }, 503);
   }
   if (!authorized(request, token)) return reply({ error: "Unauthorized" }, 401);
-  if (new URL(request.url).search || request.body !== null) {
+  if (new URL(request.url).search || !(await emptyRequestBody(request))) {
     return reply({ error: "Query parameters and request bodies are not supported" }, 400);
   }
   const date = chicagoClock(now).date;
