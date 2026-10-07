@@ -1,6 +1,7 @@
 {
   "crons": [
     { "path": "/api/cron/featured-business-lifecycle", "schedule": "0 14 * * *" },
-    { "path": "/api/cron/service-maintenance", "schedule": "0 15 * * *" }
+    { "path": "/api/cron/service-maintenance", "schedule": "0 15 * * *" },
+    { "path": "/api/cron/proton-calendar-digest", "schedule": "30,35,40,45,50,55 14,15 * * *" }
   ]
 }

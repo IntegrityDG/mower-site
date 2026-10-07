@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { CalendarParseError, parseBriefing } from "../lib/calendar/proton";
+import { CalendarParseError, parseBriefing, parseCalendarDigest } from "../lib/calendar/proton";
 
 const calendar = (...events: string[]) => ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//IDS//Calendar tests//EN", ...events, "END:VCALENDAR", ""].join("\r\n");
 const event = (uid: string, ...lines: string[]) => ["BEGIN:VEVENT", `UID:${uid}`, "DTSTAMP:20260101T000000Z", ...lines, "END:VEVENT"].join("\r\n");
@@ -224,4 +224,58 @@ test("unknown zones, malformed dates, inverted spans and excessive expansion fai
     assert.throws(() => parseBriefing(text, "2026-10-06"), (error: unknown) => error instanceof CalendarParseError && error.message === "Calendar data could not be safely parsed.");
   }
   assert.throws(() => parseBriefing(calendar(), "2026-02-30"), CalendarParseError);
+});
+
+test("digest adds description without changing briefing fields or event selection", () => {
+  const text = calendar(
+    event("digest", "SUMMARY:Daily", "LOCATION:Office", "DESCRIPTION:Prepare agenda\\nBring notes", "DTSTART;TZID=America/Chicago:20261005T090000", "DURATION:PT1H", "RRULE:FREQ=DAILY;COUNT=3"),
+    event("digest", "SUMMARY:Moved", "RECURRENCE-ID;TZID=America/New_York:20261006T100000", "DTSTART;TZID=America/Chicago:20261007T150000", "DURATION:PT1H"),
+  );
+  const digest = parseCalendarDigest(text, "2026-10-07");
+  const briefing = parseBriefing(text, "2026-10-07");
+  assert.deepEqual(digest.events.map((item) => {
+    const { description, ...briefingFields } = item;
+    void description;
+    return briefingFields;
+  }), briefing.events);
+  assert.deepEqual(digest.events.map((item) => item.description), ["Prepare agenda Bring notes", "Prepare agenda Bring notes"]);
+  assert.equal(JSON.stringify(briefing).includes("description"), false);
+  assert.equal(parseCalendarDigest(text, "2026-10-06").events.length, 0);
+});
+
+test("digest descriptions inherit range/master and respect explicit replacement or clearing", () => {
+  const text = calendar(
+    event("inherit", "SUMMARY:Base", "DESCRIPTION:Master details", "DTSTART:20261004T140000Z", "DURATION:PT1H", "RRULE:FREQ=DAILY;COUNT=6"),
+    event("inherit", "RECURRENCE-ID;RANGE=THISANDFUTURE:20261005T140000Z", "DTSTART:20261005T150000Z", "DURATION:PT1H", "DESCRIPTION:Range details"),
+    event("inherit", "RECURRENCE-ID;RANGE=THISANDFUTURE:20261006T140000Z", "DTSTART:20261006T160000Z", "DURATION:PT1H"),
+    event("inherit", "RECURRENCE-ID:20261007T140000Z", "DTSTART:20261007T170000Z", "DURATION:PT1H"),
+    event("inherit", "RECURRENCE-ID:20261008T140000Z", "DTSTART:20261008T170000Z", "DURATION:PT1H", "DESCRIPTION:Specific details"),
+    event("inherit", "RECURRENCE-ID:20261009T140000Z", "DTSTART:20261009T170000Z", "DURATION:PT1H", "DESCRIPTION:"),
+  );
+  assert.equal(parseCalendarDigest(text, "2026-10-04").events[0].description, "Master details");
+  assert.equal(parseCalendarDigest(text, "2026-10-06").events[0].description, "Range details");
+  assert.equal(parseCalendarDigest(text, "2026-10-07").events[0].description, "Range details");
+  assert.equal(parseCalendarDigest(text, "2026-10-08").events[0].description, "Specific details");
+  assert.equal(Object.hasOwn(parseCalendarDigest(text, "2026-10-09").events[0], "description"), false);
+});
+
+test("digest strips HTML-ish markup, active content, decoded links and known credentials", () => {
+  const token = "synthetic-digest-secret";
+  const description = '<p>Bring <strong>notes</strong> &amp; agenda.</p><script>alert(1)</script><style>secret css</style><a href="https://example.test/private">Meeting room</a><br>https&colon;&sol;&sol;example.test/link mailto:private@example.test www.example.test example.test/plain [Map](https://example.test/map) &#115;ynthetic-digest-secret';
+  const text = calendar(event("html", `DESCRIPTION:${description}`, "DTSTART:20261006T150000Z"));
+  const result = parseCalendarDigest(text, "2026-10-06", [token]);
+  assert.equal(result.events[0].description, "Bring notes & agenda. Meeting room [link omitted] [link omitted] [link omitted] [link omitted] Map [redacted]");
+  const serialized = JSON.stringify(result);
+  for (const hidden of ["<", "alert", "css", "example.test", "synthetic-digest-secret", "private@"]) assert.equal(serialized.includes(hidden), false);
+});
+
+test("digest description is bounded and secrets are removed before truncation", () => {
+  const token = "synthetic-digest-secret-0123456789";
+  const text = calendar(event("bounded", `DESCRIPTION:${"x".repeat(1995)}${token}Tail`, "DTSTART:20261006T150000Z"));
+  const result = parseCalendarDigest(text, "2026-10-06", [token]);
+  assert.equal(result.events[0].description, `${"x".repeat(1995)}[reda`);
+  assert.equal(result.events[0].description?.length, 2_000);
+  assert.equal(JSON.stringify(result).includes("synt"), false);
+  const empty = calendar(event("empty", "DTSTART:20261006T150000Z"));
+  assert.equal(Object.hasOwn(parseCalendarDigest(empty, "2026-10-06").events[0], "description"), false);
 });

@@ -29,6 +29,16 @@ export type CalendarBriefing = {
   events: BriefingEvent[];
 };
 
+export type CalendarDigestEvent = BriefingEvent & {
+  description?: string;
+};
+
+export type CalendarDigest = {
+  date: string;
+  timeZone: typeof BRIEFING_TIME_ZONE;
+  events: CalendarDigestEvent[];
+};
+
 type WallTime = { year: number; month: number; day: number; hour: number; minute: number; second: number };
 type CalendarZone = ICAL.Timezone & { wallAtInstant: (instant: number) => WallTime };
 type ZoneTransition = WallTime & { utcOffset: number; prevUtcOffset: number };
@@ -155,14 +165,64 @@ function validDate(value: string): boolean {
   return normalized.getUTCFullYear() === wall.year && normalized.getUTCMonth() + 1 === wall.month && normalized.getUTCDate() === wall.day;
 }
 
+function redactText(value: string, secrets: readonly string[]): string {
+  for (const secret of secrets) if (secret) value = value.split(secret).join("[redacted]");
+  return value;
+}
+
 function safeText(value: unknown, fallback: string, maximum: number, secrets: readonly string[]): string {
   if (typeof value !== "string") return fallback;
   // Redact before truncation so even a secret crossing the output length limit
   // cannot leave a partial credential in an otherwise harmless printable field.
-  let sanitized = value;
-  for (const secret of secrets) if (secret) sanitized = sanitized.split(secret).join("[redacted]");
-  return sanitized.replace(/\b(?:https?|webcal):\/\/[^\s<>]+/gi, "[link omitted]")
+  return redactText(value, secrets).replace(/\b(?:https?|webcal):\/\/[^\s<>]+/gi, "[link omitted]")
     .replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, maximum) || fallback;
+}
+
+function plainDescription(value: unknown, secrets: readonly string[]): string {
+  if (typeof value !== "string") return "";
+  const entities: Record<string, string> = {
+    amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+    colon: ":", sol: "/", bsol: "\\", period: ".", commat: "@",
+    equals: "=", quest: "?", num: "#", percnt: "%", tab: " ", newline: " ",
+    ndash: "–", mdash: "—", bull: "•", hellip: "…", copy: "©", reg: "®",
+  };
+  const decoded = redactText(value, secrets).replace(/&(#x[\da-f]+|#\d+|[a-z][a-z\d]*);/gi, (entity: string, name: string) => {
+    if (name[0] !== "#") return entities[name.toLowerCase()] ?? entity;
+    const code = name[1]?.toLowerCase() === "x" ? Number.parseInt(name.slice(2), 16) : Number.parseInt(name.slice(1), 10);
+    return Number.isSafeInteger(code) && code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff) ? String.fromCodePoint(code) : " ";
+  });
+  const plain = redactText(decoded, secrets)
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, "")
+    .replace(/<\s*(script|style|iframe|object|embed|template|svg|math)\b[^>]*>[\s\S]*?(?:<\/\s*\1\s*>|$)/gi, "")
+    .replace(/<\s*\/?(?:p|div|br|li|h[1-6]|tr)\b[^>]*>/gi, " ")
+    .replace(/<[^>]*(?:>|$)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\b(?:https?|webcal|ftp|file|mailto|tel|javascript|data):[^\s<>]+/gi, "[link omitted]")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,63}\b/gi, "[link omitted]")
+    .replace(/\b(?:www\.)[a-z0-9.-]+(?:[/?#][^\s<>]*)?/gi, "[link omitted]")
+    .replace(/(?<![@\w])(?:[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?\.)+[a-z]{2,63}(?::\d+)?(?:[/?#][^\s<>]*)?/gi, "[link omitted]");
+  return safeText(plain, "", 2_000, secrets);
+}
+
+function descriptionFor(event: ICAL.Event, master: ICAL.Event | undefined, exceptions: Iterable<ICAL.Event>): unknown {
+  // An explicit empty override clears details. Missing details inherit the
+  // applicable earlier range change, then the master series description.
+  if (event.component.hasProperty("description")) return event.description;
+  const recurrenceId = event.recurrenceId;
+  let inherited: ICAL.Event | undefined;
+  let latest = Number.NEGATIVE_INFINITY;
+  if (recurrenceId) {
+    const originalInstant = instant(recurrenceId);
+    for (const exception of exceptions) {
+      if (!exception.modifiesFuture() || !exception.component.hasProperty("description")) continue;
+      const effectiveInstant = instant(exception.recurrenceId);
+      if (effectiveInstant <= originalInstant && effectiveInstant > latest) {
+        inherited = exception;
+        latest = effectiveInstant;
+      }
+    }
+  }
+  return inherited?.description ?? master?.description;
 }
 
 function cancelled(event: ICAL.Event): boolean {
@@ -229,8 +289,17 @@ function localIso(instantMs: number, formatter: Intl.DateTimeFormat): string {
   return `${dateText(wall)}T${String(wall.hour).padStart(2, "0")}:${String(wall.minute).padStart(2, "0")}:${String(wall.second).padStart(2, "0")}${sign}${String(Math.floor(absolute / 60)).padStart(2, "0")}:${String(absolute % 60).padStart(2, "0")}`;
 }
 
-/** Parse only briefing fields. Raw ICS, identifiers, descriptions and links never leave this function. */
+/** The public read-only briefing keeps its original minimal response fields. */
 export function parseBriefing(icsText: string, date: string, secrets: readonly string[] = []): CalendarBriefing {
+  return parseCalendar(icsText, date, secrets, false);
+}
+
+/** Details are available only to the server-side digest, as bounded plain text. */
+export function parseCalendarDigest(icsText: string, date: string, secrets: readonly string[] = []): CalendarDigest {
+  return parseCalendar(icsText, date, secrets, true);
+}
+
+function parseCalendar(icsText: string, date: string, secrets: readonly string[], includeDescription: boolean): CalendarDigest {
   try {
     if (!validDate(date) || date.length !== 10 || typeof icsText !== "string" || Buffer.byteLength(icsText, "utf8") > MAX_FEED_BYTES) throw new CalendarParseError();
     const redactionSecrets = [...new Set(secrets)].filter(Boolean).sort((a, b) => b.length - a.length);
@@ -329,7 +398,7 @@ export function parseBriefing(icsText: string, date: string, secrets: readonly s
     const dayEnd = instant(nextDayTime);
     const nextDate = dateText(nextDayTime);
     const formatter = formatterFor(BRIEFING_TIME_ZONE);
-    const results = new Map<string, { event: BriefingEvent; order: number }>();
+    const results = new Map<string, { event: CalendarDigestEvent; order: number }>();
     let iterations = 0;
     const add = (uid: string, recurrenceKey: string, event: ICAL.Event, start: ICAL.Time, explicitEnd?: ICAL.Time) => {
       if (cancelled(event)) return;
@@ -343,12 +412,15 @@ export function parseBriefing(icsText: string, date: string, secrets: readonly s
         : startMs < dayEnd && (endMs > dayStart || (endMs === startMs && startMs >= dayStart));
       if (!overlaps) return;
       const location = safeText(event.location, "", 500, redactionSecrets);
-      const briefingEvent: BriefingEvent = {
+      const group = groups.get(uid);
+      const description = includeDescription ? plainDescription(descriptionFor(event, group?.master, group?.exceptions.values() ?? []), redactionSecrets) : "";
+      const briefingEvent: CalendarDigestEvent = {
         title: safeText(event.summary, "Untitled event", 1_000, redactionSecrets),
         start: allDay ? dateText(start) : localIso(startMs, formatter),
         end: allDay ? dateText(end) : localIso(endMs, formatter),
         allDay,
         ...(location ? { location } : {}),
+        ...(description ? { description } : {}),
       };
       results.set(JSON.stringify([uid, recurrenceKey]), { event: briefingEvent, order: allDay ? dayStart - 1 : startMs });
       if (results.size > MAX_RESULTS) throw new CalendarParseError();
