@@ -31,10 +31,14 @@ export default function YarboCorePrice({ core, price }: {
   const showOffer = price.salePriceCents !== null &&
     (price.salePhase === "upcoming" || price.salePhase === "active");
   return <div className="space-y-1" data-testid="y40p-price">
-    <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Y40P MSRP</p>
-    <p className={`text-xl font-black ${price.saleIsActive ? "text-slate-600 line-through" : "text-slate-950"}`}>
-      {formatCents(price.regularPriceCents)}
-    </p>
+    {price.displayMsrpPriceCents != null ? <>
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Y40P MSRP</p>
+      <p className={`text-xl font-black ${price.saleIsActive ? "text-slate-600 line-through" : "text-slate-950"}`}>
+        {formatCents(price.displayMsrpPriceCents)}
+      </p>
+    </> : !showOffer && <p className="text-xl font-black text-slate-950">
+      {formatCents(price.currentPriceCents)}
+    </p>}
     {showOffer && <>
       <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
         {price.promotionLabel ?? price.scheduledSaleLabel ?? "Temporary sale"}{price.salePhase === "upcoming" ? " — scheduled" : " price"}

@@ -101,7 +101,7 @@ function fixture(status: "coming_soon" | "active" = "coming_soon") {
     ...catalogAvailabilityFromPublicStatus("active"), ...priceFromRow(baseRow(y40), before),
     corePrices: [
       { id: `${slug}-y40`, coreVariantId: "y40", priceMode: "package", ...catalogAvailabilityFromPublicStatus("active"), ...priceFromRow(baseRow(y40), before) },
-      { id: `${slug}-y40p`, coreVariantId: "y40p", priceMode: "core_specific", ...catalogAvailabilityFromPublicStatus("active"), ...priceFromRow(baseRow(msrp, sale), before) },
+      { id: `${slug}-y40p`, coreVariantId: "y40p", priceMode: "core_specific", ...catalogAvailabilityFromPublicStatus("active"), ...priceFromRow({ ...baseRow(msrp, sale), display_msrp_price_cents: msrp }, before) },
     ],
   }));
   const product: CatalogProduct = {
