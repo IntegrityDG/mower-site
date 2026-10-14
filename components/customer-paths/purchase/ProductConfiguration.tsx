@@ -6,6 +6,7 @@ import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import YarboCorePrice from "@/components/equipment/YarboCorePrice";
 import CoreAvailabilityBadge from "@/components/equipment/CoreAvailabilityBadge";
 import PreorderNotice from "@/components/equipment/PreorderNotice";
+import YarboPackageGroupSelector from "./YarboPackageGroupSelector";
 import { selectedYarboCore, yarboCoreCanBeSelected, yarboCorePrice, yarboCoreVariants } from "@/lib/catalog/yarbo-core";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
 import { priceLabel } from "@/lib/catalog/pricing";
@@ -293,22 +294,11 @@ function YarboConfiguration({
             </span>
           </div>
 
-          <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
-            {groupedPackages.map((group) => (
-              <button
-                key={group.key}
-                type="button"
-                onClick={() => setActiveGroup(group.key)}
-                className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold transition ${
-                  effectiveActiveGroup === group.key
-                    ? "bg-slate-950 text-white"
-                    : "border border-slate-300 bg-white text-slate-700 hover:border-emerald-500"
-                }`}
-              >
-                {group.label}
-              </button>
-            ))}
-          </div>
+          <YarboPackageGroupSelector
+            groups={groupedPackages}
+            selectedGroup={effectiveActiveGroup}
+            onSelectGroup={setActiveGroup}
+          />
 
           <div className="mt-7 space-y-8">
             {visibleGroups.map((group) => (

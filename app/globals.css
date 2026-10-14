@@ -71,6 +71,26 @@ body {
   text-shadow: 0 2px 18px rgba(2, 6, 23, 0.82);
 }
 
+.yarbo-package-type-attention {
+  animation: yarbo-package-type-glow 1.2s ease-in-out 3;
+}
+
+@keyframes yarbo-package-type-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(234, 88, 12, 0.24), 0 0 18px rgba(234, 88, 12, 0.22);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yarbo-package-type-attention {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.12);
+  }
+}
+
 @media (max-width: 767px) {
   .ids-purpose-background {
     background-position: 64% center;

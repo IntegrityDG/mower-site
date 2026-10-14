@@ -27,7 +27,6 @@ export const YARBO_CORE_EQUIPMENT_DESCRIPTION =
 export type YarboPurchaseMode = "complete-system" | "individual-equipment";
 
 export type YarboPackageGroupKey =
-  | "mowing"
   | "mower-pro"
   | "core-utility";
 
@@ -39,13 +38,8 @@ export type YarboPackageGroup = {
 
 export const YARBO_PACKAGE_GROUPS: YarboPackageGroup[] = [
   {
-    key: "mowing",
-    label: "Mower Packages",
-    description: "Complete systems built around the Standard Lawn Mower Module.",
-  },
-  {
     key: "mower-pro",
-    label: "Mower PRO Packages",
+    label: "Mower Pro Packages",
     description: "Complete systems built around the Lawn Mower Pro Module.",
   },
   {
@@ -115,13 +109,11 @@ export function yarboPackageMowerType(catalogPackage: CatalogPackage) {
 export function inferYarboPackageGroup(
   catalogPackage: CatalogPackage
 ): YarboPackageGroupKey {
-  const hasStandardMower = packageHasModule(catalogPackage, "yarbo-mower-module");
   const hasMowerPro = packageHasModule(
     catalogPackage,
     "yarbo-lawn-mower-pro-module"
   );
   if (hasMowerPro) return "mower-pro";
-  if (hasStandardMower) return "mowing";
   return "core-utility";
 }
 
@@ -130,8 +122,7 @@ export function groupYarboPackages(packages: CatalogPackage[]) {
     (catalogPackage) =>
       !catalogPackage.items.some(
         (item) =>
-          item.option &&
-          YARBO_DISCONTINUED_MODULE_SLUGS.has(item.option.slug)
+          YARBO_DISCONTINUED_MODULE_SLUGS.has(item.component?.slug ?? item.option?.slug ?? "")
       )
   );
 
@@ -145,10 +136,6 @@ export function groupYarboPackages(packages: CatalogPackage[]) {
 
 export function yarboPackageBestFit(catalogPackage: CatalogPackage) {
   const group = inferYarboPackageGroup(catalogPackage);
-  if (group === "mowing") {
-    return "Best for customers starting with standard autonomous mowing and optional warm-season cleanup.";
-  }
-
   if (group === "mower-pro") {
     return "Best for customers who want the Mower Pro starting point and optional cleanup capability.";
   }
