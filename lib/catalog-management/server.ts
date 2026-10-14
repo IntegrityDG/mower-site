@@ -82,6 +82,11 @@ async function mutate(kind: ManagedKind | "package-core-prices" | "yarbo-y40-cor
 }
 /** Pricing editor supplies its validated partial fields, with a mandatory version. */
 export async function updateCatalogPricing(kind: ManagedKind | "package-core-prices" | "yarbo-y40-core" | "yarbo-y40-package", id: string, values: Row, expectedUpdatedAt?: string) {
+  if (kind === "yarbo-y40-package") {
+    return ensure(await getSupabaseServiceClient().rpc("admin_update_y40_package_pricing", {
+      p_id: catalogId(id), p_expected_updated_at: currentVersion(expectedUpdatedAt), p_values: values,
+    })) as Row;
+  }
   return mutate(kind, catalogId(id), values, currentVersion(expectedUpdatedAt));
 }
 export async function createManagedProduct(input: unknown) {

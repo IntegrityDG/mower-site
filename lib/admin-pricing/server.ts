@@ -653,7 +653,7 @@ export async function readPricingCatalog(): Promise<PricingCatalog> {
   // Its public allowlist carries no private dealer costs.
   const [publicCatalog, coreRelations] = await Promise.all([
     loadPublicCatalog(),
-    client.from("catalog_package_core_prices").select("package_id,core_variant_id,public_status,updated_at").eq("price_mode", "package"),
+    client.from("catalog_package_core_prices").select("package_id,core_variant_id,public_status,show_public_price,contact_for_pricing,updated_at").eq("price_mode", "package"),
   ]);
   if (coreRelations.error) throw coreRelations.error;
   const publicByTarget = new Map<string, { currentPriceCents: number | null; showPublicPrice: boolean; contactForPricing: boolean; isAvailable: boolean }>();
@@ -680,7 +680,8 @@ export async function readPricingCatalog(): Promise<PricingCatalog> {
       item.priceContextBlocked = !product || !pkg || !core;
       priceProjection = corePrice ? { ...corePrice, isAvailable: Boolean(product && pkg && core && yarboCoreCanBeSelected(product, core, pkg)) } : undefined;
       if (relationship) item = { ...item, publicStatus: relationship.public_status,
-        availabilityStatus: relationship.public_status, values: { ...item.values, public_status: relationship.public_status },
+        availabilityStatus: relationship.public_status, values: { ...item.values, public_status: relationship.public_status,
+          core_show_public_price: relationship.show_public_price, core_contact_for_pricing: relationship.contact_for_pricing },
         coreAvailabilityUpdatedAt: relationship.updated_at,
         isAvailable: Boolean(product && pkg && core && yarboCoreCanBeSelected(product, core, pkg)),
       };

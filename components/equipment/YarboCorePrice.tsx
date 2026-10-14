@@ -28,23 +28,33 @@ export default function YarboCorePrice({ core, price }: {
   if (!price.showPublicPrice || price.contactForPricing) {
     return <p className="text-sm font-bold text-slate-700">Contact for pricing</p>;
   }
-  const showOffer = price.salePriceCents !== null &&
-    (price.salePhase === "upcoming" || price.salePhase === "active");
+  const activeSale = price.saleIsActive;
+  const upcomingSale = price.salePriceCents !== null && price.salePhase === "upcoming";
+  const currentIsMsrp = !activeSale && price.currentPriceCents !== null &&
+    price.currentPriceCents === price.displayMsrpPriceCents &&
+    (price.everydayLowPriceEnabled === false || price.regularPriceCents === null);
+  const currentLabel = activeSale ? `${price.promotionLabel ?? "Temporary sale"} price`
+    : price.everydayLowPriceEnabled !== false && price.regularPriceCents !== null && price.currentPriceCents === price.regularPriceCents
+      ? "IDS Everyday Low Price" : "Current price";
   return <div className="space-y-1" data-testid="y40p-price">
     {price.displayMsrpPriceCents != null ? <>
       <p className="text-xs font-bold uppercase tracking-wide text-slate-600">Y40P MSRP</p>
-      <p className={`text-xl font-black ${price.saleIsActive ? "text-slate-600 line-through" : "text-slate-950"}`}>
+      <p data-testid={currentIsMsrp ? "y40p-current-price" : undefined} className={`text-xl font-black ${activeSale ? "text-slate-600 line-through" : "text-slate-950"}`}>
         {formatCents(price.displayMsrpPriceCents)}
       </p>
-    </> : !showOffer && <p className="text-xl font-black text-slate-950">
-      {formatCents(price.currentPriceCents)}
-    </p>}
-    {showOffer && <>
+    </> : null}
+    {!currentIsMsrp && <div data-testid="y40p-current-price">
       <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
-        {price.promotionLabel ?? price.scheduledSaleLabel ?? "Temporary sale"}{price.salePhase === "upcoming" ? " — scheduled" : " price"}
+        {currentLabel}
       </p>
-      <p className="text-xl font-black text-emerald-700">{formatCents(price.salePriceCents)}</p>
+      <p className="text-xl font-black text-emerald-700">{formatCents(price.currentPriceCents)}</p>
+    </div>}
+    {activeSale && saleWindow(price) && <p className="text-xs font-semibold text-slate-600">{saleWindow(price)}</p>}
+    {upcomingSale && <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-600" data-testid="y40p-upcoming-sale">
+      <p className="text-xs font-bold uppercase tracking-wide">Upcoming sale</p>
+      <p className="text-base font-semibold">{formatCents(price.salePriceCents)}</p>
+      {price.scheduledSaleLabel && <p className="text-xs font-semibold">{price.scheduledSaleLabel} — scheduled</p>}
       {saleWindow(price) && <p className="text-xs font-semibold text-slate-600">{saleWindow(price)}</p>}
-    </>}
+    </div>}
   </div>;
 }
