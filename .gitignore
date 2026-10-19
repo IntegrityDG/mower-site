@@ -52,6 +52,9 @@ supabase/.temp/
 
 # local visual QA artifacts
 .tmp-lymow-*
+
+# Local sales ticker database/browser verification dependencies and evidence
+/.ticker-qa/
 /.dealer-ui-argprobe.cjs
 /.dealer-ui-browser-fixture.json
 /.dealer-ui-browser-generate.cjs

@@ -85,7 +85,7 @@ test("shared financing preserves Hearth content, link, artwork, and disclaimer",
 
 test("responsive boundary selects one homepage below or above 768", () => {
   assert.match(desktop, /max-width: 767px/);
-  assert.match(desktop, /isMobile \? <MobileHomepage \/> : <DesktopHomepage \/>/);
+  assert.match(desktop, /isMobile \? <MobileHomepage tickerSnapshot=\{tickerSnapshot\} tickerObservedAt=\{tickerObservedAt\} \/> : <DesktopHomepage tickerSnapshot=\{tickerSnapshot\} tickerObservedAt=\{tickerObservedAt\} \/>/);
   assert.match(mobile, /md:hidden/);
   assert.match(desktopHome, /hidden min-h-screen[\s\S]*md:block/);
 });

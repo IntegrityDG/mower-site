@@ -11,6 +11,7 @@ import FooterActions from "../components/footer/FooterActions";
 import InstallationRefundNotice from "../components/installations/InstallationRefundNotice";
 import { loadInstallationModule as load } from "./helpers/installation-module";
 import { servicesSchedulingPage } from "./helpers/installation-service-page";
+import { DEFAULT_TICKER_CONFIG, type PublicTickerSnapshot } from "../lib/promotions/ticker";
 
 const text = (html: string) => html.replace(/<[^>]+>/g, " ").replaceAll("&amp;", "&").replace(/\s+/g, " ").trim();
 const footer = (html: string) => {
@@ -33,9 +34,9 @@ for (const variant of ["Desktop", "Mobile"] as const) test(`${variant} public fo
     "@/lib/homepage-navigation": {},
     [`./${variant}HomeNavigation`]: () => null,
   };
-  for (const panel of ["contact/HomepageContactSection", "customer-paths/purchase/NationwidePurchaseFlow", "demo-scheduling/ScheduleDemoModal", "equipment/EquipmentCatalog", "featured-businesses/HomeBusinessSpotlight", "ids-action/IdsActionCarousel", "home/HomeFinancing", "promotions/HomePriceMatch", "promotions/HomeSalesSpecial", "reviews/HomeReviews"]) modules[`@/components/${panel}`] = () => null;
-  const Page = load<{ default: React.ComponentType }>(`components/${variant === "Desktop" ? "home" : "mobile"}/${variant}Homepage.tsx`, modules).default;
-  const content = footer(renderToStaticMarkup(<Page />));
+  for (const panel of ["contact/HomepageContactSection", "customer-paths/purchase/NationwidePurchaseFlow", "demo-scheduling/ScheduleDemoModal", "equipment/EquipmentCatalog", "featured-businesses/HomeBusinessSpotlight", "ids-action/IdsActionCarousel", "home/HomeFinancing", "promotions/HomePriceMatch", "promotions/HomeSalesSpecial", "promotions/SalesTicker", "reviews/HomeReviews"]) modules[`@/components/${panel}`] = () => null;
+  const Page = load<{ default: React.ComponentType<{ tickerSnapshot: PublicTickerSnapshot }> }>(`components/${variant === "Desktop" ? "home" : "mobile"}/${variant}Homepage.tsx`, modules).default;
+  const content = footer(renderToStaticMarkup(<Page tickerSnapshot={{ ticker: DEFAULT_TICKER_CONFIG, serverTime: "2026-10-19T18:00:00.000Z", nextChangeAt: null }} />));
   for (const retained of ["Integrity Distribution Systems", "Nationwide autonomous mower sales", "Regional Service Coverage", "Missouri", "Northeast Arkansas", "Western Kentucky", "Western Tennessee", "Southern Illinois"]) assert.ok(content.includes(retained), retained);
 });
 
