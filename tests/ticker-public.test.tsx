@@ -104,6 +104,7 @@ test("the loop fills narrow and wide viewports and always moves at configured pi
         const layout = tickerMotionLayout(sequenceWidth, width, speed);
         assert.ok(layout.distance >= width + sequenceWidth, `loop coverage at ${width}px`);
         assert.equal(layout.distance, sequenceWidth * layout.repetitions);
+        assert.ok(Number.isFinite(layout.duration) && layout.duration > 0);
         assert.ok(Math.abs(layout.distance / layout.duration - speed) < 0.000001);
       }
     }
@@ -131,10 +132,12 @@ test("both homepage variants place the shared ticker after navigation and immedi
   assert.match(page, /alternates: \{ canonical: "\/" \}/);
 });
 
-test("the strip stays slim and reduced motion exposes one internally scrollable list", () => {
-  assert.match(css, /height: 36px;/);
-  assert.match(css, /max-height: 36px;/);
-  assert.match(css, /font-size: 14px;/);
+test("the promotional ticker is 72px tall with scaled lettering and reduced motion exposes one scrollable list", () => {
+  for (const property of ["height", "min-height", "max-height"]) assert.match(css, new RegExp(`${property}: 72px;`));
+  assert.match(css, /font-size: 28px;/);
+  assert.match(css, /@media \(min-width: 768px\) \{ \.ticker \{ font-size: 30px; \} \}/);
+  assert.match(css, /\.pause \{[^}]*flex: 0 0 72px;[^}]*width: 72px;[^}]*height: 72px;[^}]*font-size: 30px;/);
+  assert.match(css, /\.separator \{ padding: 0 48px;/);
   assert.match(css, /white-space: nowrap;/);
   assert.match(css, /min-width: 0;/);
   assert.match(css, /to \{ transform: translateX\(-50%\); \}/);
@@ -142,5 +145,7 @@ test("the strip stays slim and reduced motion exposes one internally scrollable 
   assert.match(reduced, /data-ready="true"\] \.track \{ animation: none;/);
   assert.match(reduced, /data-ready="true"\] \.viewport \{ overflow-x: auto;/);
   assert.match(reduced, /\.repeat, \.clone, \.pause \{ display: none; \}/);
-  assert.match(css, /viewport:focus-within \.track \{ animation: none;/);
+  const normalMotion = css.slice(0, css.indexOf("@media (prefers-reduced-motion: reduce)"));
+  assert.match(normalMotion, /\.ticker\[data-pause-on-hover="true"\] \.viewport:focus-within \.track \{ animation: none;/);
+  assert.doesNotMatch(normalMotion, /\.ticker \.viewport:focus-within \.track \{ animation: none;/);
 });

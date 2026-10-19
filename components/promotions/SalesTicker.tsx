@@ -162,7 +162,11 @@ export default function SalesTicker({ config, serverTime, serverObservedAt, next
       {messages.map((message) => (
         <span key={message.id} className={styles.item}>
           {message.link && isSafeTickerLink(message.link) ? (
-            <a href={message.link} className={styles.link} tabIndex={duplicate ? -1 : undefined} onFocus={duplicate ? undefined : (event) => event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" })} onPointerDown={duplicate ? (event) => event.preventDefault() : undefined}>{message.message}</a>
+            <a href={message.link} className={styles.link} tabIndex={duplicate ? -1 : undefined} onFocus={duplicate ? undefined : (event) => {
+              if (visibleConfig.pauseOnHover || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
+              }
+            }} onPointerDown={duplicate ? (event) => event.preventDefault() : undefined}>{message.message}</a>
           ) : <span>{message.message}</span>}
           <span className={styles.separator} aria-hidden="true">&bull;</span>
         </span>

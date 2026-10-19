@@ -3,12 +3,12 @@
   display: flex;
   width: 100%;
   max-width: 100%;
-  height: 36px;
-  min-height: 36px;
-  max-height: 36px;
+  height: 72px;
+  min-height: 72px;
+  max-height: 72px;
   overflow: hidden;
   contain: inline-size;
-  font-size: 14px;
+  font-size: 28px;
   font-weight: 700;
   line-height: 1;
 }
@@ -31,7 +31,7 @@
   flex: 0 0 auto;
   align-items: center;
   width: max-content;
-  height: 36px;
+  height: 72px;
   white-space: nowrap;
 }
 
@@ -43,25 +43,26 @@
 .sequence { padding-left: 0; }
 .link { display: inline-flex; align-items: center; height: 100%; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .link:hover { text-decoration-thickness: 2px; }
-.separator { padding: 0 24px; color: var(--ticker-accent); }
-.pause { flex: 0 0 36px; width: 36px; height: 36px; border: 0; border-left: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; font-size: 15px; }
-.link:focus-visible, .pause:focus-visible, .viewport:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+.separator { padding: 0 48px; color: var(--ticker-accent); }
+.pause { flex: 0 0 72px; width: 72px; height: 72px; border: 0; border-left: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; font-size: 30px; }
+.link:focus-visible, .pause:focus-visible, .viewport:focus-visible { outline: 3px solid currentColor; outline-offset: -4px; }
 
 .ticker[data-paused="true"] .track,
 .ticker[data-pause-on-hover="true"]:hover .track,
 .ticker[data-pause-on-hover="true"]:focus-within .track { animation-play-state: paused; }
 
-/* A focused link always becomes visible in the single, scrollable semantic list. */
-.ticker .viewport:focus-within { overflow-x: auto; }
-.ticker .viewport:focus-within .track { animation: none; transform: none; will-change: auto; }
-.viewport:focus-within .repeat, .viewport:focus-within .clone { display: none; }
+/* Reveal the semantic list only when focus is configured to pause motion. */
+.ticker[data-pause-on-hover="true"] .viewport:focus-within { overflow-x: auto; }
+.ticker[data-pause-on-hover="true"] .viewport:focus-within .track { animation: none; transform: none; will-change: auto; }
+.ticker[data-pause-on-hover="true"] .viewport:focus-within .repeat,
+.ticker[data-pause-on-hover="true"] .viewport:focus-within .clone { display: none; }
 
 @keyframes sales-ticker-crawl {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
 
-@media (min-width: 768px) { .ticker { font-size: 15px; } }
+@media (min-width: 768px) { .ticker { font-size: 30px; } }
 
 @media (prefers-reduced-motion: reduce) {
   .ticker .viewport, .ticker[data-ready="true"] .viewport { overflow-x: auto; }
