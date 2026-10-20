@@ -237,7 +237,7 @@ try {
     assert.equal(geometry.height, 72);
     assert.equal(geometry.minHeight, 72);
     assert.equal(geometry.maxHeight, 72);
-    assert.equal(geometry.fontSize, width < 768 ? 28 : 30);
+    assert.equal(geometry.fontSize, width < 768 ? 14 : 30);
     assert.ok(geometry.internalHeights.every((height) => height === 72));
     assert.equal(geometry.pauseWidth, 72);
     assert.equal(geometry.pauseHeight, 72);

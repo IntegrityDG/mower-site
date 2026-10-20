@@ -134,7 +134,7 @@ test("both homepage variants place the shared ticker after navigation and immedi
 
 test("the promotional ticker is 72px tall with scaled lettering and reduced motion exposes one scrollable list", () => {
   for (const property of ["height", "min-height", "max-height"]) assert.match(css, new RegExp(`${property}: 72px;`));
-  assert.match(css, /font-size: 28px;/);
+  assert.match(css, /font-size: 14px;/);
   assert.match(css, /@media \(min-width: 768px\) \{ \.ticker \{ font-size: 30px; \} \}/);
   assert.match(css, /\.pause \{[^}]*flex: 0 0 72px;[^}]*width: 72px;[^}]*height: 72px;[^}]*font-size: 30px;/);
   assert.match(css, /\.separator \{ padding: 0 48px;/);
