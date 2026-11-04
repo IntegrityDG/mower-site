@@ -16,6 +16,7 @@ import { builderAccessoryOptions, customerFacingProductOptions } from "@/lib/cat
 import { buildAvailabilityIssues, catalogOptionIsAvailable, removeUnavailableBuildSelections } from "@/lib/catalog/availability";
 import { isSelfServiceProduct } from "@/lib/catalog/sales-mode";
 import { isPublicEquipmentProductSlug } from "@/lib/catalog/product-routing";
+import { lymowVariantPage, type LymowConfiguration } from "@/lib/catalog/lymow-variant-pages";
 import { yarboCoreCanBeSelected } from "@/lib/catalog/yarbo-core";
 import {
   checkoutEndpoint,
@@ -58,6 +59,8 @@ import { EMPTY_OPTIONAL_SERVICES, type MachineServiceAvailability } from "@/lib/
 type NationwidePurchaseFlowProps = {
   selectedState?: string;
   selectedRegion?: string;
+  initialCatalog?: CatalogResponse;
+  lymowConfiguration?: LymowConfiguration;
 };
 
 type StageKey =
@@ -232,18 +235,27 @@ function initialBuildSelection(product: CatalogProduct): ProductBuildSelection {
 export default function NationwidePurchaseFlow({
   selectedState = "",
   selectedRegion = "",
+  initialCatalog,
+  lymowConfiguration,
 }: NationwidePurchaseFlowProps = {}) {
-  const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
+  const initialProduct = lymowConfiguration
+    ? initialCatalog?.products.find((product) => product.slug === "lymow-one-plus")
+    : undefined;
+  const initialPage = initialProduct && lymowConfiguration ? lymowVariantPage(initialProduct, lymowConfiguration) : null;
+  const firstStageIndex = lymowConfiguration ? 1 : 0;
+  const [catalog, setCatalog] = useState<CatalogResponse | null>(initialCatalog ?? null);
   const [catalogError, setCatalogError] = useState("");
-  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogLoading, setCatalogLoading] = useState(!initialCatalog);
   const [catalogReloadKey, setCatalogReloadKey] = useState(0);
-  const [stageIndex, setStageIndex] = useState(0);
+  const [stageIndex, setStageIndex] = useState(firstStageIndex);
   const [optionalServices, setOptionalServices] = useState(EMPTY_OPTIONAL_SERVICES);
   const [serviceAvailability, setServiceAvailability] = useState<MachineServiceAvailability>(unavailableMachineServices);
   const checkoutOperation = useRef<{ fingerprint: string; key: string } | null>(null);
-  const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState(initialPage?.canPurchase ? initialProduct!.id : "");
   const [buildSelection, setBuildSelection] =
-    useState<ProductBuildSelection>(emptyBuildSelection);
+    useState<ProductBuildSelection>(initialPage?.canPurchase
+      ? { ...initialBuildSelection(initialProduct!), variantId: initialPage.variant.id }
+      : emptyBuildSelection);
   const [selectedPurchaseMethod, setSelectedPurchaseMethod] = useState<
     PurchaseMethodKey | ""
   >("");
@@ -344,6 +356,17 @@ export default function NationwidePurchaseFlow({
     if (!catalog || urlPreselectionApplied.current) return;
     urlPreselectionApplied.current = true;
 
+    // Variant pages use their server-selected identity, never URL query overrides.
+    if (lymowConfiguration) {
+      const product = catalog.products.find((item) => item.slug === "lymow-one-plus");
+      const page = product ? lymowVariantPage(product, lymowConfiguration) : null;
+      if (page?.canPurchase) {
+        setSelectedProductId(product!.id);
+        setBuildSelection({ ...initialBuildSelection(product!), variantId: page.variant.id });
+      }
+      return;
+    }
+
     const requestedProduct = productRequestedByBuildSearch(
       catalog,
       window.location.search
@@ -354,7 +377,7 @@ export default function NationwidePurchaseFlow({
     const initial = initialBuildSelection(requestedProduct);
     const accessory = accessoryRequestedByBuildSearch(requestedProduct, window.location.search);
     setBuildSelection(accessory ? { ...initial, optionQuantities: { ...initial.optionQuantities, [accessory.id]: 1 } } : initial);
-  }, [catalog]);
+  }, [catalog, lymowConfiguration]);
 
   useEffect(() => {
     setCustomerInformation((currentInformation) => ({
@@ -506,6 +529,7 @@ export default function NationwidePurchaseFlow({
   }
 
   function handleProductSelect(productId: string) {
+    if (lymowConfiguration) return;
     setOptionalServices(EMPTY_OPTIONAL_SERVICES);
     if (productId === selectedProductId) return;
 
@@ -531,6 +555,8 @@ export default function NationwidePurchaseFlow({
   function handleSelectVariant(variantId: string) {
     const variant = selectedProduct?.variants.find((item) => item.id === variantId);
     if (!variant?.isAvailable) return;
+    if (lymowConfiguration && selectedProduct &&
+      lymowVariantPage(selectedProduct, lymowConfiguration)?.variant.id !== variantId) return;
     if (selectedProduct && isYarboProduct(selectedProduct)) {
       const catalogPackage = selectedProduct.packages.find((item) => item.id === buildSelection.packageId);
       if (!yarboCoreCanBeSelected(selectedProduct, variant, catalogPackage)) return;
@@ -678,7 +704,7 @@ export default function NationwidePurchaseFlow({
   }
 
   function goBack() {
-    setStageIndex((currentIndex) => Math.max(currentIndex - (accessoryMode && stages[currentIndex - 1]?.key === "optionalServices" ? 2 : 1), 0));
+    setStageIndex((currentIndex) => Math.max(currentIndex - (accessoryMode && stages[currentIndex - 1]?.key === "optionalServices" ? 2 : 1), firstStageIndex));
   }
 
   function goForward() {
@@ -691,6 +717,8 @@ export default function NationwidePurchaseFlow({
   async function submitRequest() {
     if (
       (!accessoryMode && (!selectedProduct || !isSelfServiceProduct(selectedProduct))) ||
+      (lymowConfiguration && (!selectedProduct || !lymowVariantPage(selectedProduct, lymowConfiguration)?.canPurchase ||
+        lymowVariantPage(selectedProduct, lymowConfiguration)?.variant.id !== buildSelection.variantId)) ||
       !selectedPurchaseMethod ||
       !selectedPurchaseMethodAvailable ||
       !locationComplete ||
@@ -971,7 +999,7 @@ export default function NationwidePurchaseFlow({
     if (activeStage.key === "configuration" && selectedProduct) {
       return (
         <ProductConfiguration
-          product={selectedProduct}
+          product={lymowConfiguration ? { ...selectedProduct, variants: selectedProduct.variants.filter((variant) => variant.id === lymowVariantPage(selectedProduct, lymowConfiguration)?.variant.id) } : selectedProduct}
           selection={buildSelection}
           onSelectVariant={handleSelectVariant}
           onSelectPackage={handleSelectPackage}
@@ -1100,13 +1128,18 @@ export default function NationwidePurchaseFlow({
     );
   }
 
+  if (lymowConfiguration && (!selectedProduct || !lymowVariantPage(selectedProduct, lymowConfiguration)?.canPurchase)) {
+    return <p role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-6 font-bold text-amber-950">This configuration is currently unavailable for online purchase. Reload the page for current details or contact IDS.</p>;
+  }
+
   return (
     <div className="overflow-hidden rounded-[2rem] border border-slate-300 bg-white shadow-xl">
       <div className="border-b border-slate-200 bg-slate-50 p-5 md:p-7">
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-5">
           {purchaseProgressSteps.map((step, index) => {
             const stepStageIndexes = progressStepStageIndexes(step);
-            const targetStageIndex = progressStepTargetIndex(step, stageIndex);
+            const stepTarget = progressStepTargetIndex(step, stageIndex);
+            const targetStageIndex = stepTarget === null ? null : Math.max(firstStageIndex, stepTarget);
             const isActive = (step.stageKeys as readonly StageKey[]).includes(
               activeStage.key
             );
@@ -1150,7 +1183,7 @@ export default function NationwidePurchaseFlow({
           <button
             type="button"
             onClick={goBack}
-            disabled={stageIndex === 0}
+            disabled={stageIndex <= firstStageIndex}
             className="rounded-2xl border border-slate-300 bg-white px-6 py-4 text-center font-bold text-slate-950 transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Back

@@ -57,3 +57,6 @@ export const GUIDE_SEO_CASES: readonly (SeoPageExpectation & { intent: string })
   },
 ];
 export const BATCH_FIVE_SITEMAP_PATHS = [...APPROVED_SEO_PATHS, ...GUIDE_SEO_CASES.map((entry) => entry.path)];
+
+// Two exact Lymow purchase pages approved after the Batch 5 family-page baseline.
+export const CURRENT_SITEMAP_PATHS = [...BATCH_FIVE_SITEMAP_PATHS, "/equipment/lymow-one-plus/5a", "/equipment/lymow-one-plus/10a"];

@@ -16,7 +16,7 @@ import Acreage from "../app/robot-mowers/large-acreage/page";
 import Financing from "../app/robot-mower-financing/page";
 import sitemap from "../app/sitemap";
 import robots from "../app/robots";
-import { GUIDE_SEO_CASES, BATCH_FIVE_SITEMAP_PATHS } from "./fixtures/guide-seo";
+import { GUIDE_SEO_CASES, CURRENT_SITEMAP_PATHS } from "./fixtures/guide-seo";
 import { APPROVED_SEO_PATHS, PROPERTY_SEO_CASES } from "./fixtures/property-seo";
 import { REGIONAL_SEO_CASES } from "./fixtures/regional-seo";
 import { assertPageBody, attributes, jsonLdFromHtml, SEO_ORIGIN, textFromHtml } from "./helpers/regional-seo-assertions";
@@ -46,12 +46,12 @@ GUIDE_SEO_CASES.forEach((expected, index) => {
   });
 });
 
-test("Batch 5 sitemap is exactly 33 approved routes with all prior 27 preserved", () => {
+test("Batch 5 sitemap is exactly 35 approved routes with all prior 27 preserved", () => {
   const urls = sitemap().map((entry) => entry.url);
   assert.equal(APPROVED_SEO_PATHS.length, 27);
-  assert.equal(urls.length, 33);
-  assert.equal(new Set(urls).size, 33);
-  assert.deepEqual(urls.sort(), BATCH_FIVE_SITEMAP_PATHS.map((path) => new URL(path, SEO_ORIGIN).href).sort());
+  assert.equal(urls.length, 35);
+  assert.equal(new Set(urls).size, 35);
+  assert.deepEqual(urls.sort(), CURRENT_SITEMAP_PATHS.map((path) => new URL(path, SEO_ORIGIN).href).sort());
   for (const path of APPROVED_SEO_PATHS) assert.ok(urls.includes(new URL(path, SEO_ORIGIN).href));
   for (const url of urls) assert.doesNotMatch(url, /[?#]|\/admin|\/login|\/member|\/received|\/checkout|\/project-quote/);
 });

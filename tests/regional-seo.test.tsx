@@ -12,7 +12,7 @@ import Tennessee, { metadata as tennesseeMetadata } from "../app/robot-mowers/we
 import sitemap from "../app/sitemap";
 import robots from "../app/robots";
 import { EXISTING_SITEMAP_PATHS, REGIONAL_SEO_CASES } from "./fixtures/regional-seo";
-import { BATCH_FIVE_SITEMAP_PATHS } from "./fixtures/guide-seo";
+import { CURRENT_SITEMAP_PATHS } from "./fixtures/guide-seo";
 import { assertPageBody, SEO_ORIGIN, textFromHtml } from "./helpers/regional-seo-assertions";
 
 const components = [RobotMowers, Commercial, Missouri, Illinois, Arkansas, Kentucky, Tennessee];
@@ -46,11 +46,11 @@ test("seven new titles and descriptions are unique across existing indexable pag
   }
 });
 
-test("sitemap preserves prior batches and contains only the 33 approved public routes", () => {
+test("sitemap preserves prior batches and contains only the 35 approved public routes", () => {
   const urls = sitemap().map((entry) => entry.url);
-  const paths = BATCH_FIVE_SITEMAP_PATHS;
-  assert.equal(urls.length, 33);
-  assert.equal(new Set(urls).size, 33);
+  const paths = CURRENT_SITEMAP_PATHS;
+  assert.equal(urls.length, 35);
+  assert.equal(new Set(urls).size, 35);
   assert.deepEqual(urls.sort(), paths.map((path) => new URL(path, SEO_ORIGIN).href).sort());
   for (const url of urls) assert.doesNotMatch(url, /[?#]|\/admin|\/login|\/member|\/received|\/checkout|\/project-quote/);
 });

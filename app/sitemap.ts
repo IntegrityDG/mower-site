@@ -6,6 +6,8 @@ const PUBLIC_ROUTES = [
   "/equipment",
   "/equipment/accessories",
   "/equipment/lymow-one-plus",
+  "/equipment/lymow-one-plus/5a",
+  "/equipment/lymow-one-plus/10a",
   "/equipment/yarbo",
   "/equipment/pandag-g1",
   "/services-scheduling",

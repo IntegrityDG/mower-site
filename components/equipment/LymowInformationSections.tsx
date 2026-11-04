@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
@@ -164,6 +165,9 @@ function ConfigurationSummary({ product }: { product: CatalogProduct }) {
                     className="mt-5 border-t border-slate-200 pt-5"
                     priceClassName="text-2xl font-black text-emerald-700"
                   />}
+                  <Link href={`/equipment/lymow-one-plus/${variant.slug === "lymow-one-plus-5a" ? "5a" : "10a"}`} className="mt-5 inline-flex font-black text-emerald-700 underline">
+                    View {variant.slug === "lymow-one-plus-5a" ? "5A" : "10A"} configuration and purchasing details
+                  </Link>
                 </article>
               );
             })}

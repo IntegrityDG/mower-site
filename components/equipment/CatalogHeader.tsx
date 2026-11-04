@@ -6,16 +6,18 @@ export default function CatalogHeader({
   productSlug,
   isAvailable = true,
   quoteHref = "/pandag/project-quote",
+  buildHref: requestedBuildHref,
 }: {
   salesMode?: CatalogSalesMode;
   productSlug?: string;
   isAvailable?: boolean;
   quoteHref?: string;
+  buildHref?: string;
 }) {
   const quoteOnly = salesMode === "quote_only";
-  const buildHref = productSlug
+  const buildHref = requestedBuildHref ?? (productSlug
     ? `/?product=${encodeURIComponent(productSlug)}#location-and-customer-path`
-    : "/#location-and-customer-path";
+    : "/#location-and-customer-path");
   return (
     <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4 sm:gap-5 sm:px-8">
