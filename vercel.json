@@ -1,4 +1,9 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "feature/remote-support-two-sessions": false
+    }
+  },
   "crons": [
     { "path": "/api/cron/featured-business-lifecycle", "schedule": "0 14 * * *" },
     { "path": "/api/cron/service-maintenance", "schedule": "0 15 * * *" },
