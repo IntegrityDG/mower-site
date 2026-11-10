@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { activationDate, calculateInvoice, cancellationConsumesSession, EMPTY_WORK_SHEET, failureDeadline, finalWarrantyReportAllowed, laborAmount, nextBillingDate, paymentRecoveryAllowed, subscriptionEligible, travelAmount, WARRANTY_REPORT_RECIPIENT } from "../lib/service/policy";
+import { activationDate, calculateInvoice, cancellationConsumesSession, EMPTY_WORK_SHEET, failureDeadline, finalWarrantyReportAllowed, laborAmount, nextBillingDate, paymentRecoveryAllowed, subscriptionEligible, travelAmount, WARRANTY_REPORT_RECIPIENT, SUPPORT_SESSIONS_PER_CYCLE, SUPPORT_MONTHLY_CENTS } from "../lib/service/policy";
 import type { Subscription, WorkSheet } from "../lib/service/types";
+
+test("Remote Support includes two sessions for $100 per paid cycle", () => {
+  assert.equal(SUPPORT_SESSIONS_PER_CYCLE, 2);
+  assert.equal(SUPPORT_MONTHLY_CENTS, 10000);
+});
 
 test("paid activation dates and full monthly first cycle, including month ends", () => {
   assert.equal(activationDate("2026-01-21T12:00:00Z", "standalone"), "2026-01-21T12:00:00.000Z");

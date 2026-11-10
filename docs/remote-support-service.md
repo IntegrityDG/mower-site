@@ -29,7 +29,7 @@ status timestamps are history, never a stopwatch.
 - [x] Header/footer Remote Assistance, Service card, no customer dashboard.
 - [x] Machine Optional Services: Install $0, Setup $0, Remote Support $100;
       separate locked Installation/Setup pricing preserved.
-- [x] $100 monthly, four issue-based sessions; one issue until resolved, no
+- [x] $100 monthly, two issue-based sessions per billing cycle; one issue until resolved, no
       24-hour duration limit, no rollover, Phone/Facebook Messenger.
 - [x] Standalone paid activation immediate; machine paid activation +10 days,
       first paid cycle and renewal dates consistent with that activation.
@@ -41,7 +41,7 @@ status timestamps are history, never a stopwatch.
 - [x] Cancellation >=24 hours free (exact boundary included); late cancellation
       consumes scheduled slot; reschedule advances to next numbered slot.
 - [x] No-show consumes scheduled plus next available; duplicate safe; durable
-      next-cycle penalty, including Session 4 -> next cycle Session 1.
+      next-cycle penalty, including Session 2 -> next cycle Session 1.
 - [x] Failed renewal immediately suspends access/discount and pauses appointments;
       recovery within 14 days restores; unrecovered at 14 days cancels reliably.
 - [x] Voluntary cancellation retains paid-period benefits, no proration/refund.
@@ -187,7 +187,7 @@ local accounting:
 
 - $100 standalone Checkout; repeated creation returns the same session.
 - Declined test card leaves subscription pending and creates no paid cycle.
-- Successful replacement card activates one four-session cycle and creates one
+- Under the original four-session policy, successful replacement card activated one four-session cycle and created one
   monthly subscription, with no duplicate first-month charge.
 - Zero-charge card authorization, explicit $120 Service collection, declined
   collection remaining Payment Due, then a successful different-card pay-now link.

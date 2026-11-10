@@ -14,7 +14,7 @@ const serviceDetails = {
   "/remote-assistance": {
     name: "Remote Assistance",
     description:
-      "Remote Support by phone or Facebook Messenger for active subscribers, with four issue-based sessions per billing cycle and follow-up conversations on the same issue until resolved.",
+      "Remote Support by phone or Facebook Messenger for active subscribers, with two issue-based sessions per billing cycle and follow-up conversations on the same issue until resolved.",
   },
 } as const;
 

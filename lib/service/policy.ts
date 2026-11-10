@@ -1,7 +1,7 @@
 import type { InvoiceTotals, ServicePricing, Subscription, TripCategory, WorkSheet } from "./types";
 
 export const SUPPORT_MONTHLY_CENTS = 10_000;
-export const SUPPORT_SESSIONS_PER_CYCLE = 4;
+export const SUPPORT_SESSIONS_PER_CYCLE = 2;
 export const SUPPORT_ACTIVATION_DELAY_DAYS = 10;
 export const SUPPORT_FAILURE_GRACE_DAYS = 14;
 export const SUPPORT_DISCOUNT_BASIS_POINTS = 2_500;
