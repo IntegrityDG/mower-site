@@ -25,6 +25,7 @@ test("paid intake begins with warranty choice, does not preselect coverage, and 
 test("purchase requires affirmative recurring terms; inactive controls disable submission", () => {
   const html = renderToStaticMarkup(<SupportPurchase enabled={false} />);
   assert.match(html, /type="checkbox" required/); assert.match(html, /\$100 now and \$100 monthly/);
+  assert.match(html, /How many machines would you like covered/); assert.match(html, /name="machineCount" type="number" min="1" max="1000000" step="1" required/);
   assert.match(html, /<button[^>]*disabled/); assert.doesNotMatch(html, /checked=""/);
   assert.match(renderToStaticMarkup(<ServiceIntake included enabled={false} />), /<button[^>]*disabled/);
 });
