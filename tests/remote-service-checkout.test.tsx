@@ -23,6 +23,8 @@ test("Optional Services has exactly Install, Setup and Remote Support with separ
   assert.ok(html.indexOf(">Setup<") < html.indexOf(">Remote Support<"));
   assert.match(html, /not free services/);
   assert.match(SUPPORT_CHECKOUT_NOTICE, /Two issue-based sessions per billing cycle/);
+  assert.match(SUPPORT_CHECKOUT_NOTICE, /\$100\/month per machine/);
+  assert.match(SUPPORT_CHECKOUT_NOTICE, /contact IDS for an individual quote/);
 });
 test("Install and Setup preserve all equipment amounts and add zero at checkout", () => {
   const value = addOptionalServices(base, { ...request, optionalServices: { ...selected, remoteSupport: false, acceptedSupportTerms: false } }, false);
