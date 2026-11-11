@@ -30,7 +30,7 @@ test("purchase requires affirmative recurring terms; inactive controls disable s
 });
 test("public terms retain issue-based sessions, two slots, activation, exact cancellation and suspension rules", () => {
   const html = renderToStaticMarkup(<SupportTerms />);
-  for (const phrase of ["$100/month", "Two issue-based Remote Support Sessions", "Phone or Facebook Messenger", "one issue until resolved", "no 24-hour session limit", "do not roll over", "10 days", "exactly 24 hours", "next cycle", "14 days"]) assert.ok(html.includes(phrase), phrase);
+  for (const phrase of ["$100/month per machine", "Each subscription covers one machine", "contact IDS for an individual quote", "Two issue-based Remote Support Sessions", "Phone or Facebook Messenger", "one issue until resolved", "no 24-hour session limit", "do not roll over", "10 days", "exactly 24 hours", "next cycle", "14 days"]) assert.ok(html.includes(phrase), phrase);
 });
 test("Service terms retain rates, cumulative work, mapped travel and conditional warranty", () => {
   const html = renderToStaticMarkup(<ServiceTerms />);
