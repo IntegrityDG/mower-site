@@ -59,6 +59,7 @@ export default function DesktopHomeNavigation({ open, activeView, onClose, onSel
           <button ref={closeButton} type="button" aria-label="Close desktop navigation" onClick={onClose} className="flex h-12 w-12 items-center justify-center rounded-xl text-3xl text-slate-700 hover:bg-slate-100">×</button>
         </div>
         <nav className="mt-6 flex flex-col gap-2" aria-label="Desktop homepage">
+          <Link href="/about-us" className="min-h-12 rounded-xl px-5 py-3 font-black tracking-wide text-slate-800 hover:bg-slate-100">ABOUT US</Link>
           {viewItems.slice(0, 3).map((item) => <button key={item.view} type="button" aria-current={activeView === item.view ? "page" : undefined} onClick={() => choose(item.view)} className={buttonClass(item.primary, activeView === item.view)}>{item.label}</button>)}
           <Link href="/equipment/accessories" className="min-h-12 rounded-xl px-5 py-3 font-black tracking-wide text-slate-800 hover:bg-slate-100">ACCESSORIES &amp; PARTS</Link>
           <ScheduleDemoModal source="contact_ids" onClick={onClose} triggerClassName="min-h-12 rounded-xl px-5 py-3 font-black tracking-wide text-slate-800 hover:bg-slate-100" />
