@@ -4,7 +4,7 @@ import { SUPPORT_MONTHLY_CENTS } from "@/lib/service/policy";
 
 export const EMPTY_OPTIONAL_SERVICES: MachineOptionalServices = { install: false, setup: false, remoteSupport: false, acceptedSupportTerms: false };
 export type MachineServiceAvailability = Record<"install" | "setup" | "remoteSupport", { available: boolean; message: string }>;
-export const SUPPORT_CHECKOUT_NOTICE = "$100 for your first Remote Support month is included today. Activates 10 days after payment confirmation, then renews at $100/month after the first paid month. Two issue-based sessions per billing cycle; no rollover or partial-month refunds. Cancel through your private subscription link.";
+export const SUPPORT_CHECKOUT_NOTICE = "$100 for your first Remote Support month for one machine is included today. Activates 10 days after payment confirmation, then renews at $100/month per machine after the first paid month. For coverage on multiple machines, contact IDS for an individual quote. Two issue-based sessions per billing cycle; no rollover or partial-month refunds. Cancel through your private subscription link.";
 export const optionalServicesSelected = (value?: MachineOptionalServices) => Boolean(value && (value.install || value.setup || value.remoteSupport));
 export function parseOptionalServices(value: unknown): MachineOptionalServices {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid Optional Services.");

@@ -25,12 +25,13 @@ test("paid intake begins with warranty choice, does not preselect coverage, and 
 test("purchase requires affirmative recurring terms; inactive controls disable submission", () => {
   const html = renderToStaticMarkup(<SupportPurchase enabled={false} />);
   assert.match(html, /type="checkbox" required/); assert.match(html, /\$100 now and \$100 monthly/);
+  assert.match(html, /How many machines would you like covered/); assert.match(html, /name="machineCount" type="number" min="1" max="1000000" step="1" required/);
   assert.match(html, /<button[^>]*disabled/); assert.doesNotMatch(html, /checked=""/);
   assert.match(renderToStaticMarkup(<ServiceIntake included enabled={false} />), /<button[^>]*disabled/);
 });
 test("public terms retain issue-based sessions, two slots, activation, exact cancellation and suspension rules", () => {
   const html = renderToStaticMarkup(<SupportTerms />);
-  for (const phrase of ["$100/month", "Two issue-based Remote Support Sessions", "Phone or Facebook Messenger", "one issue until resolved", "no 24-hour session limit", "do not roll over", "10 days", "exactly 24 hours", "next cycle", "14 days"]) assert.ok(html.includes(phrase), phrase);
+  for (const phrase of ["$100/month per machine", "Each subscription covers one machine", "contact IDS for an individual quote", "Two issue-based Remote Support Sessions", "Phone or Facebook Messenger", "one issue until resolved", "no 24-hour session limit", "do not roll over", "10 days", "exactly 24 hours", "next cycle", "14 days"]) assert.ok(html.includes(phrase), phrase);
 });
 test("Service terms retain rates, cumulative work, mapped travel and conditional warranty", () => {
   const html = renderToStaticMarkup(<ServiceTerms />);

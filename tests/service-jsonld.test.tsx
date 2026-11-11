@@ -30,7 +30,7 @@ const services: Array<{
     path: "/remote-assistance",
     name: "Remote Assistance",
     description:
-      "Remote Support by phone or Facebook Messenger for active subscribers, with two issue-based sessions per billing cycle and follow-up conversations on the same issue until resolved.",
+      "Remote Support for $100 per month per machine by phone or Facebook Messenger, with two issue-based sessions per billing cycle. Contact IDS for an individual quote for multiple machines.",
   },
 ];
 
