@@ -49,9 +49,9 @@ export async function startSupportCheckout(request: Request, value: unknown) {
   const origin = dealerNetworkOrigin(request); const metadata = meta("support_initial", record.id);
   const session = await stripe().checkout.sessions.create({
     mode: "payment", payment_method_types: ["card"], customer_creation: "always", customer_email: input.email,
-    line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: SUPPORT_MONTHLY_CENTS, product_data: { name: "IDS Remote Support - first month", description: "Four issue-based sessions. $100/month; cancel anytime, no partial-month refunds." } } }],
+    line_items: [{ quantity: 1, price_data: { currency: "usd", unit_amount: SUPPORT_MONTHLY_CENTS, product_data: { name: "IDS Remote Support - first month", description: "Two issue-based sessions per billing cycle. $100/month; cancel anytime, no partial-month refunds." } } }],
     payment_intent_data: { setup_future_usage: "off_session", metadata }, metadata, client_reference_id: record.id,
-    custom_text: { submit: { message: "$100 today for your first month, then $100/month automatically. Four issue-based sessions per cycle; no rollover or prorated refunds. Cancel through your private subscription link." } },
+    custom_text: { submit: { message: "$100 today for your first month, then $100/month automatically. Two issue-based sessions per billing cycle; no rollover or prorated refunds. Cancel through your private subscription link." } },
     success_url: `${origin}/remote-assistance/manage/${token}?payment=return`, cancel_url: `${origin}/remote-assistance`,
   }, { idempotencyKey: `ids-support-checkout:${record.id}` });
   assertMode(session);
@@ -70,7 +70,7 @@ async function monthlyPrice() {
     if (price.currency !== "usd" || price.unit_amount !== SUPPORT_MONTHLY_CENTS || price.recurring?.interval !== "month" || price.recurring.interval_count !== 1) throw new ServiceError("Remote Support recurring pricing does not match the approved rate.", 503);
     return price.id;
   }
-  const product = await stripe().products.create({ name: "IDS Remote Support", description: "$100/month, four issue-based sessions; one issue until resolved.", metadata: { ids_service: SERVICE_POLICY_VERSION } }, { idempotencyKey: "ids-remote-support-product-v1" });
+  const product = await stripe().products.create({ name: "IDS Remote Support", description: "$100/month, two issue-based sessions per billing cycle; one issue until resolved.", metadata: { ids_service: SERVICE_POLICY_VERSION } }, { idempotencyKey: "ids-remote-support-product-v1" });
   const price = await stripe().prices.create({ currency: "usd", unit_amount: SUPPORT_MONTHLY_CENTS, recurring: { interval: "month" }, product: product.id, lookup_key: lookupKey }, { idempotencyKey: "ids-remote-support-price-v1" });
   assertMode(price); return price.id;
 }

@@ -3,7 +3,7 @@ import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { renderToStaticMarkup } from "react-dom/server";
 import OptionalServices from "../components/customer-paths/purchase/OptionalServices";
-import { addOptionalServices, EMPTY_OPTIONAL_SERVICES, parseOptionalServices } from "../lib/checkout/optional-services";
+import { addOptionalServices, EMPTY_OPTIONAL_SERVICES, parseOptionalServices, SUPPORT_CHECKOUT_NOTICE } from "../lib/checkout/optional-services";
 import { checkoutRequestFingerprint } from "../lib/checkout/idempotency";
 import { parseCheckoutRequest } from "../lib/checkout/request-schema";
 import { buildCardCheckoutSession } from "../lib/stripe/checkout-session";
@@ -22,6 +22,7 @@ test("Optional Services has exactly Install, Setup and Remote Support with separ
   assert.ok(html.indexOf(">Install<") < html.indexOf(">Setup<"));
   assert.ok(html.indexOf(">Setup<") < html.indexOf(">Remote Support<"));
   assert.match(html, /not free services/);
+  assert.match(SUPPORT_CHECKOUT_NOTICE, /Two issue-based sessions per billing cycle/);
 });
 test("Install and Setup preserve all equipment amounts and add zero at checkout", () => {
   const value = addOptionalServices(base, { ...request, optionalServices: { ...selected, remoteSupport: false, acceptedSupportTerms: false } }, false);
@@ -39,6 +40,8 @@ for (const method of ["card", "ach_debit"] as const) test(`${method} collects th
   assert.equal(session.payment_intent_data?.setup_future_usage, "off_session");
   assert.equal(session.metadata?.order_id, sessionInput.orderId); assert.equal(session.metadata?.ids_service, undefined);
   assert.match((session.custom_text!.submit as { message: string }).message, /10 days after payment confirmation/);
+  assert.match((session.custom_text!.submit as { message: string }).message, /Two issue-based sessions per billing cycle/);
+  assert.match(session.line_items!.at(-1)!.price_data!.product_data!.description!, /Two issue-based sessions per billing cycle/);
 });
 test("absent or unselected services preserve old checkout fingerprints and Stripe payment authorization behavior", () => {
   assert.equal(checkoutRequestFingerprint(request), checkoutRequestFingerprint({ ...request, optionalServices: EMPTY_OPTIONAL_SERVICES }));
