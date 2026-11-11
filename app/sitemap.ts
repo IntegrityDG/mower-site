@@ -3,6 +3,7 @@ import { IDS_CANONICAL_ORIGIN } from "@/lib/site-origin";
 
 const PUBLIC_ROUTES = [
   "/",
+  "/about-us",
   "/equipment",
   "/equipment/accessories",
   "/equipment/lymow-one-plus",

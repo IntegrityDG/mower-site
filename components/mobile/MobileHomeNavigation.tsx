@@ -53,6 +53,7 @@ export default function MobileHomeNavigation({ open, activeView, onClose, onSele
           <button ref={closeButton} type="button" aria-label="Close navigation" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-xl text-3xl text-slate-700 hover:bg-slate-100">×</button>
         </div>
         <nav className="mt-5 flex flex-col gap-2" aria-label="Mobile homepage">
+          <Link href="/about-us" className="min-h-12 rounded-xl px-4 py-3 text-sm font-black tracking-wide text-slate-800 hover:bg-slate-100">ABOUT US</Link>
           {viewItems.slice(0, 3).map((item) => <button key={item.view} type="button" aria-current={activeView === item.view ? "page" : undefined} onClick={() => choose(item.view)} className={`min-h-12 rounded-xl px-4 py-3 text-left text-sm font-black tracking-wide ${item.primary ? "bg-emerald-600 text-white shadow-md" : activeView === item.view ? "bg-emerald-50 text-emerald-800" : "text-slate-800 hover:bg-slate-100"}`}>{item.label}</button>)}
           <Link href="/equipment/accessories" className="min-h-12 rounded-xl px-4 py-3 text-sm font-black tracking-wide text-slate-800 hover:bg-slate-100">ACCESSORIES &amp; PARTS</Link>
           <Link href="/services-scheduling" className="min-h-12 rounded-xl px-4 py-3 text-sm font-black tracking-wide text-slate-800 hover:bg-slate-100">SERVICES &amp; SCHEDULING</Link>
