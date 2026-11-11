@@ -14,7 +14,7 @@ const serviceDetails = {
   "/remote-assistance": {
     name: "Remote Assistance",
     description:
-      "Remote Support for $100 per month per machine by phone or Facebook Messenger, with two issue-based sessions per billing cycle. Contact IDS for an individual quote for multiple machines.",
+      "Remote Support for $100 per month per machine by phone or Facebook Messenger, with two issue-based sessions per billing cycle for each covered machine. Contact IDS for an individual quote for multiple machines.",
   },
 } as const;
 
