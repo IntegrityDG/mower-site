@@ -10,7 +10,7 @@ import { readPublicServiceAvailability } from "@/lib/service/availability";
 export const dynamic = "force-dynamic";
 export const metadata = {
   title: "Robot Mower Installation & Professional Setup | IDS",
-  description: "Plan professional robot mower installation with IDS, with optional setup and optimization. Review published labor, materials and travel terms before requesting.",
+  description: "Plan robot mower installation and optional setup within the IDS regional service area. Review published labor, materials and travel terms before requesting.",
   alternates: { canonical: "/professional-installation" },
 };
 
@@ -30,6 +30,12 @@ export default async function Page() {
           <h1 className="mt-3 text-4xl font-black md:text-6xl">
             Professional Robot Mower Installation
           </h1>
+          <p className="mt-5 max-w-3xl text-lg text-slate-200">
+            Professional Installation and Professional Setup &amp; Optimization
+            are available only within the IDS regional service area, subject to
+            IDS approval and current availability. Nationwide equipment sales do
+            not include nationwide in-person services.
+          </p>
           <p className="mt-5 max-w-3xl text-lg text-slate-200">
             Standard initial amount: $1,000 — $800 labor including up to four
             cumulative installation hours, plus a $200 materials allowance that
