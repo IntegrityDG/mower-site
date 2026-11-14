@@ -10,7 +10,7 @@ import {
 import { readPublicServiceAvailability } from "@/lib/service/availability";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Robot Mower Remote Support & Technical Assistance | IDS", description: "Get robot mower technical support by phone or Facebook Messenger through IDS Remote Support. Review subscription terms and request assistance.", alternates: { canonical: "/remote-assistance" } };
+export const metadata = { title: "Robot Mower Remote Support & Technical Assistance | IDS", description: "Get nationwide robot mower assistance by phone or Facebook Messenger through IDS Remote Support, subject to subscription eligibility and current availability.", alternates: { canonical: "/remote-assistance" } };
 
 export default async function RemoteAssistancePage() {
   const availability = await readPublicServiceAvailability();
@@ -22,6 +22,13 @@ export default async function RemoteAssistancePage() {
       <ServiceJsonLd path="/remote-assistance" />
       <section className="rounded-2xl bg-white p-5 sm:p-8">
         <h2 className="mb-4 text-2xl font-black">Remote Support</h2>
+        <p className="mb-5 leading-7">
+          Remote assistance is our only nationwide service. Remote Support is
+          available by phone or Facebook Messenger, subject to subscription
+          eligibility and current availability. Demos, installation, setup, and
+          physical service or repair are available only within the IDS regional
+          service area.
+        </p>
         <SupportTerms />
       </section>
       <div className="grid gap-6 lg:grid-cols-2">
@@ -54,8 +61,9 @@ export default async function RemoteAssistancePage() {
       <section className="rounded-2xl bg-emerald-50 p-6">
         <h2 className="text-2xl font-black">Need paid Service?</h2>
         <p className="my-3 leading-7">
-          Choose paid Remote or On-Site Service, including warranty
-          verification. Active subscribers retain their eligible Service
+          Choose paid Remote Service or regional-only On-Site Service, including
+          warranty verification and subject to eligibility and current
+          availability. Active subscribers retain their eligible Service
           discount after using their included sessions.
         </p>
         <Link

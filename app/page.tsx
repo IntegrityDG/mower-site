@@ -6,7 +6,7 @@ import { readPublicSalesTicker } from "@/lib/promotions/ticker-server";
 export const metadata: Metadata = {
   title: "Robot Mowers, Installation & Service | Integrity Distribution Systems",
   description:
-    "Explore Lymow, Yarbo and Pandag robotic mowers with IDS. Nationwide equipment sales and regional demos, installation, service and support from Missouri.",
+    "Explore Lymow, Yarbo and Pandag robotic mowers with IDS. Nationwide equipment sales and remote assistance; regional-only demos, installation, setup and physical service.",
   alternates: { canonical: "/" },
   openGraph: { url: "/" },
 };

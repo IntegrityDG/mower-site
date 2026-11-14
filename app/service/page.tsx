@@ -7,7 +7,7 @@ import { readPublicServiceAvailability } from "@/lib/service/availability";
 import { publicServicePricing } from "@/lib/service/server";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Robot Mower Service, Repair & Maintenance | IDS", description: "Request IDS robot mower diagnostics, repair or maintenance for supported equipment. Review remote and on-site service options and current rates.", alternates: { canonical: "/service" } };
+export const metadata = { title: "Robot Mower Service, Repair & Maintenance | IDS", description: "Request IDS robot mower service for supported equipment. Physical service and repair are regional only; review remote assistance eligibility and current rates.", alternates: { canonical: "/service" } };
 
 export default async function ServicePage() {
   const [pricing, availability] = await Promise.all([
@@ -20,6 +20,13 @@ export default async function ServicePage() {
       <ServiceJsonLd path="/service" />
       <section className="rounded-2xl bg-white p-5 sm:p-8">
         <h2 className="mb-4 text-2xl font-black">Remote and On-Site Service</h2>
+        <p className="mb-5 leading-7">
+          Physical service and repair, including on-site work and shop drop-off,
+          are available only within the IDS regional service area. Remote
+          assistance is our only nationwide service, subject to eligibility and
+          current availability. Nationwide equipment sales do not include
+          nationwide in-person services.
+        </p>
         <ServiceTerms pricing={pricing} />
       </section>
       <section className="mx-auto max-w-3xl rounded-2xl border bg-white p-5 sm:p-8">

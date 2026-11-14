@@ -18,19 +18,19 @@ const services: Array<{
     path: "/professional-installation",
     name: "Professional Installation",
     description:
-      "Professional installation for autonomous mower equipment with optional Professional Setup & Optimization. Materials are reconciled to actual use, and approved travel or other charges may affect the final cost.",
+      "Professional installation for autonomous mower equipment with optional Professional Setup & Optimization, available only within the IDS regional service area, subject to IDS approval and current availability. Materials are reconciled to actual use, and approved travel or other charges may affect the final cost.",
   },
   {
     path: "/service",
     name: "Service",
     description:
-      "Remote and on-site service for supported equipment, including diagnostics and maintenance. Diagnosis and actual work are billable even when repair cannot be completed.",
+      "Remote and on-site service for supported equipment, including diagnostics and maintenance. Physical service and repair are available only within the IDS regional service area. Remote assistance is available nationwide, subject to eligibility and current availability. Diagnosis and actual work are billable even when repair cannot be completed.",
   },
   {
     path: "/remote-assistance",
     name: "Remote Assistance",
     description:
-      "Remote Support for $100 per month per machine by phone or Facebook Messenger, with two issue-based sessions per billing cycle for each covered machine. Contact IDS for an individual quote for multiple machines.",
+      "Nationwide Remote Support for $100 per month per machine by phone or Facebook Messenger, with two issue-based sessions per billing cycle for each covered machine, subject to subscription eligibility and current availability. Contact IDS for an individual quote for multiple machines.",
   },
 ];
 
