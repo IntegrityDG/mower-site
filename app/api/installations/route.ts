@@ -28,24 +28,25 @@ export async function POST(request: Request) {
     );
   } catch (e) {
     const m = String((e as Error)?.message ?? "");
+    const termsChanged = /installation_terms_changed/.test(m);
     const unavailable = e instanceof ServiceError && e.status === 503;
     return Response.json(
       {
-        code: unavailable
+        code: termsChanged ? "installation_terms_changed" : unavailable
           ? "currently_unavailable"
           : /slot_conflict|slot_unavailable|exclusion/i.test(m)
             ? "slot_unavailable"
             : /invalid_intake/.test(m)
               ? "invalid_intake"
               : undefined,
-        error: unavailable
+        error: termsChanged ? "Cancellation terms have changed. Refresh this page, review the current terms, and acknowledge them before submitting a new request." : unavailable
           ? e.message
           : /slot_conflict|slot_unavailable|exclusion/i.test(m)
             ? "That time is no longer available."
             : "Installation request could not be submitted.",
       },
       {
-        status: unavailable
+        status: termsChanged ? 409 : unavailable
           ? 503
           : /slot_conflict|slot_unavailable|exclusion|idempotency_conflict/i.test(
                 m,

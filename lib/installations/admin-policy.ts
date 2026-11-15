@@ -3,6 +3,8 @@ import { installationBalance, cents, type InstallationPayment, type Installation
 import { hasInstallation, hasSetup, jobPricing, serviceInitialAmount, serviceTravelQuote, setupPrice, setupOvertime, supportDiscount, type ServiceComponent } from "./setup";
 import { additionalLabor, balanceDueAt, cancellationDepositRefund, initialAmount, locationRefusalLaborRefund, undergroundLabor, DEFAULT_PRICING, type PricingSnapshot } from "./policy";
 
+import { reviewedCancellation, usesReviewedCancellation, usesLegacyCancellation, type CancellationReview } from "./cancellation";
+
 export const ADMIN_ACTOR = "IDS shared administrator";
 export type WorkSession = { service_type?: ServiceComponent; id: string; status: string; duration_minutes: number | null; duration_seconds?: number | null; corrected_from_id: string | null; started_at: string; ended_at: string | null; notes: string | null };
 export type AdminState = { installation: Record<string, any>; ledger: unknown; sessions: WorkSession[];
@@ -43,7 +45,7 @@ const fields: Record<string,string[]>={
   setup:["selected"],setup_materials:["actualCents"],
   safety:["status","evidence"],session_start:["serviceType"],session_stop:["status"],session_correct:["sessionId","durationMinutes"],
   adjustment:["kind","description","amountCents"],materials:["actualCents"],labor:[],underground:["feet","materialsCents"],placement_refusal:[],
-  cancel:[],decline:[],reschedule:["startAt"],arrangement:[],complete:[],
+  cancel:["cancellationCause","cancellationFeeCents","purchasedMaterialsCents","materialsPurchaseEvidence","cancellationReviewed"],decline:[],cancellation_full_refund:["cancellationReviewed"],cancellation_materials_choice:["materialsChoice","customerChoiceConfirmed"],reschedule:["startAt"],arrangement:[],complete:[],
 };
 export function validateAdminInput(raw: unknown): Record<string,unknown> & {action:string;operationKey:string;reason:string} {
   if(!raw||typeof raw!=="object"||Array.isArray(raw)) throw new Error("invalid_admin_operation");
@@ -59,11 +61,14 @@ export function prepareAdminOperation(state: AdminState, input: unknown, default
   const body=validateAdminInput(input), i=state.installation, action=body.action, reason=body.reason;
   const saved=approvedPricing(i.pricing_snapshot??i.draft_pricing??defaults);
   const pricing=jobPricing(i,hasSetup(i)?{...saved,setupLaborCents:saved.setupLaborCents??defaults.setupLaborCents??50000}:saved);
-  const balanceBefore=installationBalance(pricing,state.adjustments,state.payments,state.corrections,state.cashRefunds);
+  const cancellationWithoutPricing=!i.pricing_snapshot&&usesReviewedCancellation(i.terms_version)&&["cancel","decline","cancellation_full_refund","cancellation_materials_choice"].includes(action);
+  const balanceBefore=installationBalance(cancellationWithoutPricing?{...pricing,laborCents:0,materialsAllowanceCents:0}:pricing,state.adjustments,state.payments,state.corrections,state.cashRefunds);
   const patch: Record<string,unknown>={}, adjustments: Record<string,unknown>[]=[], sessions: Record<string,unknown>[]=[];
   const running=state.sessions.find(s=>s.status==="running"), minutes=cumulativeWorkMinutes(state.sessions,"installation"), setupMinutes=cumulativeWorkMinutes(state.sessions,"setup"), totalMinutes=cumulativeWorkMinutes(state.sessions);
   let stopSession: string|null=null;
   const closed=["cancelled","declined","terminated","completed"].includes(i.status);
+  const finalCancellation=usesReviewedCancellation(i.terms_version)&&i.cancellation_review?.settlementFinal===true;
+  if(finalCancellation&&["pricing","travel","adjustment","materials","setup_materials","labor","underground","session_correct"].includes(action))throw new Error("cancellation_settlement_locked");
   const requireApproved=()=>{if(!i.pricing_snapshot)throw new Error("missing_approved_pricing");};
   const requireOpen=()=>{if(closed)throw new Error("installation_closed");};
   const add=(kind:string,amount:number,description:string,reconciliation_kind:string|null=null)=>{
@@ -199,10 +204,42 @@ export function prepareAdminOperation(state: AdminState, input: unknown, default
   } else if(action==="cancel"||action==="decline") {
     requireOpen();if(running||totalMinutes>0)throw new Error("use_work_or_safety_termination");
     if(action==="decline"&&i.status!=="requested")throw new Error("invalid_transition");
-    if(i.pricing_snapshot){const retained=pricing.depositCents-cancellationDepositRefund(pricing.depositCents,i.requested_start_at,now);add("credit",retained-pricing.laborCents-(hasSetup(i)?setupPrice(pricing)-supportDiscount(setupPrice(pricing),remoteSupportEligible===true):0),`Cancellation labor settlement; materials separately reconciled: ${reason}`,"cancellation");}
+    if(usesReviewedCancellation(i.terms_version)) {
+      // A stopped or corrected-to-zero session still proves that work began.
+      if(state.sessions.length>0)throw new Error("use_work_or_safety_termination");
+      if(i.special_cash_failure_reschedule)throw new Error("use_cash_failure_resolution");
+      const review=reviewedCancellation(balanceBefore,action==="decline"?{cancellationCause:"ids",cancellationReviewed:true}:body);
+      patch.cancellation_review=review;
+      if(review.settlementFinal) {
+        const retained=review.feeCents+review.purchasedMaterialsCents;
+        // Replace, never add to, existing materials/Setup/travel/other charges.
+        // Money returns remain a separate explicitly authorized operation.
+        add("credit",retained-balanceBefore.approvedChargesCents,`Reviewed cancellation: purchased materials ${review.purchasedMaterialsCents} cents; fee ${review.feeCents} cents. ${reason}`,"cancellation_review");
+      } else if(i.pricing_snapshot) {
+        // IDS cancellation has no customer cancellation fee. Do not invent a
+        // materials/travel outcome: retain their separate reconciliation path.
+        const bookedSetupLabor=state.adjustments.filter(a=>["setup_base","setup_labor","setup_discount"].includes(a.reconciliation_kind??"")).reduce((n,a)=>n+a.amount_cents,0);
+        // Use the saved net Setup ledger, not today's subscriber eligibility.
+        const laborCredit=Math.min(balanceBefore.approvedChargesCents,Math.max(0,pricing.laborCents+bookedSetupLabor));
+        add("credit",-laborCredit,`IDS cancellation: no cancellation fee; other amounts require separate review. ${reason}`,"cancellation");
+      }
+    } else {
+      if(!usesLegacyCancellation(i.terms_version)||Object.keys(body).some(k=>fields.cancel.includes(k)))throw new Error("review_saved_cancellation_terms");
+      if(i.pricing_snapshot){const retained=pricing.depositCents-cancellationDepositRefund(pricing.depositCents,i.requested_start_at,now);add("credit",retained-pricing.laborCents-(hasSetup(i)?setupPrice(pricing)-supportDiscount(setupPrice(pricing),remoteSupportEligible===true):0),`Cancellation labor settlement; materials separately reconciled: ${reason}`,"cancellation");}
+    }
     patch.status=action==="decline"?"declined":"cancelled";
+  } else if(action==="cancellation_full_refund") {
+    if(!usesReviewedCancellation(i.terms_version)||!["cancelled","declined"].includes(i.status)||!i.cancellation_review)throw new Error("cancellation_full_refund_unavailable");
+    if(state.sessions.length>0||i.special_cash_failure_reschedule)throw new Error("use_work_or_safety_termination");
+    patch.cancellation_review=reviewedCancellation(balanceBefore,{cancellationCause:"full_refund_required",cancellationReviewed:body.cancellationReviewed});
+    add("credit",-balanceBefore.approvedChargesCents,`Confirmed full-refund requirement after cancellation; original decision retained in audit history: ${reason}`,"cancellation_full_refund");
+  } else if(action==="cancellation_materials_choice") {
+    const review=i.cancellation_review as CancellationReview|undefined;
+    if(!usesReviewedCancellation(i.terms_version)||i.status!=="cancelled"||review?.cause!=="customer"||review.purchasedMaterialsCents<=0)throw new Error("cancellation_materials_choice_unavailable");
+    if(body.customerChoiceConfirmed!==true||!["pickup","forfeit"].includes(String(body.materialsChoice)))throw new Error("customer_materials_choice_required");
+    patch.cancellation_review={...review,materialsChoice:body.materialsChoice};
   }
   const afterPricing=jobPricing({...i,...patch},(patch.pricing_snapshot??i.pricing_snapshot??patch.draft_pricing??i.draft_pricing??defaults) as PricingSnapshot);
-  const balanceAfter=installationBalance(afterPricing,[...state.adjustments,...adjustments.map((a,n)=>({id:`new:${n}`,amount_cents:a.amount_cents as number}))],state.payments,state.corrections,state.cashRefunds);
+  const balanceAfter=installationBalance(cancellationWithoutPricing?{...afterPricing,laborCents:0,materialsAllowanceCents:0}:afterPricing,[...state.adjustments,...adjustments.map((a,n)=>({id:`new:${n}`,amount_cents:a.amount_cents as number}))],state.payments,state.corrections,state.cashRefunds);
   return {body,patch,adjustments,sessions,stopSession,balanceBefore,balanceAfter};
 }

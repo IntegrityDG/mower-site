@@ -1,9 +1,12 @@
-export type InstallationIntake={setupSelected?:boolean;name:string;email:string;phone:string;address:string;equipment:string|null;preferredLocation:string|null;internetAvailability:"yes"|"no"|"unsure";undergroundRequested:boolean;estimatedUndergroundFeet:number;startAt:string;groundingAcknowledged:boolean;responsibilitiesAcknowledged:boolean;termsAcknowledged:boolean;undergroundAcknowledged:boolean;cashRequested:boolean;idempotencyKey:string};
+export type InstallationIntake={termsVersion?:string;setupSelected?:boolean;name:string;email:string;phone:string;address:string;equipment:string|null;preferredLocation:string|null;internetAvailability:"yes"|"no"|"unsure";undergroundRequested:boolean;estimatedUndergroundFeet:number;startAt:string;groundingAcknowledged:boolean;responsibilitiesAcknowledged:boolean;termsAcknowledged:boolean;undergroundAcknowledged:boolean;cashRequested:boolean;idempotencyKey:string};
 export function validateInstallationIntake(raw:unknown, mode:"installation"|"setup_only"="installation"):{ok:true;value:InstallationIntake}|{ok:false;errors:Record<string,string>}{
   if(!raw||typeof raw!=="object"||Array.isArray(raw))return{ok:false,errors:{request:"Invalid installation request."}};
   const x=raw as Record<string,unknown>,errors:Record<string,string>={};
-  const allowed=["setupSelected","name","email","phone","address","equipment","preferredLocation","internetAvailability","undergroundRequested","estimatedUndergroundFeet","startAt","groundingAcknowledged","responsibilitiesAcknowledged","termsAcknowledged","undergroundAcknowledged","cashRequested","idempotencyKey"];
+  const allowed=["termsVersion","setupSelected","name","email","phone","address","equipment","preferredLocation","internetAvailability","undergroundRequested","estimatedUndergroundFeet","startAt","groundingAcknowledged","responsibilitiesAcknowledged","termsAcknowledged","undergroundAcknowledged","cashRequested","idempotencyKey"];
   if(Object.keys(x).some(k=>!allowed.includes(k)))errors.request="Unexpected request fields.";
+  // Preserve versionless older forms as legacy agreements; never upgrade their accepted terms.
+  // Explicit versions are validated by the intake RPC, after its replay check.
+  if(x.termsVersion!==undefined&&(typeof x.termsVersion!=="string"||x.termsVersion.length>80))errors.termsVersion="Invalid terms version.";
   const text=(k:string,max:number,min=1)=>{const v=typeof x[k]==="string"?x[k].trim():"";if(v.length<min||v.length>max)errors[k]=`Required (${min}–${max} characters).`;return v;};
   const name=text("name",160),email=text("email",320).toLowerCase(),phone=text("phone",80,7),address=text("address",500,5),startAt=text("startAt",60),idempotencyKey=text("idempotencyKey",36);
   if(!/^\S+@\S+\.\S+$/.test(email))errors.email="Enter a valid email.";
@@ -19,5 +22,6 @@ export function validateInstallationIntake(raw:unknown, mode:"installation"|"set
   const equipment=optional("equipment",200),preferredLocation=optional("preferredLocation",1000);
   return Object.keys(errors).length?{ok:false,errors}:{ok:true,value:{name,email,phone,address,startAt,idempotencyKey:idempotencyKey.toLowerCase(),equipment,preferredLocation,
     internetAvailability:x.internetAvailability as InstallationIntake["internetAvailability"],undergroundRequested:x.undergroundRequested===true,estimatedUndergroundFeet:feet as number,
+    ...(x.termsVersion===undefined?{}:{termsVersion:x.termsVersion as string}),
     ...(x.setupSelected===undefined?{}:{setupSelected:x.setupSelected===true}),groundingAcknowledged:mode==="installation",responsibilitiesAcknowledged:true,termsAcknowledged:true,undergroundAcknowledged:x.undergroundAcknowledged===true,cashRequested:x.cashRequested===true}};
 }

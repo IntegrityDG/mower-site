@@ -11,6 +11,7 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = (error as Error).message;
     if (error instanceof SyntaxError || ["invalid_setup_only_request", "recorded_reason_required", "stable_operation_key_required"].includes(message)) return Response.json({ error: "Review the customer, equipment, appointment, acknowledgements, and recorded reason." }, { status: 400 });
+    if (message.includes("installation_terms_changed")) return Response.json({ error: "Refresh the page and confirm the customer has accepted the current cancellation terms before creating this job." }, { status: 400 });
     if (message.includes("idempotency_conflict")) return Response.json({ error: "This request key already belongs to different details. Review the saved job." }, { status: 409 });
     if (message.includes("slot_unavailable") || message.includes("slot_conflict")) return Response.json({ error: "That appointment is no longer available. Choose a current slot." }, { status: 400 });
     const failure = installationReadError(error);
