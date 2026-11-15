@@ -2,6 +2,7 @@ import { cumulativeWorkMinutes, displayWorkMinutes, type WorkSession } from "@/l
 import { additionalLabor, type PricingSnapshot } from "@/lib/installations/policy";
 import { hasInstallation, hasSetup, setupOvertime, setupPrice, SETUP, type ServiceSelection } from "@/lib/installations/setup";
 import { installationMoney as money } from "./InstallationBalanceSummary";
+import InstallationLaborTerms from "./InstallationLaborTerms";
 
 type Props = { job: ServiceSelection & { pricing_snapshot?: PricingSnapshot | null; approved_travel_charge_cents?: number; travel_policy?: string }; sessions: WorkSession[]; adjustments: { amount_cents: number; reconciliation_kind?: string | null }[] };
 export default function InstallationServiceSummary({ job, sessions, adjustments }: Props) {
@@ -9,6 +10,7 @@ export default function InstallationServiceSummary({ job, sessions, adjustments 
   const amount = (kind: string) => adjustments.filter(a => a.reconciliation_kind === kind).reduce((n, a) => n + a.amount_cents, 0);
   return <section aria-label="Service components and labor" className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
     <p className="font-bold">Installation selected: {hasInstallation(job) ? "Yes" : "No — Setup-only job"}. Setup selected: {hasSetup(job) ? "Yes" : "No"}.</p>
+    {hasInstallation(job) && p && <div className="mt-3"><InstallationLaborTerms pricing={p} /></div>}
     <dl className="mt-3 space-y-2 text-sm">
       {hasInstallation(job) && <><div><dt className="font-bold">Installation labor / materials allowance</dt><dd>{p ? `${money(p.laborCents)} labor + ${money(p.materialsAllowanceCents)} allowance` : "Awaiting IDS pricing approval"}</dd></div><div><dt className="font-bold">Installation labor recorded</dt><dd>{displayWorkMinutes(installationMinutes)} minutes; {displayWorkMinutes(Math.max(0, 240 - installationMinutes))} included minutes remaining. Overtime: {money(p ? Math.round(additionalLabor(installationMinutes, p)) : 0)}.</dd></div>{p && <div><dt className="font-bold">Installation materials / allowance reconciliation</dt><dd>{money(p.materialsAllowanceCents + amount("materials"))} currently accounted for, including the allowance until actual use is reconciled.</dd></div>}</>}
       {(hasSetup(job) || setupMinutes > 0 || adjustments.some(a => a.reconciliation_kind?.startsWith("setup_"))) && <>
