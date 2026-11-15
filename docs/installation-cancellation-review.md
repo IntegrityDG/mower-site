@@ -37,7 +37,7 @@ Older in-flight forms do not send a version. They may still create a booking und
 
 ## Database change
 
-`supabase/migrations/20261115012839_installation_cancellation_review.sql` is prospective:
+`supabase/migrations/20261115015103_installation_cancellation_review.sql` is prospective:
 
 - Adds nullable `installations.cancellation_review`; no existing accepted version, booking amount, payment, or refund is updated.
 - Replaces the same three creation/admin function signatures. No new functions, grants, roles, RLS changes, or persistent access are added.
@@ -45,6 +45,12 @@ Older in-flight forms do not send a version. They may still create a booking und
 - Adds database guards for reviewed cancellation amounts, evidence, work history, pending refunds, full-refund correction, and no-financial-change customer materials choice.
 
 The source prerequisite is `20260908152507_professional_setup_addon.sql`, after the four released Installation migrations. Read-only production metadata on 2026-11-15 confirmed all five prerequisites in the project named `mower-site`, project ref `zyualbcbjchuhajyrpvw`, and confirmed the existing three function bodies exactly match the prerequisite source. All three existing RPC ACLs are `postgres` and `service_role` only, security-invoker. No hosted schema or customer data was changed during implementation.
+
+## Database release checkpoint
+
+On 2026-11-15, the reviewed SQL was applied once to the verified production project `zyualbcbjchuhajyrpvw`. Supabase recorded `20261115015103` / `installation_cancellation_review`; the repository filename now matches that entry. The SQL is byte-identical to the reviewed artifact, SHA-256 `57c1ad79600063c3821018ba5e1b2f06f6a4bbe2e09ef2c03f9570d81168e270`.
+
+Read-only metadata verification confirmed the nullable JSON column, exact source-body hashes for all three replaced functions, their unchanged service-role-only ACLs and security-invoker mode, and enabled installation RLS. No customer records or payment operations were read or changed for verification. The application release still requires the exact-head preview and production deployment checks below. Do not reapply the migration.
 
 ## Review and release checklist
 
