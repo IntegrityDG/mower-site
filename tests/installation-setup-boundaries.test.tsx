@@ -17,7 +17,7 @@ const input=()=>({operationKey:randomUUID(),reason:"Synthetic existing mower own
 test("Setup-only service authenticates first, validates strictly, and persists a canonical retry payload",async()=>{
   for(const authorized of [false,true]){
     const calls:unknown[]=[];const service=load<typeof import("../lib/installations/setup-server")>("lib/installations/setup-server.ts",{
-      "@/lib/reviews/admin-auth":{isReviewAdmin:async()=>authorized},"./admin-policy":policy,"./validation":validation,
+      "@/lib/reviews/admin-auth":{isReviewAdmin:async()=>authorized},"./admin-policy":policy,"./validation":validation,"./terms-server":{requireInstallationCancellationSchema:async()=>{}},
       "@/lib/service/availability":{requireServiceAvailability:async()=>{}},
       "@/lib/supabase":{getSupabaseServiceClient:()=>({rpc:async(name:string,args:unknown)=>{calls.push({name,args});return{data:{ok:true,id:installationId,public_token:installationId},error:null};}})},
     });
