@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SETUP_DESCRIPTION } from "@/lib/installations/setup";
 import InstallationRefundNotice from "@/components/installations/InstallationRefundNotice";
 import InstallationBookingForm from "@/components/installations/InstallationBookingForm";
+import InstallationLaborTerms from "@/components/installations/InstallationLaborTerms";
 import BreadcrumbJsonLd, { HOME_BREADCRUMB, SERVICES_BREADCRUMB } from "@/components/seo/BreadcrumbJsonLd";
 import ServiceJsonLd from "@/components/seo/ServiceJsonLd";
 import { readPublicServiceAvailability } from "@/lib/service/availability";
@@ -41,6 +42,9 @@ export default async function Page() {
             cumulative installation hours, plus a $200 materials allowance that
             is reconciled to actual use.
           </p>
+          <div className="mt-4 max-w-3xl text-slate-200">
+            <InstallationLaborTerms />
+          </div>
           <div className="mt-6 rounded-2xl bg-white/10 p-5">
             <b>$250 booking deposit after IDS approval</b>
             <p className="mt-1 text-sm">
