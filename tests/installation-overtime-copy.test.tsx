@@ -15,7 +15,7 @@ import * as setup from "../lib/installations/setup";
 import { loadInstallationModule as load } from "./helpers/installation-module";
 
 const rate = /Additional Installation labor after the four cumulative included labor hours is \$125\/hour, billed at \$31\.25 per started 15 minutes\./;
-const reassurance = "Most installations are expected to finish within the four included labor hours, but unexpected site conditions can sometimes make a job take longer.";
+const reassurance = "Most installations are completed around the three-hour mark, with the fourth hour set aside for cleanup and packing up. But unexpected site conditions can sometimes make a job take longer.";
 function assertDisclosure(html: string) {
   assert.match(html, rate);
   assert.ok(html.includes(reassurance));
