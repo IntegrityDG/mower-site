@@ -33,7 +33,7 @@ console.log('PASS omitted-version old app intake preserves legacy agreement for 
 const p=await payload(), job=await create(p); assert.deepEqual(await create(p),job);
 assert.equal((await db.query('select terms_version from installations where id=$1',[job.id])).rows[0].terms_version,p.termsVersion);
 for(const ver of ['2026-09-04',null]){const stale={...await payload(),termsVersion:ver};await rejects(()=>create(stale),'installation_terms_changed');assert.equal((await db.query('select count(*)::int as n from installations where idempotency_key=$1',[stale.idempotencyKey])).rows[0].n,0);}
-const sp=await payload(true), sj=await create(sp,true); assert.equal((await create(sp,true)).replayed,true);
+const sp=await payload(true); await create(sp,true); assert.equal((await create(sp,true)).replayed,true);
 const badsp={...await payload(true),termsVersion:'2026-09-04'};await rejects(()=>create(badsp,true),'installation_terms_changed');
 // Legacy fixtures model original accepted requests without modifying released migrations.
 const lp={...await payload(),termsVersion:'2026-09-04'}, ls={...await payload(true),termsVersion:'2026-09-08-setup'};
