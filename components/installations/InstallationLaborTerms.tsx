@@ -11,7 +11,7 @@ export default function InstallationLaborTerms({ pricing = DEFAULT_PRICING }: { 
 
   return <div aria-label="Installation labor terms" className="space-y-2 text-sm leading-6">
     <p><strong>Additional Installation labor after the {includedHours} cumulative included labor hours is {money(pricing.additionalLaborHourlyCents)}/hour, billed at {money(pricing.additionalLaborHourlyCents * pricing.laborIncrementMinutes / 60)} per started {pricing.laborIncrementMinutes} minutes.</strong>{sameAsSetup && " This is the same overtime rate as optional Professional Setup & Optimization."}</p>
-    <p>Most installations are expected to finish within the four included labor hours, but unexpected site conditions can sometimes make a job take longer.</p>
+    <p>Most installations are completed around the three-hour mark, with the fourth hour set aside for cleanup and packing up. But unexpected site conditions can sometimes make a job take longer.</p>
     <p>Installation and optional Setup have separate four-hour labor allowances. Setup time does not extend the installation allowance.</p>
   </div>;
 }
