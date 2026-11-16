@@ -1,3 +1,6 @@
+
+import CatalogCardImage from "@/components/equipment/CatalogCardImage";
+import { catalogCardImage } from "@/lib/catalog/card-image";
 import type { CatalogProduct, CatalogVariant } from "@/lib/catalog/types";
 import { YARBO_Y40_SLUG, YARBO_Y40P_SLUG, yarboCorePrice, yarboCoreVariants } from "@/lib/catalog/yarbo-core";
 import YarboCorePrice from "./YarboCorePrice";
@@ -28,7 +31,7 @@ export default function YarboCoreComparison({ product }: { product: CatalogProdu
     <p className="mt-4 max-w-4xl leading-7 text-slate-700">Y40 is the proven Y-Series Core. Y40P is the premium next-generation Core, with a gearbox-free dual hub motor drivetrain designed for faster movement and more work per charge. Both use the modular all-season Yarbo system.</p>
     <div className="mt-7 grid gap-4 sm:grid-cols-2">
       {cores.map((core) => <article key={core.id} className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-2"><h3 className="text-2xl font-black">{core.name}</h3><CoreAvailabilityBadge core={core} /></div>
+        <CatalogCardImage image={catalogCardImage(core, product)} /><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="text-2xl font-black">{core.name}</h3><CoreAvailabilityBadge core={core} /></div>
         <p className="mt-2 text-sm leading-6 text-slate-600">{core.description}</p>
         <div className="mt-4"><YarboCorePrice core={core} price={yarboCorePrice(product, core)} /></div>
         <PreorderNotice core={core} />

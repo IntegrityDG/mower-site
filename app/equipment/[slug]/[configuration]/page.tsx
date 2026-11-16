@@ -1,6 +1,8 @@
 import { cache } from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
+import CatalogCardImage from "@/components/equipment/CatalogCardImage";
+import { catalogCardImage } from "@/lib/catalog/card-image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadPublicCatalog } from "@/lib/catalog/load-public-catalog";
@@ -39,6 +41,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function LymowConfigurationPage({ params }: Props) {
   const { slug, configuration } = await params;
   const { page, catalog } = await loadPage(slug, configuration);
+  const variantImage = catalogCardImage(page.variant, page.product);
   const facts = lymowConfigurationFacts[page.variant.slug as keyof typeof lymowConfigurationFacts];
   return <>
     <LymowVariantJsonLd page={page} />
@@ -58,7 +61,7 @@ export default async function LymowConfigurationPage({ params }: Props) {
               <p className="mt-2 text-xs text-slate-300">IDS product code: {page.sku}</p>
               {page.canPurchase ? <a href="#purchase-configuration" className="mt-6 inline-flex rounded-2xl bg-emerald-500 px-6 py-4 font-black text-slate-950">Build Your System — {LYMOW_VARIANT_PAGES[page.configuration].label}</a> : <Link href="/contact" className="mt-6 inline-flex rounded-2xl bg-white px-6 py-4 font-black text-slate-950">Contact IDS</Link>}
             </div>
-            <Image {...lymowImages.hero} alt="Lymow One Plus tracked robotic mower" priority className="h-auto w-full rounded-3xl" />
+            {variantImage?.src ? <CatalogCardImage image={variantImage} /> : <Image {...lymowImages.hero} alt="Lymow One Plus tracked robotic mower" priority className="h-auto w-full rounded-3xl" />}
           </div>
         </section>
         <div className="mx-auto max-w-7xl px-5 py-12 sm:px-8">

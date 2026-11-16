@@ -15,6 +15,8 @@ import { resolveEquipmentCatalogPricing } from "../lib/checkout/equipment-pricin
 import type { CheckoutCatalog } from "../lib/checkout/eligibility";
 import type { CheckoutRequest } from "../lib/checkout/types";
 import CatalogHeader from "../components/equipment/CatalogHeader";
+import CatalogCardImage from "../components/equipment/CatalogCardImage";
+import * as cardImage from "../lib/catalog/card-image";
 import LymowPriceDisplay from "../components/equipment/LymowPriceDisplay";
 import * as brochure from "../components/equipment/lymowBrochureContent";
 import NationwidePurchaseFlow from "../components/customer-paths/purchase/NationwidePurchaseFlow";
@@ -35,6 +37,8 @@ function route(value: CatalogResponse | Error) {
     "@/lib/catalog/load-public-catalog": { loadPublicCatalog: async () => { if (value instanceof Error) throw value; return value; } },
     "@/lib/catalog/lymow-variant-pages": variantPages,
     "@/components/equipment/CatalogHeader": CatalogHeader,
+    "@/components/equipment/CatalogCardImage": CatalogCardImage,
+    "@/lib/catalog/card-image": cardImage,
     "@/components/equipment/LymowPriceDisplay": LymowPriceDisplay,
     "@/components/equipment/lymowBrochureContent": brochure,
     "@/components/customer-paths/purchase/NationwidePurchaseFlow": NationwidePurchaseFlow,

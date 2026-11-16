@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 
-export default function AccessoryImageUploader({ onUploaded }: { onUploaded: (url: string) => void }) {
+export default function AccessoryImageUploader({ onUploaded, onBusyChange, disabled = false }: { onUploaded: (url: string) => void; onBusyChange?: (busy: boolean) => void; disabled?: boolean }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function upload(file: File) {
+    if (busy || disabled) return;
     setBusy(true);
+    onBusyChange?.(true);
     setMessage("Uploading...");
     try {
       const body = new FormData();
@@ -21,11 +23,12 @@ export default function AccessoryImageUploader({ onUploaded }: { onUploaded: (ur
       setMessage(error instanceof Error ? error.message : "Image upload failed.");
     } finally {
       setBusy(false);
+      onBusyChange?.(false);
     }
   }
 
   return <label className="block font-bold">Upload image
-    <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={(event) => {
+    <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || disabled} onChange={(event) => {
       const file = event.target.files?.[0];
       if (file) void upload(file);
       event.target.value = "";

@@ -1,3 +1,4 @@
+import { safeCatalogImageUrl } from "@/lib/catalog/card-image";
 import { isUuid } from "@/lib/admin-pricing/validation";
 import type { ComponentKind, ManagedKind, PackageComponent } from "./types";
 
@@ -69,18 +70,13 @@ export function validateCatalogValues(kind: ManagedKind | "package-core-prices",
       result[key] = [...new Set(raw.map(item => item.trim()).filter(Boolean))];
     } else {
       const required = ["name", "brand", "slug", "package_name", "package_slug", "category"].includes(key);
-      if (raw === null && !required) { result[key] = null; continue; }
+      if (raw === null && !required) { result[key === "image_url" && kind === "options" ? "accessory_image_url" : key === "description" && kind === "products" ? "full_description" : key] = null; continue; }
       if (typeof raw !== "string" || (required && !raw.trim()) || raw.length > (key === "description" ? 6000 : key === "image_url" ? 2000 : 160)) throw new CatalogManagementError(`${key} has an invalid length.`);
       const value = raw.trim();
       if (key === "slug" || key === "package_slug") {
         if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) throw new CatalogManagementError("Slug must use lowercase words separated by hyphens.");
       }
-      if (key === "image_url" && value.startsWith("//")) throw new CatalogManagementError("Image must be a site media path or HTTPS URL.");
-      if (key === "image_url" && value && !value.startsWith("/")) {
-        let url: URL;
-        try { url = new URL(value); } catch { throw new CatalogManagementError("Image must be a site media path or HTTPS URL."); }
-        if (url.protocol !== "https:") throw new CatalogManagementError("Image must be a site media path or HTTPS URL.");
-      }
+      if (key === "image_url" && value && !safeCatalogImageUrl(value)) throw new CatalogManagementError("Image must be a site media path or HTTPS URL without credentials.");
       const column = key === "category" ? "catalog_category" : key === "description" && kind === "products" ? "full_description" : key === "image_url" && kind === "options" ? "accessory_image_url" : key;
       result[column] = value || null;
     }

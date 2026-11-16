@@ -830,7 +830,7 @@ test("Yarbo detail information replaces package grids with catalog-driven sectio
     "Lawn Mower Pro Module",
     "Blower Module",
     "Snow Blower Module",
-    "Yarbo Trimmer Package",
+    "Yarbo Trimmer Module, shown attached to a Yarbo Core",
   ]) {
     assert.match(html, new RegExp(component));
   }

@@ -1,3 +1,6 @@
+
+import CatalogCardImage from "@/components/equipment/CatalogCardImage";
+import { catalogCardImage, hasCatalogPromotion } from "@/lib/catalog/card-image";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -246,10 +249,7 @@ function ModelComparison({ product }: { product: CatalogProduct }) {
                 className="flex flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
               >
                 <div className="flex h-52 items-center justify-center overflow-hidden bg-slate-950">
-                  <BrochureImage
-                    image={content.image}
-                    className="h-full w-full"
-                  />
+                  {hasCatalogPromotion(variant) || hasCatalogPromotion(product) ? <BrochureImage image={content.image} className="h-full w-full" /> : <CatalogCardImage image={catalogCardImage(variant, undefined, content.image)} className="mb-0 h-full" />}
                 </div>
                 <div className="flex flex-1 flex-col p-6">
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
@@ -396,6 +396,7 @@ function DetailedSpecifications({ product }: { product: CatalogProduct }) {
             key={slug}
             className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"
           >
+            <CatalogCardImage image={catalogCardImage(product.variants.find(variant => variant.slug === slug)!, product, model.image)} />
             <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
               {model.eyebrow}
             </p>
@@ -458,6 +459,7 @@ function ChargingEquipment({ product }: { product: CatalogProduct }) {
             key={option.id}
             className="flex flex-col rounded-3xl border border-slate-200 bg-white p-7 shadow-sm"
           >
+            <CatalogCardImage image={catalogCardImage(option, product)} />
             <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
               {chargingOptionLabel(option)}
             </p>

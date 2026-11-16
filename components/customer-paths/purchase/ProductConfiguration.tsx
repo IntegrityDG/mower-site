@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import CatalogCardImage from "@/components/equipment/CatalogCardImage";
+import { catalogCardImage } from "@/lib/catalog/card-image";
 
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import YarboCorePrice from "@/components/equipment/YarboCorePrice";
@@ -152,7 +154,7 @@ export default function ProductConfiguration({
 function OptionalAccessories({product,selection,onChangeOptionQuantity}:{product:CatalogProduct;selection:ProductBuildSelection;onChangeOptionQuantity:(id:string,q:number)=>void}){
   const [open,setOpen]=useState(false);const[search,setSearch]=useState("");const accessories=builderAccessoryOptions(product).filter(o=>o.name.toLowerCase().includes(search.toLowerCase()));
   if(!accessories.length)return null;
-  return <section className="mt-8 rounded-[2rem] border border-emerald-200 bg-emerald-50/40 p-5 md:p-7"><button type="button" aria-expanded={open} onClick={()=>setOpen(v=>!v)} className="flex w-full items-center justify-between text-left"><span><span className="text-xs font-bold uppercase tracking-[.18em] text-emerald-700">Optional Accessories &amp; Parts</span><span className="mt-2 block text-2xl font-black">Add Optional Accessories &amp; Parts</span></span><span className="text-2xl">{open?'−':'+'}</span></button>{open&&<div className="mt-6"><label className="block font-bold">Search accessories<input value={search} onChange={e=>setSearch(e.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3"/></label><div className="mt-5 grid gap-4 lg:grid-cols-2">{accessories.map(option=>{const q=quantityForOption(selection,option);return <article key={option.id} className="rounded-2xl border bg-white p-4"><h4 className="font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p><OptionPrice option={option}/><div className="mt-3 flex items-center gap-3"><button type="button" disabled={!option.isAvailable} aria-label={`Decrease ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q-1))} className="h-9 w-9 rounded-lg border font-black disabled:cursor-not-allowed disabled:opacity-40">−</button><span className="min-w-6 text-center font-black">{q}</span><button type="button" disabled={!option.isAvailable} aria-label={`Increase ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q+1))} className="h-9 w-9 rounded-lg border font-black disabled:cursor-not-allowed disabled:opacity-40">+</button></div></article>})}</div></div>}</section>
+  return <section className="mt-8 rounded-[2rem] border border-emerald-200 bg-emerald-50/40 p-5 md:p-7"><button type="button" aria-expanded={open} onClick={()=>setOpen(v=>!v)} className="flex w-full items-center justify-between text-left"><span><span className="text-xs font-bold uppercase tracking-[.18em] text-emerald-700">Optional Accessories &amp; Parts</span><span className="mt-2 block text-2xl font-black">Add Optional Accessories &amp; Parts</span></span><span className="text-2xl">{open?'−':'+'}</span></button>{open&&<div className="mt-6"><label className="block font-bold">Search accessories<input value={search} onChange={e=>setSearch(e.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3"/></label><div className="mt-5 grid gap-4 lg:grid-cols-2">{accessories.map(option=>{const q=quantityForOption(selection,option);return <article key={option.id} className="rounded-2xl border bg-white p-4"><CatalogCardImage image={catalogCardImage(option, product)} /><h4 className="font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p><OptionPrice option={option}/><div className="mt-3 flex items-center gap-3"><button type="button" disabled={!option.isAvailable} aria-label={`Decrease ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q-1))} className="h-9 w-9 rounded-lg border font-black disabled:cursor-not-allowed disabled:opacity-40">−</button><span className="min-w-6 text-center font-black">{q}</span><button type="button" disabled={!option.isAvailable} aria-label={`Increase ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q+1))} className="h-9 w-9 rounded-lg border font-black disabled:cursor-not-allowed disabled:opacity-40">+</button></div></article>})}</div></div>}</section>
 }
 
 function YarboConfiguration({
@@ -331,6 +333,7 @@ function YarboConfiguration({
                             : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
                         }`}
                       >
+                        <CatalogCardImage image={catalogCardImage(catalogPackage, product)} />
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
@@ -414,7 +417,7 @@ function YarboConfiguration({
                 const selectable = Boolean(catalogPackage && yarboCoreCanBeSelected(product, core, catalogPackage));
                 return <label key={core.id} className={`flex min-w-0 gap-3 rounded-xl border p-4 ${selection.variantId === core.id ? "border-emerald-700 bg-emerald-50" : "border-slate-300"} ${!selectable ? "cursor-not-allowed bg-slate-100" : "cursor-pointer"}`}>
                   <input type="radio" name="yarbo-complete-core" value={core.id} checked={selection.variantId === core.id} disabled={!selectable} onChange={() => onSelectVariant(core.id)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-700" aria-describedby={`yarbo-core-status-${core.id}`} />
-                  <span className="min-w-0"><strong className="block text-lg">{core.name}</strong><span id={`yarbo-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700"><CoreAvailabilityBadge core={core} />{!catalogPackage ? " · Choose a package first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={price} /></span></span>
+                  <span className="min-w-0 flex-1"><CatalogCardImage image={catalogCardImage(core, product)} /><strong className="block text-lg">{core.name}</strong><span id={`yarbo-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700"><CoreAvailabilityBadge core={core} />{!catalogPackage ? " · Choose a package first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={price} /></span></span>
                 </label>;
               })}
             </div>
@@ -455,6 +458,7 @@ function YarboConfiguration({
                   : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
               }`}
             >
+              <CatalogCardImage image={catalogCardImage(chosenCore ?? { name: "Yarbo Core" }, product)} />
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
@@ -503,6 +507,7 @@ function YarboConfiguration({
                       : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
                   }`}
                 >
+                  <CatalogCardImage image={catalogCardImage(option, product)} />
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-700">
@@ -549,7 +554,7 @@ function YarboConfiguration({
               const selectable = coreSelected && yarboCoreCanBeSelected(product, core);
               return <label key={core.id} className={`flex min-w-0 gap-3 rounded-xl border p-4 ${selection.variantId === core.id && coreSelected ? "border-emerald-700 bg-emerald-50" : "border-slate-300"} ${!selectable ? "cursor-not-allowed bg-slate-100" : "cursor-pointer"}`}>
                 <input type="radio" name="yarbo-individual-core" value={core.id} checked={coreSelected && selection.variantId === core.id} disabled={!selectable} onChange={() => onSelectVariant(core.id)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-700" aria-describedby={`yarbo-individual-core-status-${core.id}`} />
-                <span className="min-w-0"><strong className="block text-lg">{core.name}</strong><span id={`yarbo-individual-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700"><CoreAvailabilityBadge core={core} />{!coreSelected ? " · Add Core first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={yarboCorePrice(product, core)} /></span></span>
+                <span className="min-w-0 flex-1"><CatalogCardImage image={catalogCardImage(core, product)} /><strong className="block text-lg">{core.name}</strong><span id={`yarbo-individual-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700"><CoreAvailabilityBadge core={core} />{!coreSelected ? " · Add Core first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={yarboCorePrice(product, core)} /></span></span>
               </label>;
             })}</div>
           </fieldset>}
@@ -649,6 +654,7 @@ function StandardProductConfiguration({
               : "border-slate-300 bg-white"
           }`}
         >
+          <CatalogCardImage image={catalogCardImage(option, product)} />
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h5 className="text-lg font-black text-slate-950">
@@ -741,6 +747,7 @@ function StandardProductConfiguration({
               : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
         }`}
       >
+        <CatalogCardImage image={catalogCardImage(option, product)} />
         <div className="flex items-start justify-between gap-4">
           <div>
             <h5 className="text-lg font-black text-slate-950">{option.name}</h5>
@@ -819,6 +826,7 @@ function StandardProductConfiguration({
                       : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
                   }`}
                 >
+                  <CatalogCardImage image={catalogCardImage(variant, product)} />
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h5 className="text-xl font-black text-slate-950">
@@ -913,6 +921,7 @@ function StandardProductConfiguration({
                       : "border-slate-300 bg-white hover:border-emerald-500 hover:shadow-md"
                   }`}
                 >
+                  <CatalogCardImage image={catalogCardImage(catalogPackage, product)} />
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h5 className="text-xl font-black text-slate-950">
@@ -1008,6 +1017,7 @@ function StandardProductConfiguration({
                         key={option.id}
                         className="rounded-2xl border border-emerald-200 bg-white p-5"
                       >
+                        <CatalogCardImage image={catalogCardImage(option, product)} />
                         <p className="font-black text-slate-950">
                           {option.name}
                         </p>
