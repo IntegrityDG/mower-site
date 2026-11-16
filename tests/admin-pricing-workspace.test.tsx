@@ -79,7 +79,8 @@ test("a blocked parent suppresses proposed Core pricing while preserving stored 
 test("product and package creation expose separate actions", () => {
   const html = renderToStaticMarkup(createElement(CatalogManagement, { action: null, onAction: () => undefined, onSaved: async () => undefined }));
   assert.match(html, /\+ Add New Product/); assert.match(html, /\+ Create New Package/);
-  assert.equal((html.match(/<button/g) ?? []).length, 2);
+  assert.match(html, /Manage catalog images/);
+  assert.equal((html.match(/<button/g) ?? []).length, 3);
 });
 
 test("component reference total respects source identity and quantity without setting a package price", () => {

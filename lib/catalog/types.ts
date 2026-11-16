@@ -130,6 +130,8 @@ export type CatalogOptionGroup = {
 };
 
 export type CatalogVariant = CatalogPrice & CatalogAvailability & {
+  imageUrl?: string | null;
+  imageAlt?: string | null;
   purchaseState?: import("./preorder").PurchaseState;
   preorderEnabled?: boolean;
   preorderStartsAt?: string | null;
@@ -167,6 +169,8 @@ export type CatalogPackageCorePrice = CatalogPrice & CatalogAvailability & {
 };
 
 export type CatalogPackage = CatalogPrice & CatalogAvailability & {
+  imageUrl?: string | null;
+  imageAlt?: string | null;
   adminManaged?: boolean;
   id: string;
   slug: string;

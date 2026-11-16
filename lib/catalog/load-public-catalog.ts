@@ -1,4 +1,5 @@
 import "server-only";
+import { safeCatalogImageUrl } from "./card-image";
 import { catalogVariantAvailability } from "@/lib/catalog/preorder";
 
 import type {
@@ -343,7 +344,7 @@ export async function loadPublicCatalog(
       sortOrder: option.sort_order,
       accessoryListingEnabled: option.accessory_listing_enabled ?? false,
       accessoryTab: option.accessory_tab ?? null,
-      accessoryImageUrl: option.accessory_image_url ?? null,
+      accessoryImageUrl: safeCatalogImageUrl(option.accessory_image_url),
       accessoryImageAlt: option.accessory_image_alt ?? null,
       accessoryBadge: option.accessory_badge ?? null,
       idsExclusive: option.ids_exclusive ?? false,
@@ -419,6 +420,8 @@ export async function loadPublicCatalog(
             sku: variant.sku,
             name: variant.name,
             description: variant.description,
+            imageUrl: safeCatalogImageUrl(variant.image_url),
+            imageAlt: variant.name,
             sortOrder: variant.sort_order,
             definingOptionIds,
             ...availability,
@@ -489,6 +492,8 @@ export async function loadPublicCatalog(
             slug: catalogPackage.package_slug,
             name: catalogPackage.package_name,
             description: catalogPackage.description,
+            imageUrl: safeCatalogImageUrl(catalogPackage.image_url),
+            imageAlt: catalogPackage.package_name,
             sortOrder: catalogPackage.sort_order,
             items,
             corePrices: corePrices
@@ -508,6 +513,11 @@ export async function loadPublicCatalog(
           };
         });
 
+      const productPrice = publicPrice(product, "product", product.id);
+      // Keep existing photo precedence for any family with active promotional content.
+      const hasPromotion = Boolean(productPrice.publicPromotion || normalizedVariants.some(item => item.publicPromotion) || normalizedPackages.some(item => item.publicPromotion || item.corePrices.some(core => core.publicPromotion)) || productOptionRows.some(item => item.publicPromotion));
+      const savedProductImage = safeCatalogImageUrl(product.image_url);
+      const galleryImage = safeCatalogImageUrl(primaryMedia?.url);
       return {
         id: product.id,
         adminManaged: product.admin_managed === true,
@@ -522,8 +532,8 @@ export async function loadPublicCatalog(
         customerGuidance: product.customer_guidance,
         brochureUrl: product.brochure_url,
         videoUrl: product.video_url,
-        imageUrl: primaryMedia?.url ?? product.image_url ?? fallbackImages[product.slug] ?? "/logo.png",
-        imageAlt: primaryMedia?.altText ?? (["lymow-one-plus", "yarbo", "pandag-g1"].includes(product.slug) ? `${product.name} autonomous mower` : product.name),
+        imageUrl: (hasPromotion ? galleryImage ?? savedProductImage : savedProductImage ?? galleryImage) ?? fallbackImages[product.slug] ?? "/logo.png",
+        imageAlt: ((!hasPromotion && savedProductImage) ? product.name : primaryMedia?.altText) ?? (["lymow-one-plus", "yarbo", "pandag-g1"].includes(product.slug) ? `${product.name} autonomous mower` : product.name),
         sortOrder: product.sort_order,
         salesMode,
         ...catalogAvailabilityFromPublicStatus(product.public_status),
@@ -552,7 +562,7 @@ export async function loadPublicCatalog(
           (option) => option.optionGroupId === null
         ),
         packages: normalizedPackages,
-        ...publicPrice(product, "product", product.id),
+        ...productPrice,
       };
     });
 

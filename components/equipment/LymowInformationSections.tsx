@@ -1,3 +1,6 @@
+
+import CatalogCardImage from "@/components/equipment/CatalogCardImage";
+import { catalogCardImage } from "@/lib/catalog/card-image";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -143,7 +146,7 @@ function ConfigurationSummary({ product }: { product: CatalogProduct }) {
                   key={variant.id}
                   className="rounded-2xl border border-emerald-200 bg-white p-6"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-xl font-black">{variant.name}</h3>{!variant.isAvailable && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}</div>
+                  <CatalogCardImage image={catalogCardImage(variant, product)} /><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-xl font-black">{variant.name}</h3>{!variant.isAvailable && <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}</div>
                   <dl className="mt-4 space-y-3 text-sm">
                     <div className="flex items-start justify-between gap-5">
                       <dt className="font-bold text-slate-500">Charge time</dt>
@@ -408,6 +411,7 @@ function AvailableAccessories({ product }: { product: CatalogProduct }) {
               key={option.id}
               className="flex flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
             >
+              <CatalogCardImage image={catalogCardImage(option, product)} />
               <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
                 {accessoryCategory(option)}
               </p>

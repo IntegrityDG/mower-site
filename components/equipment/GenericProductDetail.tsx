@@ -1,3 +1,6 @@
+
+import CatalogCardImage from "@/components/equipment/CatalogCardImage";
+import { catalogCardImage } from "@/lib/catalog/card-image";
 import Image from "next/image";
 import Link from "next/link";
 import { managedProductStartingPrice } from "@/lib/catalog/starting-price";
@@ -37,7 +40,7 @@ export default function GenericProductDetail({ product }: { product: CatalogProd
         {product.customerGuidance && <p className="rounded-2xl border bg-white p-6 leading-7 text-slate-600">{product.customerGuidance}</p>}
         <ProductPageSections sections={product.page?.sections ?? []}/>
         {product.packages.length > 0 && <section aria-labelledby="catalog-packages-title"><h2 id="catalog-packages-title" className="text-3xl font-black">Available packages</h2><div className="mt-5 grid gap-5 md:grid-cols-2">
-          {product.packages.map(pkg => <article key={pkg.id} className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6"><h3 className="break-words text-2xl font-black">{pkg.name}</h3>{pkg.description && <p className="mt-3 leading-7 text-slate-600">{pkg.description}</p>}<ul className="mt-4 space-y-2 text-sm font-semibold">{pkg.items.map(item => <li key={packageComponentKey(item)}>{item.quantity} × {packageComponentName(item)}</li>)}</ul>{!pkg.isAvailable ? <p className="mt-4 font-black text-amber-800">Unavailable</p> : !quoteOnly ? <p className="mt-4 text-xl font-black text-emerald-800">{priceLabel(pkg)}</p> : null}</article>)}
+          {product.packages.map(pkg => <article key={pkg.id} className="min-w-0 rounded-3xl border border-slate-200 bg-white p-6"><CatalogCardImage image={catalogCardImage(pkg, product)} /><h3 className="break-words text-2xl font-black">{pkg.name}</h3>{pkg.description && <p className="mt-3 leading-7 text-slate-600">{pkg.description}</p>}<ul className="mt-4 space-y-2 text-sm font-semibold">{pkg.items.map(item => <li key={packageComponentKey(item)}>{item.quantity} × {packageComponentName(item)}</li>)}</ul>{!pkg.isAvailable ? <p className="mt-4 font-black text-amber-800">Unavailable</p> : !quoteOnly ? <p className="mt-4 text-xl font-black text-emerald-800">{priceLabel(pkg)}</p> : null}</article>)}
         </div></section>}
       </section>
     </main>

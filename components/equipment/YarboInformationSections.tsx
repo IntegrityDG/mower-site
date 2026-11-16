@@ -1,3 +1,6 @@
+
+import CatalogCardImage from "@/components/equipment/CatalogCardImage";
+import { catalogCardImage, hasCatalogPromotion } from "@/lib/catalog/card-image";
 import Image from "next/image";
 import type { ReactNode } from "react";
 
@@ -259,7 +262,7 @@ function ActiveComponentCards({
               key={option.id}
               className="flex flex-col rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm"
             >
-              <ComponentImage image={detail.image} />
+              {hasCatalogPromotion(option) || hasCatalogPromotion(product) ? <ComponentImage image={detail.image} /> : <CatalogCardImage image={catalogCardImage(option, product)} />}
               <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-emerald-700">
                 {detail.category}
               </p>

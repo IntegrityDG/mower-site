@@ -7,6 +7,7 @@ import { centralDateTimeInputToIso, isoToLocalDateTimeInput } from "@/lib/admin-
 import { sellingPriceDecision } from "@/lib/pricing-program/policy";
 import AdminPricingDialog from "./AdminPricingDialog";
 import AccessoryImageUploader from "./AccessoryImageUploader";
+import CatalogImages from "./CatalogImages";
 import { pricingMoney } from "./PricingCatalogCard";
 
 export type CatalogAction = { type: "create-product" | "create-package" } | { type: "edit" | "delete"; item: PricingItem };
@@ -121,5 +122,6 @@ function CatalogDialog({ action, onClose, onSaved }: { action: CatalogAction; on
 }
 
 export default function CatalogManagement({ action, onAction, onSaved }: { action: CatalogAction | null; onAction: (action: CatalogAction | null) => void; onSaved: (message: string) => Promise<void> }) {
-  return <><div className="mt-5 flex flex-wrap gap-3"><button type="button" onClick={() => onAction({ type: "create-product" })} className="min-h-12 rounded-xl bg-emerald-700 px-5 py-3 font-black text-white">+ Add New Product</button><button type="button" onClick={() => onAction({ type: "create-package" })} className="min-h-12 rounded-xl bg-slate-950 px-5 py-3 font-black text-white">+ Create New Package</button></div>{action && <CatalogDialog key={`${action.type}:${"item" in action ? `${action.item.kind}:${action.item.id}` : "new"}`} action={action} onClose={() => onAction(null)} onSaved={onSaved}/>}</>;
+  const [imagesOpen, setImagesOpen] = useState(false);
+  return <><div className="mt-5 flex flex-wrap gap-3"><button type="button" onClick={() => setImagesOpen(true)} className="min-h-12 rounded-xl border border-slate-300 bg-white px-5 py-3 font-black">Manage catalog images</button><button type="button" onClick={() => onAction({ type: "create-product" })} className="min-h-12 rounded-xl bg-emerald-700 px-5 py-3 font-black text-white">+ Add New Product</button><button type="button" onClick={() => onAction({ type: "create-package" })} className="min-h-12 rounded-xl bg-slate-950 px-5 py-3 font-black text-white">+ Create New Package</button></div>{imagesOpen && <CatalogImages onClose={() => setImagesOpen(false)} onSaved={onSaved}/ >}{action && <CatalogDialog key={`${action.type}:${"item" in action ? `${action.item.kind}:${action.item.id}` : "new"}`} action={action} onClose={() => onAction(null)} onSaved={onSaved}/>}</>;
 }

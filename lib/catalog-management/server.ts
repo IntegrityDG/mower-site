@@ -168,6 +168,18 @@ export async function updateManagedRecord(kind: ManagedKind, id: string, input: 
   const body = objectBody(input);
   if (Object.keys(body).some(key => !["expectedUpdatedAt", "values", "components", "allowInactiveComponents", "corePrices"].includes(key))) throw new CatalogManagementError("Unknown catalog update property.");
   const expected = currentVersion(body.expectedUpdatedAt);
+  // A photo replacement must never run package/pricing relationship repair logic.
+  const imageInput = objectBody(body.values);
+  if (Object.keys(imageInput).length === 1 && Object.hasOwn(imageInput, "image_url") && body.components === undefined && body.corePrices === undefined && body.allowInactiveComponents === undefined) {
+    const values = validateCatalogValues(kind, imageInput);
+    const result = await getSupabaseServiceClient().from(tables[kind])
+      .update({ ...values, updated_at: new Date().toISOString() })
+      .eq("id", catalogId(id)).eq("updated_at", expected).is("retired_at", null)
+      .select("*").maybeSingle();
+    const row = ensure(result);
+    if (!row) throw new CatalogManagementError("Catalog changed, retired, or no longer exists. Reload before saving.", 409);
+    return catalogWriteResult(kind, row);
+  }
   if (kind === "packages") {
     const parsed = await resolvePackageInput({ ...objectBody(body.values), ...(body.components === undefined ? {} : { components: body.components }), ...(body.corePrices === undefined ? {} : { corePrices: body.corePrices }), allowInactiveComponents: body.allowInactiveComponents }, false);
     return catalogWriteResult(kind, await mutate(kind, catalogId(id), parsed.values, expected, parsed.components, parsed.allowInactiveComponents));
