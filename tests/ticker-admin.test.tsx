@@ -174,10 +174,13 @@ test("editor character count agrees with server Unicode limits and keeps oversiz
   assert.ok(html.includes("x".repeat(201)));
 });
 
-test("ticker section is mounted after authentication inside the existing Sales & Specials workspace", () => {
+test("authenticated Sales & Specials uses the new slide editor and keeps the retired ticker recoverable", () => {
   const page = readFileSync(new URL("../app/admin/sales-specials/page.tsx", import.meta.url), "utf8");
-  assert.ok(page.indexOf("if (!authed)") < page.indexOf("<HomepageSalesTickerEditor"));
-  assert.ok(page.indexOf("<PromotionEditor key=") < page.indexOf("<HomepageSalesTickerEditor"));
+  assert.doesNotMatch(page, /HomepageSalesTickerEditor/);
+  const slides = page.indexOf("<HomepageSlidesEditor ");
+  assert.ok(slides >= 0);
+  assert.ok(page.indexOf("if (!authed)") < slides);
+  assert.ok(page.indexOf("<PromotionEditor key=") < slides);
   const source = readFileSync(new URL("../components/admin/HomepageSalesTickerEditor.tsx", import.meta.url), "utf8");
   assert.match(source, /window\.confirm\(`Delete message/);
   assert.match(source, /crypto\.randomUUID\(\)/);

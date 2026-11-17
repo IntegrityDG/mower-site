@@ -114,21 +114,16 @@ test("the loop fills narrow and wide viewports and always moves at configured pi
   for (const invalid of [0, -1, Infinity, NaN, 1000]) assert.equal(tickerMotionLayout(100, 320, invalid).duration, 10);
 });
 
-test("both homepage variants place the shared ticker after navigation and immediately before Intro", () => {
-  for (const [file, prefix] of [["components/home/DesktopHomepage.tsx", "Desktop"], ["components/mobile/MobileHomepage.tsx", "Mobile"]]) {
+test("homepage uses scheduled slides rather than rendering or loading the retired ticker", () => {
+  for (const file of ["components/home/DesktopHomepage.tsx", "components/mobile/MobileHomepage.tsx"]) {
     const source = readFileSync(file, "utf8");
-    const home = source.slice(source.indexOf('view === "home"'), source.indexOf('view !== "home"'));
-    assert.match(home, new RegExp(`<SalesTicker config=\\{tickerSnapshot.ticker\\}[^>]+/><${prefix}Hero />`));
-    assert.ok(source.indexOf(`<${prefix}Header `) < source.indexOf("<SalesTicker "));
-    assert.ok(source.indexOf(`<${prefix}HomeNavigation `) < source.indexOf("<SalesTicker "));
-    assert.equal((source.match(/<SalesTicker /g) ?? []).length, 1);
-    assert.match(home, /serverObservedAt=\{tickerObservedAt\}/);
-    assert.match(home, new RegExp(`${prefix}Hero /><HomeSalesSpecial /><section[\\s\\S]*BUILD YOUR SYSTEM[\\s\\S]*<HomePriceMatch /><HomeBusinessSpotlight />`));
+    assert.doesNotMatch(source, /SalesTicker|tickerSnapshot/);
+    assert.ok(source.indexOf("<HomepageNavigation ") >= 0 && source.indexOf("<HomepageNavigation ") < source.indexOf("<HomePromotionHero "));
   }
   const page = readFileSync("app/page.tsx", "utf8");
   assert.match(page, /await connection\(\)/);
-  assert.match(page, /await readPublicSalesTicker\(\)/);
-  assert.match(page, /<Homepage key=\{tickerSnapshot.serverTime\} tickerSnapshot=\{tickerSnapshot\} \/>/);
+  assert.match(page, /await readPublicHomepageSlides\(\)/);
+  assert.doesNotMatch(page, /readPublicSalesTicker/);
   assert.match(page, /alternates: \{ canonical: "\/" \}/);
 });
 

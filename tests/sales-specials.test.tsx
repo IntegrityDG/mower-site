@@ -147,15 +147,14 @@ test("a missing or malformed row falls back independently without suppressing th
   assert.equal(DEFAULT_SALES_SPECIALS.enabled, false);
 });
 
-test("desktop and mobile order Hero, Sales & Specials, Build, Bulletin Board, Spotlight", () => {
+test("desktop and mobile keep Sales & Specials, Bulletin Board, and Spotlight after the promotional hero", () => {
   for (const file of ["../components/home/DesktopHomepage.tsx", "../components/mobile/MobileHomepage.tsx"]) {
     const source = readFileSync(new URL(file, import.meta.url), "utf8");
-    const hero = source.search(/<(?:Desktop|Mobile)Hero \/>/);
-    const build = source.indexOf("BUILD YOUR SYSTEM", hero);
+    const hero = source.indexOf("<HomePromotionHero ");
     const promotion = source.indexOf("<HomeSalesSpecial />");
     const bulletinBoard = source.indexOf("<HomePriceMatch />");
     const spotlight = source.indexOf("<HomeBusinessSpotlight />");
-    assert.ok(hero >= 0 && hero < promotion && promotion < build && build < bulletinBoard && bulletinBoard < spotlight);
-    assert.match(source.slice(promotion, bulletinBoard), /onClick=\{\(\) => selectView\("build"\)\}/);
+    assert.ok(hero >= 0 && hero < promotion && promotion < bulletinBoard && bulletinBoard < spotlight);
+    assert.match(source.slice(hero, promotion), /onBuild=\{\(\) => selectView\("build"\)\}/);
   }
 });

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Homepage from "@/components/home/Homepage";
 import { connection } from "next/server";
-import { readPublicSalesTicker } from "@/lib/promotions/ticker-server";
+import { readPublicHomepageSlides } from "@/lib/homepage-slides/server";
 
 export const metadata: Metadata = {
   title: "Robot Mowers, Installation & Service | Integrity Distribution Systems",
@@ -13,6 +13,6 @@ export const metadata: Metadata = {
 
 export default async function Page() {
   await connection();
-  const tickerSnapshot = await readPublicSalesTicker();
-  return <Homepage key={tickerSnapshot.serverTime} tickerSnapshot={tickerSnapshot} />;
+  const heroSnapshot = await readPublicHomepageSlides();
+  return <Homepage key={heroSnapshot.serverTime} heroSnapshot={heroSnapshot} />;
 }
