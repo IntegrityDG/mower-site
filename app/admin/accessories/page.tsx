@@ -19,7 +19,7 @@ type Draft = {
 };
 const blank = (tab: AccessoryTab): Draft => ({
   tab, publicStatus: "active", name: "", description: "", imageUrl: "", imageAlt: "",
-  badge: "", manufacturer: "", idsExclusive: false, showInBuilder: tab === "lymow" || tab === "yarbo",
+  badge: "", manufacturer: "", idsExclusive: false, showInBuilder: false,
   visible: true, isIncluded: false, isRecommended: false, sortOrder: 100,
   regularPrice: "", salePrice: "", promotionLabel: "", showPublicPrice: true,
   contactForPricing: false, actionType: tab === "aftermarket" ? "external" : tab === "pandag" ? "contact" : "builder",
