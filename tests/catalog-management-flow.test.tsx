@@ -159,7 +159,11 @@ test("accessory-only bundles use the generic family selector and their own publi
   assert.equal(managedProductStartingPrice(product)?.currentPriceCents, 50_000);
   assert.equal(checkoutSubmissionKind(product, "pay-in-full"), "card");
   const selectionHtml = renderToStaticMarkup(<ProductSelection products={[product]} selectedProductId="" onSelectProduct={() => undefined} />);
-  assert.match(selectionHtml, /Select Catalog Bundles/);
+  assert.match(selectionHtml, /Select IDS/);
+  assert.doesNotMatch(selectionHtml, /Select Catalog Bundles/);
+  const lineupHtml = renderToStaticMarkup(<ProductSelection products={[product]} selectedProductId={product.id} onSelectProduct={() => undefined} />);
+  assert.match(lineupHtml, /Choose your IDS equipment/);
+  assert.match(lineupHtml, /Catalog Bundles/);
   const configurationHtml = renderToStaticMarkup(<ProductConfiguration product={product} selection={{ variantId: "", packageId: "bundle", optionQuantities: {} }} onSelectVariant={() => undefined} onSelectPackage={() => undefined} onChangeOptionQuantity={() => undefined} onSelectPurchaseMode={() => undefined} onToggleBaseProduct={() => undefined} />);
   assert.match(configurationHtml, /Battery x 2/);
   assert.doesNotMatch(configurationHtml, /Choose your Core|Y40P|Core Platform/);
