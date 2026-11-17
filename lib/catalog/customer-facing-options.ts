@@ -1,3 +1,4 @@
+import { LYMOW_ENHANCED_DISCHARGE_KIT_SLUG } from "./lymow-enhanced-packages";
 import type {
   CatalogOption,
   CatalogOptionGroup,
@@ -38,12 +39,20 @@ export function customerFacingOptions(
   );
 }
 
+// Keep package components in the raw catalog for validating and displaying the
+// bundle, but never present a bundle-only kit as a standalone add-on.
+function customerSelectableOptions(product: CatalogProduct, options: readonly CatalogOption[]) {
+  return customerFacingOptions(options, product.variants).filter(option =>
+    product.slug !== "lymow-one-plus" || option.slug !== LYMOW_ENHANCED_DISCHARGE_KIT_SLUG
+  );
+}
+
 export function customerFacingProductOptions(product: CatalogProduct) {
   const options = [
     ...product.optionGroups.flatMap((group) => group.options),
     ...product.ungroupedOptions,
   ];
-  return customerFacingOptions(options, product.variants);
+  return customerSelectableOptions(product, options);
 }
 
 export function customerFacingGroupOptions(
@@ -56,11 +65,11 @@ export function customerFacingGroupOptions(
   ) {
     return [];
   }
-  return customerFacingOptions(group.options, product.variants);
+  return customerSelectableOptions(product, group.options);
 }
 
 export function customerFacingUngroupedOptions(product: CatalogProduct) {
-  return customerFacingOptions(product.ungroupedOptions, product.variants);
+  return customerSelectableOptions(product, product.ungroupedOptions);
 }
 
 // A builder action enables standalone checkout; showInBuilder separately opts

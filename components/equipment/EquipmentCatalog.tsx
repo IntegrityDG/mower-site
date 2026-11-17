@@ -1,5 +1,6 @@
 "use client";
 
+import { customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { productRequiresAvailabilityCheck } from "@/lib/catalog/sales-mode";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -16,7 +17,7 @@ import EverydayPriceDisplay from "./EverydayPriceDisplay";
 import { managedProductStartingPrice } from "@/lib/catalog/starting-price";
 
 export function catalogBrowseOptions(products: CatalogProduct[]) {
-  return products.flatMap((product) => [...product.optionGroups.flatMap((group) => group.options), ...product.ungroupedOptions].filter((option) => !new Set(product.variants.flatMap((variant) => variant.definingOptionIds)).has(option.id) && !["lymow-5a-charger", "lymow-10a-charger"].includes(option.slug)).map((option) => ({ product, option })));
+  return products.flatMap(product => customerFacingProductOptions(product).map(option => ({ product, option })));
 }
 
 export function EquipmentCards({ products, aftermarketEnabled, featuredBrands = false }: { products: CatalogProduct[]; aftermarketEnabled: boolean; featuredBrands?: boolean }) {

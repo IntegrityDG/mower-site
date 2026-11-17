@@ -3,6 +3,7 @@ import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import ProductConfiguration from "../components/customer-paths/purchase/ProductConfiguration";
 import LymowConfigurationChoices, { selectLymowConfiguration } from "../components/customer-paths/purchase/LymowConfigurationChoices";
+import { catalogBrowseOptions } from "../components/equipment/EquipmentCatalog";
 import MachineOfferSummary from "../components/equipment/MachineOfferSummary";
 import PurchaseSummary from "../components/customer-paths/purchase/PurchaseSummary";
 import { resolveBuildSelection } from "../lib/catalog/selection";
@@ -97,4 +98,14 @@ test("Our Machines lists the same four live Lymow prices without advertising an 
   assert.equal((html.match(/Mower only/g) ?? []).length, 2);
   product.packages[0].items[1].component!.isAvailable = false;
   assert.doesNotMatch(render(), /\$2,453/);
+});
+
+test("the bundle-only kit stays in both package cards but never appears as an optional charge", () => {
+  const product = fixture();
+  const html = renderToStaticMarkup(<ProductConfiguration product={product} selection={selection} {...callbacks} />);
+  assert.match(html, /5A \+ Enhanced Grass Discharge Kit/);
+  assert.match(html, /10A \+ Enhanced Grass Discharge Kit/);
+  assert.doesNotMatch(html, /Increase Enhanced Grass Discharge Kit quantity/);
+  assert.ok(!catalogBrowseOptions([product]).some(({ option }) => option.slug === "lymow-one-plus-enhanced-discharge-kit"));
+  assert.ok(catalogBrowseOptions([product]).some(({ option }) => option.slug === "other"));
 });
