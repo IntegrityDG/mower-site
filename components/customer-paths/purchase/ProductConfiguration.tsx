@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { yarboPackagesDuringSale, yarboPackageCard, yarboPackageForCore, yarboSaleForCore, yarboSaleExtraNames, yarboSaleLabel } from "@/lib/catalog/yarbo-sale-packages";
+import YarboCoreInclusions from "@/components/equipment/YarboCoreInclusions";
 import CatalogCardImage from "@/components/equipment/CatalogCardImage";
 import { catalogCardImage } from "@/lib/catalog/card-image";
 
@@ -30,7 +31,8 @@ import type {
 import {
   YARBO_CORE_ABSENT_NOTICE,
   YARBO_CORE_EQUIPMENT_DESCRIPTION,
-  YARBO_INCLUDED_PLATFORM_EQUIPMENT,
+  yarboIncludedEquipment,
+  isYarboPacManCoreSystem,
   YARBO_MODULE_ONLY_NOTICE,
   groupYarboPackages,
   isYarboProduct,
@@ -40,7 +42,6 @@ import {
   yarboOptionDisplayName,
   yarboPackageBestFit,
   yarboPackageDisplayName,
-  yarboPackageModuleNames,
   yarboPackageMowerType,
   type YarboPackageGroupKey,
   type YarboPurchaseMode,
@@ -321,7 +322,7 @@ function YarboConfiguration({
                 <div className="grid gap-4 xl:grid-cols-2">
                   {group.packages.map((catalogPackage) => {
                     const isSelected = catalogPackage.id === selectedCard?.id;
-                    const moduleNames = yarboPackageModuleNames(catalogPackage);
+
                     const available = catalogPackageIsAvailable(catalogPackage);
 
                     return (
@@ -403,15 +404,8 @@ function YarboConfiguration({
                             Included Equipment
                           </p>
                           <ul className="mt-2 space-y-1 text-sm font-semibold text-slate-700">
-                            {YARBO_INCLUDED_PLATFORM_EQUIPMENT.map((item) => (
-                              <li key={`${catalogPackage.id}-${item}`}>
-                                {item}
-                              </li>
-                            ))}
-                            {moduleNames.map((name) => (
-                              <li key={`${catalogPackage.id}-${name}`}>
-                                {name}
-                              </li>
+                            {yarboIncludedEquipment(catalogPackage.items).map((name, index) => (
+                              <li key={`${catalogPackage.id}-${index}`}>{name}</li>
                             ))}
                           </ul>
                         </div>
@@ -484,7 +478,7 @@ function YarboConfiguration({
                   </h5>
                   <p className="mt-2 leading-6 text-slate-600">
                     The base Yarbo platform for customers assembling a custom
-                    system or purchasing the Core by itself.
+                    system or purchasing the Core by itself. The Data Center and Pro antennas are included at no additional charge.
                   </p>
                 </div>
                 <span
@@ -807,6 +801,8 @@ function StandardProductConfiguration({
         Select the main configuration or package first. Then review included
         equipment and add any compatible modules or accessories you want.
       </p>
+
+      {isYarboPacManCoreSystem(product) && <YarboCoreInclusions />}
 
       {product.variants.length > 0 && !selectedPackage?.adminManaged && (
         <section className="mt-8 rounded-[2rem] border border-slate-300 bg-slate-50 p-5 md:p-7">

@@ -1,6 +1,6 @@
 import type { CatalogPackage, CatalogPackageItem, CatalogPrice, CatalogProduct } from "./types";
 import { isWithinPriceWindow } from "../pricing-program/window";
-import { isYarboModuleSlug } from "./yarbo";
+import { isYarboModuleSlug, isYarboIncludedNavigationItem } from "./yarbo";
 import { yarboCoreCanBeSelected, yarboCorePrice, yarboCoreVariants } from "./yarbo-core";
 
 function scheduledSaleOnly(price: CatalogPrice | null | undefined) {
@@ -84,7 +84,7 @@ export function yarboPackageForCore(product: CatalogProduct, card: CatalogPackag
 }
 
 export function yarboSaleExtraNames(regular: CatalogPackage, sale: CatalogPackage) {
-  return sale.items.filter(item => item.includedInPackagePrice && !moduleItem(item)).flatMap(item => {
+  return sale.items.filter(item => item.includedInPackagePrice && !moduleItem(item) && !isYarboIncludedNavigationItem(item)).flatMap(item => {
     const prior = regular.items.filter(part => slug(part) === slug(item)).reduce((sum, part) => sum + part.quantity, 0);
     const quantity = item.quantity - prior;
     const name = item.component?.name ?? item.option?.name;

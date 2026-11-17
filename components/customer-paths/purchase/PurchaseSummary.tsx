@@ -1,3 +1,4 @@
+import YarboCoreInclusions from "@/components/equipment/YarboCoreInclusions";
 import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import PreorderNotice from "@/components/equipment/PreorderNotice";
 import YarboCorePrice from "@/components/equipment/YarboCorePrice";
@@ -10,7 +11,7 @@ import { resolveBuildSelection } from "@/lib/catalog/selection";
 import type { CatalogProduct, ProductBuildSelection } from "@/lib/catalog/types";
 import {
   YARBO_CORE_ABSENT_NOTICE,
-  YARBO_INCLUDED_PLATFORM_EQUIPMENT,
+  yarboOrderIncludesCore,
   isYarboProduct,
   yarboOptionDisplayName,
   yarboPackageDisplayName,
@@ -111,6 +112,8 @@ export default function PurchaseSummary({
           customerInformation={customerInformation}
         />
       )}
+
+      {!selectedProductIsYarbo && yarboOrderIncludesCore(selectedProduct, buildSelection) && <YarboCoreInclusions items={build.packageIncludedItems} />}
 
       <section className="mt-6 space-y-2 rounded-2xl border bg-white p-5"><h4 className="text-xl font-bold">Optional Services</h4><p>Install: {optionalServices.install ? "$0 at checkout — requested under separate terms" : "Not selected"}</p><p>Setup: {optionalServices.setup ? "$0 at checkout — requested under separate terms" : "Not selected"}</p><p>Remote Support: {optionalServices.remoteSupport ? "$100 at checkout; $100/month after the first paid month" : "Not selected"}</p>{optionalServices.remoteSupport && <p className="text-sm">Activates 10 days after payment confirmation. The equipment bank discount does not reduce the $100 subscription charge.</p>}</section>
       <section className="mt-6 rounded-[2rem] bg-slate-950 p-6 text-white md:p-8">
@@ -281,24 +284,7 @@ function YarboSummaryGrid({
         </section>
       )}
 
-      {selectedPackage && (
-        <section className="rounded-[2rem] border border-emerald-200 bg-emerald-50 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
-            Included in Package
-          </p>
-          <div className="mt-3 space-y-2 text-sm font-semibold leading-6 text-slate-700">
-            {YARBO_INCLUDED_PLATFORM_EQUIPMENT.map((item) => (
-              <p key={item}>{item}</p>
-            ))}
-            {build.packageIncludedItems.map((item) => (
-              <p key={packageComponentKey(item)}>
-                {packageComponentName(item)}
-                {item.quantity > 1 ? ` x ${item.quantity}` : ""}
-              </p>
-            ))}
-          </div>
-        </section>
-      )}
+      {(selectedPackage || build.yarboCoreSelected) && <YarboCoreInclusions items={build.packageIncludedItems} />}
 
       {modulesWithoutCore && (
         <section className="rounded-[2rem] border border-amber-200 bg-amber-50 p-6">
