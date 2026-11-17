@@ -1,3 +1,4 @@
+import { lymowEnhancedPackageIdentity, LYMOW_ENHANCED_DISCHARGE_KIT_SLUG } from "@/lib/catalog/lymow-enhanced-packages";
 import { catalogProductRequiresQuote } from "@/lib/catalog/sales-mode";
 import { catalogPurchaseState } from "@/lib/catalog/preorder";
 import { CheckoutRejectionError, type CheckoutRequest } from "./types";
@@ -121,6 +122,27 @@ export function validateCheckoutEligibility(request: CheckoutRequest, catalog: C
     if (selectedPackage.show_public_price === false || selectedPackage.contact_for_pricing) reject("UNPRICED_ITEM", "This package requires a pricing request.");
     const packageComponents = resolveCheckoutPackageComponents(catalog, selectedPackage.id, now);
     if (!packageComponents.length) reject("MISSING_CONFIGURATION", "This package has no sellable components.");
+    const enhanced = lymowEnhancedPackageIdentity(selectedPackage.package_slug);
+    if (enhanced) {
+      if (product.slug !== "lymow-one-plus" || !variant || variant.variant_slug !== enhanced.variantSlug) reject("INCOMPATIBLE_SELECTION", "Choose the matching Lymow configuration for this Enhanced Discharge package.");
+      const pinnedVariant = variant!;
+      const kit = catalog.options.find(option => option.option_slug === LYMOW_ENHANCED_DISCHARGE_KIT_SLUG && option.product_id === product.id);
+      if (packageComponents.length !== 2 || packageComponents.some(component => component.item.quantity !== 1 || !component.item.included_in_package_price) ||
+        !packageComponents.some(component => component.kind === "variant" && component.row.id === pinnedVariant.id) ||
+        !kit || !packageComponents.some(component => component.kind === "option" && component.row.id === kit.id)) reject("INCOMPATIBLE_SELECTION", "Enhanced Discharge package must include exactly its matching mower and one discharge kit.");
+      const defining = catalog.variantOptions.filter(link => link.variant_id === pinnedVariant.id && link.relationship_type === "defines_variant");
+      const charger = defining.length === 1 ? catalog.options.find(option => option.id === defining[0].option_id && option.product_id === product.id && option.option_slug === enhanced.chargerSlug) : null;
+      if (!charger) reject("LYMOW_CHARGER_RELATIONSHIP_INVALID", "Lymow charger relationship is invalid.");
+      if (!active(charger!)) unavailable(charger!.name);
+      if (selectedOptions.some(({ option }) => LYMOW_CHARGERS.has(option.option_slug))) reject("LYMOW_CHARGER_SUBMITTED", "The Lymow charger is included and cannot be submitted separately.");
+      if (selectedOptions.some(({ option }) => option.option_slug === LYMOW_ENHANCED_DISCHARGE_KIT_SLUG)) reject("DUPLICATE_SELECTION", "The discharge kit is already included in this package.");
+      for (const option of [kit!, ...selectedOptions.map(({ option }) => option)]) {
+        const links = catalog.variantOptions.filter(link => link.option_id === option.id && link.relationship_type !== "defines_variant");
+        if (links.some(link => link.variant_id === pinnedVariant.id && link.relationship_type === "excluded") || (links.length > 0 && !links.some(link => link.variant_id === pinnedVariant.id && ["compatible", "included", "required"].includes(link.relationship_type)))) reject("INCOMPATIBLE_SELECTION", "Option is incompatible with the selected Lymow variant.");
+      }
+      if (selectedOptions.some(({ option }) => !option.accessory_listing_enabled || option.accessory_tab !== "lymow" || !option.show_in_builder || option.accessory_action_type !== "builder" || option.contact_for_pricing || option.regular_price_cents === null)) reject("INCOMPATIBLE_SELECTION", "This Lymow option is not available for checkout.");
+    }
+
     if (variant && !packageComponents.some((component) => component.kind === "variant" && component.row.id === variant.id)) reject("INCOMPATIBLE_SELECTION", "The selected configuration is not part of this package.");
     if (selectedOptions.some(({ option }) => packageComponents.some((component) => component.kind === "option" && component.row.id === option.id))) reject("DUPLICATE_SELECTION", "A package component cannot also be charged as an add-on.");
     return { variant, selectedPackage, selectedOptions, corePrice: null, packageComponents, packageItems: packageComponents.map((component) => component.item), moduleOnlyWarning: null };

@@ -56,6 +56,8 @@ import {
 } from "@/lib/catalog/yarbo";
 
 import CustomerInformation from "./CustomerInformation";
+import { isLymowEnhancedPackage, lymowEnhancedPackageVariant } from "@/lib/catalog/lymow-enhanced-packages";
+import { selectLymowConfiguration } from "./LymowConfigurationChoices";
 import ProductConfiguration from "./ProductConfiguration";
 import ProductSelection from "./ProductSelection";
 import PurchaseMethod from "./PurchaseMethod";
@@ -566,6 +568,12 @@ export default function NationwidePurchaseFlow({
     if (!variant?.isAvailable) return;
     if (lymowConfiguration && selectedProduct &&
       lymowVariantPage(selectedProduct, lymowConfiguration)?.variant.id !== variantId) return;
+    if (selectedProduct?.slug === "lymow-one-plus") {
+      const next = selectLymowConfiguration(selectedProduct, buildSelection, variantId, "",
+        lymowConfiguration ? lymowVariantPage(selectedProduct, lymowConfiguration)?.variant.id : undefined);
+      if (next) setBuildSelection(next);
+      return;
+    }
     if (selectedProduct && isYarboProduct(selectedProduct)) {
       const card = yarboPackageCard(selectedProduct, buildSelection.packageId);
       const catalogPackage = card ? yarboPackageForCore(selectedProduct, card, variantId) : null;
@@ -591,6 +599,13 @@ export default function NationwidePurchaseFlow({
   }
 
   function handleSelectPackage(packageId: string) {
+    if (!packageId && selectedProduct?.slug === "lymow-one-plus") {
+      const variantId = lymowConfiguration ? lymowVariantPage(selectedProduct, lymowConfiguration)?.variant.id : buildSelection.variantId;
+      const next = variantId ? selectLymowConfiguration(selectedProduct, buildSelection, variantId) : null;
+      if (next) setBuildSelection(next);
+      else setBuildSelection(current => ({ ...current, packageId: "", variantId: "" }));
+      return;
+    }
     if (!packageId && selectedProduct && !isYarboProduct(selectedProduct)) {
       setBuildSelection((current) => ({ ...current, packageId: "", variantId: "" }));
       return;
@@ -599,6 +614,14 @@ export default function NationwidePurchaseFlow({
       (catalogPackage) => catalogPackage.id === packageId
     );
     if (!selectedPackage?.isAvailable) return;
+    if (selectedProduct?.slug === "lymow-one-plus" && isLymowEnhancedPackage(selectedPackage)) {
+      const variant = lymowEnhancedPackageVariant(selectedProduct, selectedPackage);
+      const next = variant ? selectLymowConfiguration(selectedProduct, buildSelection, variant.id, packageId,
+        lymowConfiguration ? lymowVariantPage(selectedProduct, lymowConfiguration)?.variant.id : undefined) : null;
+      if (next) setBuildSelection(next);
+      return;
+    }
+
 
     if (selectedProduct && isYarboProduct(selectedProduct)) {
       setBuildSelection((currentSelection) => ({

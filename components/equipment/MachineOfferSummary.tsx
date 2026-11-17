@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { formatCents, priceLabel } from "@/lib/catalog/pricing";
+import { catalogPackageIsAvailable } from "@/lib/catalog/availability";
+import { lymowEnhancedPackageVariant } from "@/lib/catalog/lymow-enhanced-packages";
 import type { CatalogPrice, CatalogProduct } from "@/lib/catalog/types";
 import { yarboCoreCanBeSelected, yarboCorePrice, yarboCoreVariants } from "@/lib/catalog/yarbo-core";
 
@@ -22,12 +24,23 @@ function OfferPrice({ price }: { price: CatalogPrice }) {
 
 export default function MachineOfferSummary({ product }: { product: CatalogProduct }) {
   if (product.slug === "lymow-one-plus") {
+    const enhanced = product.packages.flatMap(pkg => {
+      const variant = lymowEnhancedPackageVariant(product, pkg);
+      return variant?.isAvailable && pkg.adminManaged && catalogPackageIsAvailable(pkg) && pkg.showPublicPrice && !pkg.contactForPricing && pkg.currentPriceCents !== null
+        ? [{ pkg, variant }] : [];
+    });
     return <div className="mt-5 space-y-3" aria-label="Lymow configuration prices">
-      {product.variants.filter((variant) => variant.isAvailable).map((variant) => <div key={variant.id}>
-        <p className="text-sm font-bold text-slate-700">{variant.name}</p>
-        <OfferPrice price={variant} />
+      {product.variants.filter((variant) => variant.isAvailable).map((variant) => <div key={variant.id} className="space-y-3">
+        <div>
+          <p className="text-sm font-bold text-slate-700">{variant.name}{enhanced.some(item => item.variant.id === variant.id) ? " · Mower only" : ""}</p>
+          <OfferPrice price={variant} />
+        </div>
+        {enhanced.filter(item => item.variant.id === variant.id).map(({ pkg }) => <div key={pkg.id}>
+          <p className="text-sm font-bold text-slate-700">{pkg.name}</p>
+          <OfferPrice price={pkg} />
+        </div>)}
       </div>)}
-      {product.variants.some((variant) => variant.isAvailable && variant.saleIsActive) && <p className="text-sm text-slate-600">See configuration details for current sale gifts, eligibility and end dates.</p>}
+      {(product.variants.some((variant) => variant.isAvailable && variant.saleIsActive) || enhanced.some(({ pkg }) => pkg.saleIsActive)) && <p className="text-sm text-slate-600">See configuration details for current sale gifts, eligibility and end dates.</p>}
     </div>;
   }
   const offers = featuredPackageOffers(product);

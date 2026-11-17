@@ -10,6 +10,8 @@ import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
 import YarboCorePrice from "@/components/equipment/YarboCorePrice";
 import CoreAvailabilityBadge from "@/components/equipment/CoreAvailabilityBadge";
 import PreorderNotice from "@/components/equipment/PreorderNotice";
+import LymowConfigurationChoices from "./LymowConfigurationChoices";
+import { isLymowEnhancedPackage } from "@/lib/catalog/lymow-enhanced-packages";
 import YarboPackageGroupSelector from "./YarboPackageGroupSelector";
 import { selectedYarboCore, yarboCoreCanBeSelected, yarboCorePrice, yarboCoreVariants } from "@/lib/catalog/yarbo-core";
 import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
@@ -625,7 +627,8 @@ function StandardProductConfiguration({
     [selectedPackage]
   );
 
-  const filteredPackages = product.packages.filter((catalogPackage) =>
+  const ordinaryPackages = product.slug === "lymow-one-plus" ? product.packages.filter(item => !isLymowEnhancedPackage(item)) : product.packages;
+  const filteredPackages = ordinaryPackages.filter((catalogPackage) =>
     packageMatchesFilter(catalogPackage, packageFilter)
   );
 
@@ -804,7 +807,9 @@ function StandardProductConfiguration({
 
       {isYarboPacManCoreSystem(product) && <YarboCoreInclusions />}
 
-      {product.variants.length > 0 && !selectedPackage?.adminManaged && (
+      {product.slug === "lymow-one-plus" && <LymowConfigurationChoices product={product} selection={selection} onSelectVariant={onSelectVariant} onSelectPackage={onSelectPackage} />}
+
+      {product.slug !== "lymow-one-plus" && product.variants.length > 0 && !selectedPackage?.adminManaged && (
         <section className="mt-8 rounded-[2rem] border border-slate-300 bg-slate-50 p-5 md:p-7">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
@@ -877,7 +882,7 @@ function StandardProductConfiguration({
         </section>
       )}
 
-      {product.packages.length > 0 && (
+      {ordinaryPackages.length > 0 && (
         <section className="mt-8 rounded-[2rem] border border-slate-300 bg-slate-50 p-5 md:p-7">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>

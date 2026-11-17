@@ -342,7 +342,7 @@ function StandardSummaryGrid({
         {selectedProduct.slug === "lymow-one-plus" &&
         build.selectedVariant ? (
           <EverydayPriceDisplay
-            item={build.selectedVariant}
+            item={build.selectedPackage ?? build.selectedVariant}
             comparisonLabel="Lymow Everyday Price"
             className="mt-2"
             priceClassName="text-xl font-black text-emerald-700"

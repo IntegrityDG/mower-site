@@ -1,3 +1,4 @@
+import { isLymowEnhancedPackage, lymowEnhancedPackageVariant } from "./lymow-enhanced-packages";
 import type {
   CatalogOption,
   CatalogProduct,
@@ -234,6 +235,10 @@ export function productBuildIsComplete(
   }
 
   const selectedPackage = product.packages.find((item) => item.id === selection.packageId);
+  if (selectedPackage && isLymowEnhancedPackage(selectedPackage)) {
+    const pinned = lymowEnhancedPackageVariant(product, selectedPackage);
+    return Boolean(selectedPackage.adminManaged && selectedPackage.isAvailable && pinned?.isAvailable && selection.variantId === pinned.id && selection.purchaseMode === undefined && !selection.includeBaseProduct);
+  }
   if (selectedPackage?.adminManaged) return selectedPackage.isAvailable;
   if (product.hasManagedPackages && !product.adminManaged && product.slug !== "lymow-one-plus") return false;
 
