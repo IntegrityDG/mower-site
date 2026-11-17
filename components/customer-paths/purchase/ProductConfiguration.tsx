@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { yarboPackagesDuringSale, yarboPackageCard, yarboPackageForCore, yarboSaleForCore, yarboSaleExtraNames, yarboSaleLabel } from "@/lib/catalog/yarbo-sale-packages";
 import CatalogCardImage from "@/components/equipment/CatalogCardImage";
 import { catalogCardImage } from "@/lib/catalog/card-image";
 
@@ -167,7 +168,9 @@ function YarboConfiguration({
   onToggleBaseProduct,
 }: ProductConfigurationProps) {
   const [activeGroup, setActiveGroup] = useState<YarboPackageGroupKey>("mower-pro");
-  const groupedPackages = groupYarboPackages(product.packages);
+  const currentPackages = yarboPackagesDuringSale(product);
+  const selectedCard = yarboPackageCard(product, selection.packageId);
+  const groupedPackages = groupYarboPackages(currentPackages);
   const effectiveActiveGroup = groupedPackages.some(
     (group) => group.key === activeGroup
   )
@@ -296,6 +299,7 @@ function YarboConfiguration({
             </span>
           </div>
 
+          {selectedCard && selection.packageId && selection.variantId && yarboPackageForCore(product, selectedCard, selection.variantId).id !== selection.packageId && <p role="status" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">The offer for your selected package has changed. Select the package again to review its current price and included equipment. Your previous order selection has not been changed automatically.</p>}
           <YarboPackageGroupSelector
             groups={groupedPackages}
             selectedGroup={effectiveActiveGroup}
@@ -316,7 +320,7 @@ function YarboConfiguration({
 
                 <div className="grid gap-4 xl:grid-cols-2">
                   {group.packages.map((catalogPackage) => {
-                    const isSelected = catalogPackage.id === selection.packageId;
+                    const isSelected = catalogPackage.id === selectedCard?.id;
                     const moduleNames = yarboPackageModuleNames(catalogPackage);
                     const available = catalogPackageIsAvailable(catalogPackage);
 
@@ -351,7 +355,7 @@ function YarboConfiguration({
                           {coreVariants.map((core) => <div key={core.id} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
                             <p className="font-black text-slate-950">{core.name}</p>
                             <CoreAvailabilityBadge core={core} />
-                            <YarboCorePrice core={core} price={yarboCorePrice(product, core, catalogPackage)} />
+                            <YarboCorePrice core={core} price={yarboCorePrice(product, core, yarboPackageForCore(product, catalogPackage, core.id))} />
                           </div>)}
                         </div>}
 
@@ -363,6 +367,17 @@ function YarboConfiguration({
                             )}
                           </p>
                         )}
+
+                        {coreVariants.map(core => {
+                          const sale = yarboSaleForCore(product, catalogPackage, core.id);
+                          if (!sale) return null;
+                          const extras = yarboSaleExtraNames(catalogPackage, sale).filter(name => !sale.description?.toLowerCase().includes(name.toLowerCase()));
+                          return <div key={core.id} className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm">
+                            <p className="font-black text-emerald-900">{core.name}: {yarboSaleLabel(product, sale, core.id)}</p>
+                            {extras.length > 0 && <p className="mt-2"><strong>Additional included equipment and extras:</strong> {extras.join("; ")}.</p>}
+                            {sale.description && <p className="mt-2 leading-6 text-slate-700">{sale.description}</p>}
+                          </div>;
+                        })}
 
                         <div className="mt-4 grid gap-4 border-t border-slate-200 pt-4 text-sm sm:grid-cols-2">
                           <div>
@@ -412,7 +427,7 @@ function YarboConfiguration({
             <p className="mb-4 text-sm text-slate-600">One Core powers the selected package and its included modules.</p>
             <div className="grid gap-3 md:grid-cols-2">
               {coreVariants.map((core) => {
-                const catalogPackage = product.packages.find((item) => item.id === selection.packageId);
+                const catalogPackage = selectedCard ? yarboPackageForCore(product, selectedCard, core.id) : null;
                 const price = catalogPackage ? yarboCorePrice(product, core, catalogPackage) : null;
                 const selectable = Boolean(catalogPackage && yarboCoreCanBeSelected(product, core, catalogPackage));
                 return <label key={core.id} className={`flex min-w-0 gap-3 rounded-xl border p-4 ${selection.variantId === core.id ? "border-emerald-700 bg-emerald-50" : "border-slate-300"} ${!selectable ? "cursor-not-allowed bg-slate-100" : "cursor-pointer"}`}>

@@ -144,7 +144,7 @@ test("unavailable Featured Machines remain visible and informational", () => {
   assert.match(html, /Unavailable/);
   assert.match(html, /View Details/);
   assert.doesNotMatch(html, /Build Your System/);
-  assert.match(source("components/mobile/MobileHomepage.tsx"), /<EquipmentCatalog \/>/);
+  assert.match(source("components/mobile/MobileHomepage.tsx"), /<EquipmentCatalog featuredBrands \/>/);
 });
 
 test("equipment catalog initial HTML contains the existing product-card links", () => {

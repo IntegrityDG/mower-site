@@ -1,5 +1,7 @@
 "use client";
 
+import { nextPackageSaleBoundaryDelay, yarboPackageCard, yarboPackageForCore } from "@/lib/catalog/yarbo-sale-packages";
+
 import CatalogCardImage from "@/components/equipment/CatalogCardImage";
 import { catalogCardImage } from "@/lib/catalog/card-image";
 
@@ -321,7 +323,8 @@ export default function NationwidePurchaseFlow({
 
   useEffect(() => {
     if (!catalog) return;
-    const delay = nextPreorderBoundaryDelay(catalog);
+    const delays = [nextPreorderBoundaryDelay(catalog), ...catalog.products.map(product => nextPackageSaleBoundaryDelay(product, Date.parse(catalog.generatedAt)))].filter((value): value is number => value !== null);
+    const delay = delays.length ? Math.min(...delays) : null;
     if (delay === null) return;
     const timer = window.setTimeout(() => setCatalogReloadKey((current) => current + 1), delay);
     return () => window.clearTimeout(timer);
@@ -562,9 +565,10 @@ export default function NationwidePurchaseFlow({
     if (lymowConfiguration && selectedProduct &&
       lymowVariantPage(selectedProduct, lymowConfiguration)?.variant.id !== variantId) return;
     if (selectedProduct && isYarboProduct(selectedProduct)) {
-      const catalogPackage = selectedProduct.packages.find((item) => item.id === buildSelection.packageId);
+      const card = yarboPackageCard(selectedProduct, buildSelection.packageId);
+      const catalogPackage = card ? yarboPackageForCore(selectedProduct, card, variantId) : null;
       if (!yarboCoreCanBeSelected(selectedProduct, variant, catalogPackage)) return;
-      setBuildSelection((current) => ({ ...current, variantId }));
+      setBuildSelection((current) => ({ ...current, variantId, packageId: catalogPackage?.id ?? current.packageId }));
       return;
     }
     setBuildSelection((currentSelection) => ({
@@ -598,7 +602,7 @@ export default function NationwidePurchaseFlow({
       setBuildSelection((currentSelection) => ({
         ...currentSelection,
         variantId: currentSelection.variantId || selectedProduct.variants.find((variant) => variant.slug === "yarbo-y40" && variant.isAvailable)?.id || "",
-        packageId,
+        packageId: yarboPackageForCore(selectedProduct, selectedPackage, currentSelection.variantId || selectedProduct.variants.find(variant => variant.slug === "yarbo-y40" && variant.isAvailable)?.id || "").id,
         purchaseMode: "complete-system",
         includeBaseProduct: false,
         optionQuantities: Object.fromEntries(Object.entries(currentSelection.optionQuantities).filter(([id])=>builderAccessoryOptions(selectedProduct).some(option=>option.id===id))),
