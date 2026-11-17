@@ -72,7 +72,7 @@ test("selected views mount the existing builder, machines, financing, reviews, f
 
 test("mobile machines view owns one section-level scheduler above the catalog", () => {
   assert.equal((mobile.match(/ScheduleDemoModal source="featured_machines"/g) ?? []).length, 1);
-  assert.ok(mobile.indexOf('ScheduleDemoModal source="featured_machines"') < mobile.indexOf("<EquipmentCatalog />", mobile.indexOf('ScheduleDemoModal source="featured_machines"')));
+  assert.ok(mobile.indexOf('ScheduleDemoModal source="featured_machines"') < mobile.indexOf("<EquipmentCatalog featuredBrands />", mobile.indexOf('ScheduleDemoModal source="featured_machines"')));
 });
 
 test("shared financing preserves Hearth content, link, artwork, and disclaimer", () => {

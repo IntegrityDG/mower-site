@@ -400,7 +400,7 @@ test("Pandag, quote flow, Accessories, and Aftermarket receive no demo trigger",
 test("mobile machines view has one scheduler above its cards", () => {
   assert.equal((mobileHome.match(/<ScheduleDemoModal source="featured_machines"/g) ?? []).length, 1);
   const cta = mobileHome.indexOf('<ScheduleDemoModal source="featured_machines"');
-  const cards = mobileHome.indexOf("<EquipmentCatalog />", cta);
+  const cards = mobileHome.indexOf("<EquipmentCatalog featuredBrands />", cta);
   assert.ok(cta > mobileHome.indexOf("Featured Machines") && cards > cta);
 });
 
