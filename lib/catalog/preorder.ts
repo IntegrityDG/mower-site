@@ -3,15 +3,23 @@ import type { CatalogResponse, CatalogVariant } from "./types";
 export type PurchaseState = "available" | "preorder" | "coming_soon" | "unavailable";
 export type PreorderAuthorizationRow = {
   public_status: string;
+  variant_slug?: string;
   preorder_enabled?: boolean;
   sale_starts_at: string | null;
   sale_ends_at: string | null;
 };
 
-/** Authorization uses the base variant's bounded window, independently of price schedules. */
+/** Owner-authorized ongoing Y40P preorders. Sale windows still control price,
+ * never stock status. The existing preorder switch remains the stop control. */
+export function hasOngoingPreorder(row: PreorderAuthorizationRow) {
+  return row.variant_slug === "yarbo-y40p" && row.preorder_enabled === true;
+}
+
+/** Other variants retain their bounded, fail-closed authorization windows. */
 export function catalogPurchaseState(row: PreorderAuthorizationRow, now = Date.now()): PurchaseState {
   if (row.public_status === "active") return "available";
   if (row.public_status !== "coming_soon") return "unavailable";
+  if (hasOngoingPreorder(row)) return "preorder";
   const start = row.sale_starts_at ? Date.parse(row.sale_starts_at) : NaN;
   const end = row.sale_ends_at ? Date.parse(row.sale_ends_at) : NaN;
   return row.preorder_enabled === true && Number.isFinite(start) && Number.isFinite(end) &&
@@ -26,8 +34,8 @@ export function catalogVariantAvailability(row: PreorderAuthorizationRow, now = 
     isAvailable: purchaseState === "available" || purchaseState === "preorder",
     purchaseState,
     preorderEnabled: row.preorder_enabled === true,
-    preorderStartsAt: row.sale_starts_at,
-    preorderEndsAt: row.sale_ends_at,
+    preorderStartsAt: hasOngoingPreorder(row) ? null : row.sale_starts_at,
+    preorderEndsAt: hasOngoingPreorder(row) ? null : row.sale_ends_at,
   };
 }
 

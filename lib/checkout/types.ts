@@ -72,7 +72,7 @@ export type OrderPriceItem = {
 };
 
 export type OrderPriceSnapshot = {
-  preorder?: { coreName: string; startsAt: string; endsAt: string; notice: string };
+  preorder?: { coreName: string; startsAt: string | null; endsAt: string | null; notice: string };
   optionalServices?: MachineOptionalServices;
   currency: "usd";
   product: { id: string; slug: string; name: string };
