@@ -13,7 +13,7 @@ const labels: Record<string, string> = { display_msrp_price_cents: "Manufacturer
 const priceFields = new Set(["dealer_cost_cents", "display_msrp_price_cents", "regular_price_cents", "sale_price_cents", "override_display_msrp_price_cents", "override_regular_price_cents", "override_sale_price_cents"]);
 const fieldLabel = (kind: PricingItem["kind"], field: string) => {
     if (field === "dealer_cost_cents") return "Dealer Cost — PRIVATE / IDS INTERNAL ONLY";
-    if (field === "preorder_enabled") return <>Pre-Order Enabled<span className="mt-2 block rounded-xl bg-violet-50 p-3 text-sm font-semibold text-violet-950">Allows a Coming Soon variant to be ordered only during its Sale Start through Sale End window. Both dates are required; the end is exclusive. Price schedules do not extend this authorization.</span></>;
+    if (field === "preorder_enabled") return <>Pre-Order Enabled<span className="mt-2 block rounded-xl bg-violet-50 p-3 text-sm font-semibold text-violet-950">Y40P remains orderable as a pre-order until this switch is disabled, independent of sale dates. Other Coming Soon variants require a Sale Start and Sale End authorization window; the end is exclusive. Sale dates continue to control promotional prices, not Y40P stock status.</span></>;
     if (field === "name" || field === "package_name") {
         return <>{field === "name" ? "Catalog Display Name" : "Package Display Name"}<span className="mt-2 block rounded-xl bg-blue-50 p-3 text-sm font-semibold text-blue-950">Changing the display name does not change the item&apos;s ID, slug, pricing, package contents, or checkout relationships.</span></>;
     }

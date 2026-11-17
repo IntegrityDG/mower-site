@@ -1,4 +1,4 @@
-import { catalogPurchaseState, preorderItemName, PREORDER_FULFILLMENT_NOTICE } from "@/lib/catalog/preorder";
+import { catalogPurchaseState, hasOngoingPreorder, preorderItemName, PREORDER_FULFILLMENT_NOTICE } from "@/lib/catalog/preorder";
 import { checkoutDisplayName, validateCheckoutEligibility, type CheckoutCatalog, type CheckoutOptionRow, type CheckoutVariantRow, type PriceableRow } from "./eligibility";
 import { CheckoutRejectionError, type CatalogSourceReference, type CheckoutRequest, type OrderPriceItem, type OrderPriceSnapshot } from "./types";
 import { resolvePaymentAdjustments } from "./payment-pricing";
@@ -23,8 +23,8 @@ export function resolveEquipmentCatalogPricing(input: CheckoutRequest, catalog: 
     catalogPurchaseState(eligibility.variant, now) === "preorder";
   const preorder = isPreorder && eligibility.variant ? {
     coreName: eligibility.variant.name,
-    startsAt: eligibility.variant.sale_starts_at!,
-    endsAt: eligibility.variant.sale_ends_at!,
+    startsAt: hasOngoingPreorder(eligibility.variant) ? null : eligibility.variant.sale_starts_at,
+    endsAt: hasOngoingPreorder(eligibility.variant) ? null : eligibility.variant.sale_ends_at,
     notice: `This order includes a ${eligibility.variant.name} Early Access pre-order. ${PREORDER_FULFILLMENT_NOTICE}`,
   } : undefined;
   const sources: CatalogSourceReference[] = [{ table: "catalog_products", id: product.id }];

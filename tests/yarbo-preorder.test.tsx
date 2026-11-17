@@ -42,7 +42,8 @@ const configHtml = (now: number, packageId = "yarbo-pro-snow") => renderToStatic
   onSelectVariant={() => {}} onSelectPackage={() => {}} onSelectPurchaseMode={() => {}}
   onToggleBaseProduct={() => {}} onChangeOptionQuantity={() => {}} />);
 
-for (const [label, now, allowed] of boundaries) {
+for (const [label, now, saleActive] of boundaries) {
+  const allowed = true;
   test(`preorder ${label}: canonical projection, Core selector, crafted server request, and price`, () => {
     const catalog = checkoutCatalog();
     const variant = catalog.variants[1];
@@ -57,7 +58,8 @@ for (const [label, now, allowed] of boundaries) {
     const html = configHtml(now);
     assert.equal(/<input(?=[^>]*value="y40p")(?=[^>]*disabled)[^>]*>/.test(html), !allowed);
     assert.equal((html.match(/name="yarbo-complete-core"/g) ?? []).length, 2);
-    for (const [slug, , , , price] of mappings) {
+    for (const [slug, , , regular, sale] of mappings) {
+      const price = saleActive ? sale : regular;
       const request = checkoutRequest("y40p", slug);
       if (allowed) {
         assert.equal(validateCheckoutEligibility(request, catalog, now).variant?.id, "y40p");
@@ -66,7 +68,7 @@ for (const [label, now, allowed] of boundaries) {
         assert.throws(() => resolveEquipmentCatalogPricing(request, catalog, [], now), /Coming Soon/);
       }
     }
-    if (allowed) assert.equal(resolveEquipmentCatalogPricing(checkoutRequest("y40p", null), catalog, [], now).subtotalCents, 499900);
+    if (allowed) assert.equal(resolveEquipmentCatalogPricing(checkoutRequest("y40p", null), catalog, [], now).subtotalCents, saleActive ? 499900 : 559900);
     else assert.throws(() => resolveEquipmentCatalogPricing(checkoutRequest("y40p", null), catalog, [], now), /Coming Soon/);
   });
 }
@@ -80,7 +82,7 @@ test("Coming Soon with an active sale and preorder OFF stays blocked", () => {
 });
 
 test("authorization fails closed for missing, invalid, unbounded, or reversed windows and hidden/unavailable status", () => {
-  const variant = checkoutCatalog().variants[1];
+  const variant = { ...checkoutCatalog().variants[1], variant_slug: "other-future-core" };
   for (const patch of [
     { sale_starts_at: null }, { sale_ends_at: null }, { sale_starts_at: "invalid" }, { sale_ends_at: "invalid" },
     { sale_starts_at: end, sale_ends_at: start }, { sale_starts_at: start, sale_ends_at: start },
@@ -123,14 +125,14 @@ test("one package collection retains all modules, exact Core row totals, and dis
 test("Core-only builder and prepayment review show the selected Y40P price and notice", () => {
   assert.match(configHtml(during, ""), /name="yarbo-individual-core"/);
   assert.doesNotMatch(configHtml(during, ""), /<input(?=[^>]*value="y40p")(?=[^>]*disabled)[^>]*>/);
-  assert.match(configHtml(Date.parse(end), ""), /<input(?=[^>]*value="y40p")(?=[^>]*disabled)[^>]*>/);
+  assert.doesNotMatch(configHtml(Date.parse(end), ""), /<input(?=[^>]*value="y40p")(?=[^>]*disabled)[^>]*>/);
   for (const packageId of ["yarbo-pro-snow", ""]) {
     const html = renderToStaticMarkup(<PurchaseSummary selectedProduct={publicProduct()} buildSelection={buildSelection("y40p", packageId)}
       purchaseMethodLabel="Card" submissionKind="card" submitStatus="idle" submitError="" onSubmit={() => {}}
       customerInformation={{ fullName: "Buyer", email: "buyer@example.com", phone: "", shippingAddress: "1 Main", shippingZip: "65201", shippingState: "MO", shippingRegion: "Boone", referrerName: "", referrerEmail: "" }} />);
     assert.match(html, /Y40P Core/);
     assert.match(html, /Early Access \/ Pre-Order/);
-    assert.match(html, /October 6, 2026/);
+    assert.doesNotMatch(html, /October 6, 2026|pricing is available through/);
     assert.match(html, /Fulfillment timing is subject to manufacturer availability/);
     assert.match(html, packageId ? /\$8,999/ : /\$4,999/);
   }
@@ -139,7 +141,7 @@ test("Core-only builder and prepayment review show the selected Y40P price and n
 test("comparison and storefront show preorder identity without stock or shipment promises", () => {
   const html = renderToStaticMarkup(<YarboCoreComparison product={publicProduct()} />);
   assert.match(html, /Early Access \/ Pre-Order/);
-  assert.match(html, /October 6, 2026/);
+  assert.doesNotMatch(html, /October 6, 2026|pricing is available through/);
   assert.doesNotMatch(html, /In Stock|ships on|delivery date/i);
   const cards = renderToStaticMarkup(<EquipmentCards products={[publicProduct()]} aftermarketEnabled={false} />);
   assert.match(cards, /Y40P: Early Access \/ Pre-Order/);
@@ -174,11 +176,13 @@ test("required Core component status and presence remain enforced during preorde
   assert.throws(() => resolveEquipmentCatalogPricing(checkoutRequest(), catalog, [], during), /required Core component is missing/);
 });
 
-test("price schedules and stale client projections never extend preorder authorization", () => {
+test("price schedules do not extend other variants or override a disabled Y40P preorder switch", () => {
+  const catalog = checkoutCatalog();
+  catalog.variants[1].variant_slug = "other-future-core";
   const schedule = { id: "future-sale", variant_id: "y40p", starts_at: start, ends_at: null, regular_price_cents: 559900, sale_price_cents: 499900, public_status: "active" };
-  assert.throws(() => resolveEquipmentCatalogPricing(checkoutRequest("y40p", null), checkoutCatalog(), [schedule], Date.parse(end)), /Coming Soon/);
+  assert.throws(() => resolveEquipmentCatalogPricing(checkoutRequest("y40p", null), catalog, [schedule], Date.parse(end)), /Coming Soon/);
   assert.equal(publicProduct(during).variants[1].isAvailable, true);
-  assert.throws(() => resolveEquipmentCatalogPricing(checkoutRequest(), checkoutCatalog(), [], Date.parse(end)), /Coming Soon/);
+  assert.throws(() => resolveEquipmentCatalogPricing(checkoutRequest(), checkoutCatalog(false), [], Date.parse(end)), /Coming Soon/);
 });
 
 test("client price and preorder-state manipulation is rejected by the request allowlist", () => {
@@ -195,7 +199,8 @@ test("immutable order snapshot and customer confirmation retain preorder identit
   const snapshot = resolveEquipmentCatalogPricing(checkoutRequest(), checkoutCatalog(), [], during);
   assert.equal(snapshot.variant?.name, "Y40P Core");
   assert.equal(snapshot.chargeableItems[0].name, "Y40P Core + Lawn Mower Pro + Snow Blower — Early Access Pre-Order");
-  assert.equal(snapshot.preorder?.endsAt, end);
+  assert.equal(snapshot.preorder?.endsAt, null);
+  assert.equal(snapshot.preorder?.startsAt, null);
   assert.ok(Object.isFrozen(snapshot));
   const saved = JSON.parse(JSON.stringify(snapshot));
   const projection = safeProjection({ snapshot: saved } as CheckoutRecord);
@@ -238,6 +243,10 @@ test("module-only checkout stays independent of expired Core preorder and Trimme
 
 test("open builder refresh delay follows the catalog authorization start and exclusive end", () => {
   const catalog = { products: [publicProduct()], generatedAt: new Date(during).toISOString() };
+  assert.equal(nextPreorderBoundaryDelay(catalog), null);
+  // A different bounded preorder still schedules refresh at both boundaries.
+  catalog.products[0].variants[1].preorderStartsAt = start;
+  catalog.products[0].variants[1].preorderEndsAt = end;
   assert.equal(nextPreorderBoundaryDelay(catalog), Date.parse(end) - during);
   assert.equal(nextPreorderBoundaryDelay(catalog, Date.parse(start) - 1), 1);
   assert.equal(nextPreorderBoundaryDelay(catalog, Date.parse(end) - 1), 1);
@@ -259,4 +268,42 @@ test("admin preorder mutation is variant-only, boolean-only, authenticated, and 
   admin = true;
   assert.equal((await handlers.PATCH(request(), context)).status, 200);
   assert.deepEqual(saved, { preorder_enabled: false });
+});
+
+test("ongoing Y40P preorder has no sale-date authorization dependency", () => {
+  const variant = checkoutCatalog().variants[1];
+  for (const patch of [
+    { sale_starts_at: null, sale_ends_at: null },
+    { sale_starts_at: "invalid", sale_ends_at: "invalid" },
+    { sale_starts_at: end, sale_ends_at: start },
+  ]) {
+    const availability = catalogVariantAvailability({ ...variant, ...patch }, Date.parse(end) + 365 * 86400000);
+    assert.equal(availability.purchaseState, "preorder");
+    assert.equal(availability.publicStatus, "coming_soon");
+    assert.equal(availability.preorderStartsAt, null);
+    assert.equal(availability.preorderEndsAt, null);
+  }
+  for (const patch of [{ preorder_enabled: false }, { public_status: "hidden" }, { public_status: "unavailable" }]) {
+    assert.notEqual(catalogPurchaseState({ ...variant, ...patch }, during), "preorder");
+  }
+});
+
+test("ongoing Y40P does not authorize expired sale-only prices or disable retired-record checks", () => {
+  const after = Date.parse(end);
+  const coreOnly = checkoutCatalog();
+  coreOnly.variants[1].regular_price_cents = null;
+  assert.throws(() => resolveEquipmentCatalogPricing(checkoutRequest("y40p", null), coreOnly, [], after), /current price/);
+  const bundle = checkoutCatalog();
+  bundle.corePrices![9].regular_price_cents = null;
+  assert.throws(() => resolveEquipmentCatalogPricing(checkoutRequest(), bundle, [], after), /price/i);
+  const retired = checkoutCatalog();
+  retired.variants[1].retired_at = new Date(during).toISOString();
+  assert.throws(() => resolveEquipmentCatalogPricing(checkoutRequest(), retired, [], after), /cannot be purchased|unavailable/i);
+});
+
+test("other enabled variants still require their exact bounded window", () => {
+  const row = { ...checkoutCatalog().variants[1], variant_slug: "other-future-core" };
+  for (const [, now, allowed] of boundaries) {
+    assert.equal(catalogPurchaseState(row, now), allowed ? "preorder" : "coming_soon");
+  }
 });
