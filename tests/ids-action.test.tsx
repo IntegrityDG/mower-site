@@ -99,7 +99,7 @@ const migration = readFileSync(
   ),
   homepage = readFileSync(new URL("../components/home/DesktopHomepage.tsx", import.meta.url), "utf8"),
   mobile = readFileSync(
-    new URL("../components/mobile/MobileHomeNavigation.tsx", import.meta.url),
+    new URL("../components/home/HomepageNavigation.tsx", import.meta.url),
     "utf8",
   ),
   mobileHome = readFileSync(
@@ -419,12 +419,10 @@ test("desktop IDS in Action is an isolated selectable view", () => {
   const home = homepage.slice(homepage.indexOf('view === "home"'), homepage.indexOf('view !== "home"'));
   assert.doesNotMatch(home, /IdsActionCarousel|HomeReviews|HomeFinancing/);
 });
-test("mobile menu selects the featured IDS IN ACTION view before contact without mounting the gallery", () => {
-  const reviews = mobile.indexOf('label: "CUSTOMER REVIEWS"'),
-    action = mobile.indexOf('label: "IDS IN ACTION"'),
-    contact = mobile.indexOf('label: "CONTACT IDS"');
-  assert.ok(reviews < action && action < contact);
-  assert.match(mobile, /label: "IDS IN ACTION", view: "ids-action"/);
+test("About IDS dropdown selects the featured IDS IN ACTION view without mounting the gallery", () => {
+  const aboutMenu = mobile.slice(mobile.indexOf('key === "about"'));
+  assert.match(aboutMenu, /CUSTOMER REVIEWS[\s\S]*IDS IN ACTION[\s\S]*CONTACT IDS/);
+  assert.match(mobile, /viewLink\("ids-action", "IDS IN ACTION"\)/);
   assert.doesNotMatch(mobile, /href="\/ids-in-action"[^>]*>IDS IN ACTION/);
   assert.match(mobileHome, /view === "ids-action" && <IdsActionCarousel \/>/);
   assert.doesNotMatch(mobileHome, /IdsActionGallery/);

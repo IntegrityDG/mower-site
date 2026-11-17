@@ -1,0 +1,16 @@
+# Homepage slide scheduler
+
+## Deployment
+1. Apply `20261117214047_homepage_slide_scheduler.sql` before deploying the app. It creates the service-role-only `public.homepage_slides` table and private `homepage-slide-images` storage bucket. No slide content is seeded.
+2. Deploy code with existing Supabase service role and Admin authentication settings. No new environment secrets are needed.
+3. In Admin → Sales & Specials, Homepage Slideshow replaces the old ticker editor. The two existing promotion editors remain. Ticker data/API are untouched for rollback.
+4. Save a disabled draft, upload a JPEG/PNG/WebP (≤10 MB), set dates, alt description and optional button, enable and save. Speed defaults to 8 whole seconds, bounded 4–30. Display order is ascending; ID breaks ties deterministically.
+
+## Dates and image visibility
+Start is inclusive 00:01 America/Chicago on the first date. Stop is exclusive **23:59:00** America/Chicago on the last date. The last minute beginning 23:59 is intentionally not displayed. DST conversion is enforced in both application and DB trigger. Public endpoints expose only active enabled attached slides; upcoming boundaries reveal only a timestamp. Images use an active-only same-origin proxy and no-store headers. Authenticated Admin preview can display inactive images.
+
+## Safe upload / replacement
+A signed upload is issued only after Admin authentication for a server-generated unique `uploads/{slideId}/{uuid}` path. Private bucket limits types and size. Finalization downloads and decodes with sharp (40-million-pixel cap), rejects animated images, strips metadata by re-encoding WebP, preserves aspect ratio and fits inside 2560×2560. Only after successful processing does an optimistic `updated_at` compare-and-update attach the new immutable image path. Concurrent edits reject the attachment; failed replacement preserves the old image. Previous images are retained privately for rollback and in-flight readers. Failed/unattached raw uploads remain private; periodic operator cleanup may remove unreferenced objects after the signed upload window (2 hours) and a recovery buffer. No destructive cleanup is automated here.
+
+## Isolated upload integration test (never seed production fixtures)
+Use a local Supabase stack or isolated test project, apply the migration there, and point the app's server env at it. Authenticate through the existing Admin login. Use a generated harmless landscape PNG. Save disabled draft, issue POST upload authorization, PUT bytes to returned signed URL, PATCH finalization with the returned path + current expectedUpdatedAt. Confirm `image_path` is a different `slides/...webp` object; only service role can list/read table or bucket. Preview works for Admin, public image returns 404 while disabled/future/ended. Enable with active dates; public snapshot and image return 200. Set stale expectedUpdatedAt to verify 409 and unchanged previous image. Repeat with corrupt bytes, SVG content mislabeled PNG, >10 MB, cross-slide paths and an extra concurrent edit. Verify no image attaches on rejection. Disable saved slide; both public snapshot omission and public image 404 must be immediate. Anon/authenticated SQL select must be denied; no storage policy should expose the private bucket.

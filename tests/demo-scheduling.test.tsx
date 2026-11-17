@@ -36,7 +36,7 @@ const areaPlanningMigration = source("supabase/migrations/20260815011728_add_dem
 const equipment = source("components/equipment/EquipmentCatalog.tsx");
 const homepage = source("components/home/DesktopHomepage.tsx");
 const mobileHome = source("components/mobile/MobileHomepage.tsx");
-const mobileNavigation = source("components/mobile/MobileHomeNavigation.tsx");
+const mobileNavigation = source("components/home/HomepageNavigation.tsx");
 const contact = source("components/contact/HomepageContactSection.tsx");
 const priceMatch = source("components/promotions/HomePriceMatch.tsx");
 const action = source("components/ids-action/IdsActionCarousel.tsx");
@@ -430,7 +430,7 @@ test("IDS Action featured experience includes View All and Schedule a Demo", () 
 
 test("mobile IDS IN ACTION is an internal featured view, not a direct gallery link", () => {
   assert.match(mobileNavigation, /"ids-action"/);
-  assert.match(mobileNavigation, /label: "IDS IN ACTION", view: "ids-action"/);
+  assert.match(mobileNavigation, /viewLink\("ids-action", "IDS IN ACTION"\)/);
   assert.doesNotMatch(mobileNavigation, /href="\/ids-in-action"[^>]*>IDS IN ACTION/);
   assert.match(mobileHome, /view === "ids-action" && <IdsActionCarousel \/>/);
 });
