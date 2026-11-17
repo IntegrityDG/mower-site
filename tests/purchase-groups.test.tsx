@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import ProductSelection from "../components/customer-paths/purchase/ProductSelection";
+import { productRequiresAvailabilityCheck } from "../lib/catalog/sales-mode";
 import { purchaseGroups, purchaseGroupForSelection } from "../lib/catalog/purchase-groups";
 import type { CatalogProduct } from "../lib/catalog/types";
 
@@ -38,7 +39,8 @@ test("direct-linked and back-selected children render their brand lineup with or
     assert.match(html, /Back to brands/);
     assert.match(html, /Build a Yarbo System/);
     assert.match(html, new RegExp(selected.imageUrl!));
-    assert.equal((html.match(/>Selected</g) ?? []).length, 1);
+    assert.equal((html.match(/>Selected</g) ?? []).length, productRequiresAvailabilityCheck(selected) ? 0 : 1);
+    if (productRequiresAvailabilityCheck(selected)) assert.match(html, /Check Availability/);
     assert.equal(purchaseGroupForSelection(purchaseGroups(catalog), selected.id)?.id, "yarbo");
   }
 });

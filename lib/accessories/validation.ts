@@ -54,7 +54,7 @@ export function validateItem(input: unknown) {
     result.actionLabel ||= "Go to Manufacturer's Site";
     if (result.showInBuilder && (result.contactForPricing || result.regularPriceCents === null)) return null;
   }
-  if (result.actionType === "builder" && (!result.showInBuilder || result.contactForPricing || result.regularPriceCents === null)) return null;
+  if (result.actionType === "builder" && (result.contactForPricing || result.regularPriceCents === null)) return null;
   if (result.isIncluded && result.showInBuilder) return null;
   return result;
 }

@@ -10,7 +10,7 @@ import type {
   CatalogSpecificationCategory,
   CatalogSpecifications,
 } from "@/lib/catalog/types";
-import { salesModeForCatalogProduct } from "@/lib/catalog/sales-mode";
+import { salesModeForCatalogProduct, productRequiresAvailabilityCheck } from "@/lib/catalog/sales-mode";
 import { publicPackageComponentIsAvailable } from "@/lib/catalog/package-components";
 import { customerFacingOptions } from "@/lib/catalog/customer-facing-options";
 import {
@@ -371,7 +371,7 @@ export async function loadPublicCatalog(
         target: PublicPromotionTargetKind,
         targetId: string,
       ) =>
-        salesMode === "quote_only"
+        salesMode === "quote_only" && !productRequiresAvailabilityCheck(product)
           ? quoteOnlyPublicPrice
           : publicPriceFor(row, target, targetId);
       const productMedia = media

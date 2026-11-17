@@ -6,13 +6,14 @@ import Link from "next/link";
 import { managedProductStartingPrice } from "@/lib/catalog/starting-price";
 import { packageComponentKey, packageComponentName } from "@/lib/catalog/package-components";
 import { priceLabel } from "@/lib/catalog/pricing";
-import { isQuoteOnlyProduct } from "@/lib/catalog/sales-mode";
+import { isQuoteOnlyProduct, productRequiresAvailabilityCheck } from "@/lib/catalog/sales-mode";
 import type { CatalogProduct } from "@/lib/catalog/types";
 import CatalogHeader from "./CatalogHeader";
 import ProductPageSections from "./ProductPageSections";
 import QuoteOnlyNotice from "./QuoteOnlyNotice";
 
 export default function GenericProductDetail({ product }: { product: CatalogProduct }) {
+  const availabilityCheck = productRequiresAvailabilityCheck(product);
   const quoteOnly = isQuoteOnlyProduct(product);
   const buildHref = `/?product=${encodeURIComponent(product.slug)}#location-and-customer-path`;
   return <div className="min-h-screen bg-slate-50 text-slate-950">
@@ -25,10 +26,11 @@ export default function GenericProductDetail({ product }: { product: CatalogProd
             <h1 className="mt-3 break-words text-4xl font-black tracking-tight sm:text-6xl">{product.name}</h1>
             {!product.isAvailable && <p className="mt-4 w-fit rounded-full bg-amber-100 px-4 py-2 font-black text-amber-950">Unavailable</p>}
             {(product.page?.heroSubheading ?? product.fullDescription ?? product.homepageSummary) && <p className="mt-6 whitespace-pre-line text-lg leading-8 text-slate-200">{product.page?.heroSubheading ?? product.fullDescription ?? product.homepageSummary}</p>}
-            {quoteOnly ? <QuoteOnlyNotice className="mt-7" productName={product.name} requestHref="/contact" isAvailable={product.isAvailable}/> : product.isAvailable ? <>
+            {quoteOnly && !availabilityCheck ? <QuoteOnlyNotice className="mt-7" productName={product.name} requestHref="/contact" isAvailable={product.isAvailable}/> : product.isAvailable ? <>
               <p className="mt-7 text-xs font-bold uppercase tracking-[0.16em] text-emerald-300">{product.hasManagedPackages ? "Starting at" : "Price"}</p>
               <p className="mt-2 text-3xl font-black">{priceLabel(managedProductStartingPrice(product) ?? product)}</p>
-              <Link href={buildHref} className="mt-7 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950">Build Your System</Link>
+              {availabilityCheck && <p className="mt-4 text-slate-200">Contact IDS to confirm availability before purchasing this refurbished equipment.</p>}
+              <Link href={availabilityCheck ? "/contact" : buildHref} className="mt-7 inline-flex rounded-2xl bg-emerald-500 px-7 py-4 font-black text-slate-950">{availabilityCheck ? "Check Availability" : "Build Your System"}</Link>
             </> : null}
           </div>
           <div className="relative min-h-80 overflow-hidden rounded-[2rem] bg-white/95">
