@@ -63,13 +63,18 @@ export function customerFacingUngroupedOptions(product: CatalogProduct) {
   return customerFacingOptions(product.ungroupedOptions, product.variants);
 }
 
-export function builderAccessoryOptions(product: CatalogProduct) {
+// A builder action enables standalone checkout; showInBuilder separately opts
+// the item into machine add-ons. Do not infer compatibility from its brand.
+export function standaloneAccessoryOptions(product: CatalogProduct) {
   return customerFacingProductOptions(product).filter(
     (option) =>
       option.accessoryListingEnabled &&
-      option.showInBuilder &&
       option.accessoryActionType === "builder" &&
       option.accessoryTab === (product.slug === "yarbo" ? "yarbo" : "lymow") &&
       (!option.isAvailable || (option.currentPriceCents !== null && !option.contactForPricing)),
   );
+}
+
+export function builderAccessoryOptions(product: CatalogProduct) {
+  return standaloneAccessoryOptions(product).filter((option) => option.showInBuilder);
 }

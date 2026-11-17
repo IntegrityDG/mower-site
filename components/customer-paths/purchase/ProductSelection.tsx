@@ -1,5 +1,10 @@
 "use client";
 
+import { yarboSeriesForProduct, yarboSeriesOrder } from "@/lib/catalog/yarbo-series";
+import { Fragment } from "react";
+import Link from "next/link";
+import { priceLabel } from "@/lib/catalog/pricing";
+import { productRequiresAvailabilityCheck } from "@/lib/catalog/sales-mode";
 import { useState } from "react";
 import type { CatalogProduct } from "@/lib/catalog/types";
 import { purchaseGroups, purchaseGroupForSelection, purchaseGroupHasLineup } from "@/lib/catalog/purchase-groups";
@@ -40,23 +45,32 @@ export default function ProductSelection({ products, selectedProductId, onSelect
       { id: "accessories", title: "Accessories & Parts", copy: "Purchase Lymow, Yarbo, or Aftermarket accessories, replacement parts, batteries, blades, tracks, cables, and more.", available: true },
     ];
 
+  if (group?.id === "yarbo") paths.sort((a, b) =>
+    yarboSeriesOrder.indexOf(yarboSeriesForProduct(a.product!)) - yarboSeriesOrder.indexOf(yarboSeriesForProduct(b.product!)));
+
   return <div>
     <p className="text-sm font-bold uppercase tracking-[0.25em] text-emerald-700">Make Your Selections</p>
     {group && <button type="button" onClick={() => { setOpenedGroupId(null); onSelectProduct(""); }} className="mt-4 font-bold text-emerald-700 underline">Back to brands</button>}
     <h3 className="mt-3 text-3xl font-black">{group ? `Choose your ${group.name} equipment` : "What would you like to purchase?"}</h3>
-    <div className="mt-7 grid gap-5 lg:grid-cols-3">{paths.map((path) => {
+    <div className="mt-7 grid gap-5 lg:grid-cols-3">{paths.map((path, index) => {
       const selected = selectedProductId === path.id;
       const product = path.product;
-      return <article key={path.id} className={`flex flex-col rounded-[2rem] border p-5 ${selected ? "border-emerald-700 bg-emerald-50 shadow-xl" : "border-slate-300 bg-white"}`}>
+      const series = group?.id === "yarbo" && product ? yarboSeriesForProduct(product) : null;
+      const firstInSeries = series && (index === 0 || yarboSeriesForProduct(paths[index - 1].product!) !== series);
+      return <Fragment key={path.id}>{firstInSeries && <h4 className="mt-3 text-2xl font-black lg:col-span-3">{series}</h4>}<article className={`flex flex-col rounded-[2rem] border p-5 ${selected ? "border-emerald-700 bg-emerald-50 shadow-xl" : "border-slate-300 bg-white"}`}>
         <div className="flex h-44 items-center justify-center rounded-2xl bg-slate-100 p-4"><img src={product?.imageUrl || "/logo.png"} alt={product?.imageAlt || "IDS accessories and parts"} className="max-h-36 w-full object-contain" /></div>
         <h4 className="mt-5 text-2xl font-black">{path.title}</h4>
         {!path.available && <span className="mt-3 w-fit rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-950">Unavailable</span>}
         <p className="mt-3 flex-1 leading-7 text-slate-600">{path.copy}</p>
-        <button type="button" disabled={!path.available} onClick={() => {
+        {group && product?.adminManaged && <p className="mt-3 text-xl font-black text-emerald-800">{priceLabel(product)}</p>}
+        {group && product && productRequiresAvailabilityCheck(product) ? <>
+          <p className="mt-3 text-sm text-slate-600">Contact IDS to confirm availability before purchasing this refurbished equipment.</p>
+          <Link href="/contact" className="mt-5 rounded-2xl bg-slate-950 px-4 py-3 text-center font-black text-white">Check Availability</Link>
+        </> : <button type="button" disabled={!path.available} onClick={() => {
           if (path.groupId) { setOpenedGroupId(path.groupId); onSelectProduct(""); }
           else onSelectProduct(path.id);
-        }} className={`mt-5 rounded-2xl px-4 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 ${selected ? "bg-emerald-700" : "bg-slate-950 hover:bg-emerald-700"}`}>{!path.available ? "Unavailable" : selected ? "Selected" : `Select ${path.title}`}</button>
-      </article>;
+        }} className={`mt-5 rounded-2xl px-4 py-3 font-black text-white disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600 ${selected ? "bg-emerald-700" : "bg-slate-950 hover:bg-emerald-700"}`}>{!path.available ? "Unavailable" : selected ? "Selected" : `Select ${path.title}`}</button>}
+      </article></Fragment>;
     })}</div>
   </div>;
 }

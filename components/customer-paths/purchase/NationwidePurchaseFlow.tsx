@@ -15,9 +15,9 @@ import {
 import { fetchCatalog } from "@/lib/catalog/fetch-catalog";
 import { nextPreorderBoundaryDelay } from "@/lib/catalog/preorder";
 import PreorderNotice from "@/components/equipment/PreorderNotice";
-import { builderAccessoryOptions, customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
+import { builderAccessoryOptions, standaloneAccessoryOptions, customerFacingProductOptions } from "@/lib/catalog/customer-facing-options";
 import { buildAvailabilityIssues, catalogOptionIsAvailable, removeUnavailableBuildSelections } from "@/lib/catalog/availability";
-import { isSelfServiceProduct } from "@/lib/catalog/sales-mode";
+import { isSelfServiceProduct, productRequiresAvailabilityCheck } from "@/lib/catalog/sales-mode";
 import { isPublicEquipmentProductSlug } from "@/lib/catalog/product-routing";
 import { lymowVariantPage, type LymowConfiguration } from "@/lib/catalog/lymow-variant-pages";
 import { yarboCoreCanBeSelected } from "@/lib/catalog/yarbo-core";
@@ -215,7 +215,7 @@ export function productRequestedByBuildSearch(
 
 export function accessoryRequestedByBuildSearch(product: CatalogProduct, search: string) {
   const slug = new URLSearchParams(search).get("accessory")?.trim();
-  return slug ? builderAccessoryOptions(product).find((option) => option.slug === slug && option.isAvailable) ?? null : null;
+  return slug ? standaloneAccessoryOptions(product).find((option) => option.slug === slug && option.isAvailable) ?? null : null;
 }
 
 function initialBuildSelection(product: CatalogProduct): ProductBuildSelection {
@@ -379,6 +379,7 @@ export default function NationwidePurchaseFlow({
     setSelectedProductId(requestedProduct.id);
     const initial = initialBuildSelection(requestedProduct);
     const accessory = accessoryRequestedByBuildSearch(requestedProduct, window.location.search);
+    if (accessory && !accessory.showInBuilder) setSelectedProductId("accessories");
     setBuildSelection(accessory ? { ...initial, optionQuantities: { ...initial.optionQuantities, [accessory.id]: 1 } } : initial);
   }, [catalog, lymowConfiguration]);
 
@@ -403,7 +404,7 @@ export default function NationwidePurchaseFlow({
   );
   const accessoryMode = selectedProductId === "accessories";
   const accessoryChoices = useMemo(() => (catalog?.products ?? []).flatMap((product) => {
-    const purchasable = builderAccessoryOptions(product);
+    const purchasable = standaloneAccessoryOptions(product);
     const aftermarket = customerFacingProductOptions(product).filter(
       (option) => option.accessoryListingEnabled && option.accessoryTab === "aftermarket"
     );
@@ -988,7 +989,7 @@ export default function NationwidePurchaseFlow({
     if (activeStage.key === "product") {
       return (
         <ProductSelection
-          products={catalog?.products.filter(isSelfServiceProduct) ?? []}
+          products={catalog?.products.filter((product) => isSelfServiceProduct(product) || productRequiresAvailabilityCheck(product)) ?? []}
           selectedProductId={selectedProductId}
           onSelectProduct={handleProductSelect}
         />
