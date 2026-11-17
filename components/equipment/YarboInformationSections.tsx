@@ -453,8 +453,7 @@ export default function YarboInformationSections({
 
           <InformationCard title="Included Base Equipment">
             <p>
-              Complete Yarbo systems include the platform foundation needed to
-              support Core-based operation:
+              Every Yarbo Core order and complete system, including Y40, Y40P, and PAC-MAN systems, includes the following equipment at no additional charge:
             </p>
             <BulletedList items={YARBO_INCLUDED_PLATFORM_EQUIPMENT} />
             <p>

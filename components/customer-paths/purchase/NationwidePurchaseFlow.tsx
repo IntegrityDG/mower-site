@@ -2,6 +2,7 @@
 
 import { nextPackageSaleBoundaryDelay, yarboPackageCard, yarboPackageForCore } from "@/lib/catalog/yarbo-sale-packages";
 
+import YarboCoreInclusions from "@/components/equipment/YarboCoreInclusions";
 import CatalogCardImage from "@/components/equipment/CatalogCardImage";
 import { catalogCardImage } from "@/lib/catalog/card-image";
 
@@ -45,7 +46,8 @@ import {
 import type { PaymentMethodAvailabilityLoadState } from "@/lib/payment-method-settings/types";
 import {
   YARBO_CORE_ABSENT_NOTICE,
-  YARBO_INCLUDED_PLATFORM_EQUIPMENT,
+  yarboIncludedEquipment,
+  yarboOrderIncludesCore,
   isYarboModuleOption,
   isYarboProduct,
   yarboOptionDisplayName,
@@ -763,12 +765,7 @@ export default function NationwidePurchaseFlow({
         ]
       : [];
     const yarboIncludedPackageItems = selectedYarboPackage
-      ? [
-          ...YARBO_INCLUDED_PLATFORM_EQUIPMENT,
-          ...build.packageIncludedItems.map((item) =>
-            packageComponentName(item)
-          ),
-        ]
+      ? yarboIncludedEquipment(build.packageIncludedItems)
       : [];
     const yarboModulesWithoutCore =
       selectedProductIsYarbo &&
@@ -1310,16 +1307,13 @@ export function EquipmentSelectionReview({
           </p>
         </section>
 
-        {build.selectedPackage && build.packageIncludedItems.length > 0 && (
+        {yarboOrderIncludesCore(selectedProduct, buildSelection) && <YarboCoreInclusions items={build.packageIncludedItems} />}
+        {!yarboOrderIncludesCore(selectedProduct, buildSelection) && build.selectedPackage && build.packageIncludedItems.length > 0 && (
           <section className="rounded-[2rem] border border-slate-300 bg-white p-6 lg:col-span-2">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
               Included Package Equipment
             </p>
             <div className="mt-3 grid gap-2 text-sm font-semibold leading-6 text-slate-700 md:grid-cols-2">
-              {selectedProductIsYarbo &&
-                YARBO_INCLUDED_PLATFORM_EQUIPMENT.map((item) => (
-                  <p key={item}>{item}</p>
-                ))}
               {build.packageIncludedItems.map((item) => (
                 <p key={packageComponentKey(item)}>
                   {packageComponentName(item)}

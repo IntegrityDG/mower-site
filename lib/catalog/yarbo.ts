@@ -1,6 +1,7 @@
 import type {
   CatalogOption,
   CatalogPackage,
+  CatalogPackageItem,
   CatalogProduct,
   ProductBuildSelection,
 } from "./types";
@@ -18,11 +19,43 @@ export const YARBO_CORE_ABSENT_NOTICE =
 export const YARBO_INCLUDED_PLATFORM_EQUIPMENT = [
   "Yarbo Core",
   "Core charging equipment",
-  "Core navigation/RTK equipment",
+  "Yarbo Data Center",
+  "Pro antennas",
 ];
 
 export const YARBO_CORE_EQUIPMENT_DESCRIPTION =
-  "Complete Yarbo systems include the Core plus the Core charging and navigation equipment required for platform operation.";
+  "Every Yarbo Core order and complete system includes the Yarbo Data Center and Pro antennas at no additional charge, including Y40, Y40P, and PAC-MAN systems.";
+
+const YARBO_PAC_MAN_CORE_SYSTEMS = new Set([
+  "yarbo-pac-man-snow-blower-gen-2",
+  "yarbo-pac-man-snow-blower-gen-2-mower-pro",
+]);
+
+export function isYarboPacManCoreSystem(product: Pick<CatalogProduct, "slug">) {
+  return YARBO_PAC_MAN_CORE_SYSTEMS.has(product.slug);
+}
+
+export function yarboOrderIncludesCore(product: CatalogProduct, selection: ProductBuildSelection) {
+  if (isYarboPacManCoreSystem(product)) return true;
+  return isYarboProduct(product) && Boolean(
+    selection.purchaseMode === "complete-system"
+      ? product.packages.some(item => item.id === selection.packageId)
+      : selection.purchaseMode === "individual-equipment" && selection.includeBaseProduct
+  );
+}
+
+const YARBO_INCLUDED_NAVIGATION_SLUGS = new Set(["yarbo-data-center", "yarbo-pro-antenna", "yarbo-pro-antennas"]);
+
+export function isYarboIncludedNavigationItem(item: CatalogPackageItem) {
+  return YARBO_INCLUDED_NAVIGATION_SLUGS.has(item.component?.slug ?? item.option?.slug ?? "");
+}
+
+/** Included-equipment copy only. Do not add options, prices or checkout lines. */
+export function yarboIncludedEquipment(items: readonly CatalogPackageItem[] = []) {
+  return [...YARBO_INCLUDED_PLATFORM_EQUIPMENT, ...items.filter(item =>
+    item.includedInPackagePrice && !isYarboIncludedNavigationItem(item)
+  ).map(item => `${packageComponentName(item)}${item.quantity > 1 ? ` x ${item.quantity}` : ""}`)];
+}
 
 export type YarboPurchaseMode = "complete-system" | "individual-equipment";
 
