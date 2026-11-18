@@ -29,17 +29,18 @@
  .counter { font-size:.7rem; }
 }
 @media(prefers-reduced-motion:reduce) { .hero * { animation:none!important; transition:none!important; } }
-/* Desktop fills a wide frame; the active mobile image defines its own height. */
+/* Keep the creative whole; widen the backdrop when viewport height limits the frame. */
 .creative { flex-direction:column; align-items:stretch; background:#101713; }
+.hero.creative { min-height:0; }
 .creative .content { padding-top:0; }
 .creative .actions { margin-top:1.25rem; }
 .creative .controls { margin-top:1.25rem; }
 .photoStage { position:absolute; inset:0; z-index:-3; }
-.artworkStage { position:relative; width:100%; height:clamp(20rem,50vw,80svh); flex:none; }
-.artworkStage .artwork { object-fit:cover; object-position:center; }
+.artworkStage { position:relative; width:100%; aspect-ratio:2/1; max-height:80svh; flex:none; overflow:hidden; }
+.artworkBackdrop { position:absolute; inset:-24px; background-position:center; background-size:cover; filter:blur(22px) brightness(.68); transition:opacity .55s ease; pointer-events:none; }
+.artworkStage .artwork { object-fit:contain; object-position:center; }
 @media(max-width:767px) {
- .hero.creative { min-height:0; }
- .artworkStage { height:auto; }
- .artworkStage .artwork { object-fit:contain; }
+ .artworkStage { height:auto; aspect-ratio:auto; max-height:none; }
+ .artworkBackdrop { display:none; }
  .artworkStage .artwork:not([aria-hidden]) { position:relative; inset:auto; height:auto; }
 }

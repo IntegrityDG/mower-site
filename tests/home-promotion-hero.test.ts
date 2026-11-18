@@ -45,15 +45,18 @@ test("hero controls, motion preferences, responsive artwork and existing boards 
   }
 });
 
-test("scheduled artwork covers desktop and uses intrinsic full-width sizing on phones", () => {
+test("scheduled artwork stays whole on desktop and uses intrinsic full-width sizing on phones", () => {
+  const hero = readFileSync("components/home/HomePromotionHero.tsx", "utf8");
   const css = readFileSync("components/home/HomePromotionHero.module.css", "utf8");
   const desktopArtwork = css.slice(css.indexOf(".artworkStage {"), css.lastIndexOf("@media"));
   const mobileArtwork = css.slice(css.lastIndexOf("@media"));
-  assert.match(desktopArtwork, /width:100%; height:clamp/);
-  assert.match(desktopArtwork, /\.artworkStage \.artwork \{ object-fit:cover/);
+  assert.match(css, /\.hero\.creative \{ min-height:0/);
+  assert.match(desktopArtwork, /width:100%; aspect-ratio:2\/1; max-height:80svh/);
+  assert.match(desktopArtwork, /\.artworkStage \.artwork \{ object-fit:contain/);
+  assert.match(desktopArtwork, /\.artworkBackdrop \{[^}]*background-size:cover; filter:blur/);
+  assert.match(hero, /backdrop-\$\{item.id\}[^]*?aria-hidden="true"[^]*?backgroundImage:/);
   assert.match(mobileArtwork, /max-width:767px/);
-  assert.match(mobileArtwork, /\.hero\.creative \{ min-height:0/);
-  assert.match(mobileArtwork, /\.artworkStage \{ height:auto/);
-  assert.match(mobileArtwork, /\.artworkStage \.artwork \{ object-fit:contain/);
+  assert.match(mobileArtwork, /\.artworkStage \{ height:auto; aspect-ratio:auto; max-height:none/);
+  assert.match(mobileArtwork, /\.artworkBackdrop \{ display:none/);
   assert.match(mobileArtwork, /:not\(\[aria-hidden\]\) \{ position:relative; inset:auto; height:auto/);
 });

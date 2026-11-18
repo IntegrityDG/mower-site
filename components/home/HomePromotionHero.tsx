@@ -64,6 +64,8 @@ export default function HomePromotionHero({ initialSnapshot, onBuild, serverObse
     onMouseEnter={() => setInteracting(true)} onMouseLeave={() => setInteracting(false)}
     onFocusCapture={event => { if (!(event.target as HTMLElement).closest("[data-rotation-control]")) setPaused(true); }}>
     <div className={slide.sale ? styles.artworkStage : styles.photoStage}>
+      {slide.sale && slides.map((item, i) => <div key={`backdrop-${item.id}`} aria-hidden="true"
+        className={styles.artworkBackdrop} style={{ backgroundImage: `url(${JSON.stringify(item.image)})`, opacity: i === index ? 1 : 0 }} />)}
       {slides.map((item, i) =>
         // eslint-disable-next-line @next/next/no-img-element -- existing local photos or Admin-uploaded creative with responsive sizing
         <img key={item.id} src={item.image} alt={i === index && item.sale ? item.imageAlt : ""}
