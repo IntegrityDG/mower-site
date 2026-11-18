@@ -65,7 +65,7 @@ export default function HomePromotionHero({ initialSnapshot, onBuild, serverObse
     onFocusCapture={event => { if (!(event.target as HTMLElement).closest("[data-rotation-control]")) setPaused(true); }}>
     <div className={slide.sale ? styles.artworkStage : styles.photoStage}>
       {slides.map((item, i) =>
-        // eslint-disable-next-line @next/next/no-img-element -- existing local photos or Admin-uploaded creative; no cropping of offer text
+        // eslint-disable-next-line @next/next/no-img-element -- existing local photos or Admin-uploaded creative with responsive sizing
         <img key={item.id} src={item.image} alt={i === index && item.sale ? item.imageAlt : ""}
           aria-hidden={i !== index ? true : undefined} className={`${styles.image} ${item.sale ? styles.artwork : ""}`}
           style={{ opacity: i === index ? 1 : 0 }} fetchPriority={i === 0 ? "high" : "auto"} />

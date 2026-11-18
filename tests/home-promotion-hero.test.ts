@@ -29,18 +29,31 @@ test("invalid or reversed dates cannot publish a creative", () => {
     assert.equal(eligibleHomeHeroSlides({ ...snapshot, slides: [{ ...snapshot.slides[0], ...patch }] }, Date.parse(start)).some(slide => slide.sale), false);
   }
 });
-test("hero controls, motion preferences, no-crop artwork and existing boards remain integrated", () => {
+test("hero controls, motion preferences, responsive artwork and existing boards remain integrated", () => {
   const hero = readFileSync("components/home/HomePromotionHero.tsx", "utf8");
   const css = readFileSync("components/home/HomePromotionHero.module.css", "utf8");
   assert.match(hero, /prefers-reduced-motion: reduce/); assert.match(hero, /Pause slideshow/);
   assert.match(hero, /data-rotation-control/); assert.match(hero, /dwellSeconds \* 1000/);
   assert.match(hero, /visibilitychange/); assert.match(hero, /nextChangeAt/);
   assert.doesNotMatch(hero, /wheel|preventDefault|touchmove/);
-  assert.match(css, /object-fit:contain/); assert.match(css, /prefers-reduced-motion:reduce/);
+  assert.match(css, /prefers-reduced-motion:reduce/);
   for (const file of ["components/home/DesktopHomepage.tsx", "components/mobile/MobileHomepage.tsx"]) {
     const source = readFileSync(file, "utf8");
     assert.match(source, /HomePromotionHero/); assert.match(source, /HomepageNavigation/);
     assert.match(source, /HomeSalesSpecial/); assert.match(source, /HomeBusinessSpotlight/);
     assert.doesNotMatch(source, /<SalesTicker/);
   }
+});
+
+test("scheduled artwork covers desktop and uses intrinsic full-width sizing on phones", () => {
+  const css = readFileSync("components/home/HomePromotionHero.module.css", "utf8");
+  const desktopArtwork = css.slice(css.indexOf(".artworkStage {"), css.lastIndexOf("@media"));
+  const mobileArtwork = css.slice(css.lastIndexOf("@media"));
+  assert.match(desktopArtwork, /width:100%; height:clamp/);
+  assert.match(desktopArtwork, /\.artworkStage \.artwork \{ object-fit:cover/);
+  assert.match(mobileArtwork, /max-width:767px/);
+  assert.match(mobileArtwork, /\.hero\.creative \{ min-height:0/);
+  assert.match(mobileArtwork, /\.artworkStage \{ height:auto/);
+  assert.match(mobileArtwork, /\.artworkStage \.artwork \{ object-fit:contain/);
+  assert.match(mobileArtwork, /:not\(\[aria-hidden\]\) \{ position:relative; inset:auto; height:auto/);
 });
