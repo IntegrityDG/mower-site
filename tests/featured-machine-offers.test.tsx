@@ -60,3 +60,55 @@ test('desktop and mobile explicitly enable the same featured presentation', () =
   for (const path of ['components/home/DesktopHomepage.tsx', 'components/mobile/MobileHomepage.tsx']) assert.match(readFileSync(path, 'utf8'), /<EquipmentCatalog featuredBrands \/>/);
   assert.doesNotMatch(readFileSync('app/equipment/page.tsx', 'utf8'), /featuredBrands/);
 });
+
+test('Our Machines cards are information-only for every brand, not just Lymow and Yarbo', () => {
+  const source = yarbo();
+  const lymow = { ...source, id: 'lymow', slug: 'lymow-one-plus', brand: 'Lymow', name: 'Lymow One Plus' };
+  const pandag = { ...source, id: 'pandag', slug: 'pandag-g1', brand: 'Pandag', name: 'Pandag G1' };
+  const futureBrand = { ...source, id: 'future', slug: 'future-machine', brand: 'Future Brand', name: 'Future Machine', adminManaged: true };
+  const products = [lymow, source, pandag, futureBrand].map((product) => ({
+    ...product,
+    homepageSummary: `Information about ${product.brand}.`,
+    imageUrl: `/test/${product.id}.png`,
+    publicPromotion: { context: 'ids' as const, message: 'Free Pistol and SALE GIFT PROMOTION', imageUrl: '/test/promotion-only.png' },
+    variants: product.variants.map((variant) => ({ ...variant, promotionLabel: 'SALE LABEL', publicPromotion: { context: 'sale' as const, message: 'FREE VARIANT GIFT', imageUrl: '/test/variant-promo.png' } })),
+  }));
+  const unchanged = JSON.stringify(products);
+  const html = renderToStaticMarkup(<EquipmentCards products={products} aftermarketEnabled={false} featuredBrands />);
+  assert.doesNotMatch(html, /\$|Starting at|Core only|Sale Price|Current package sales|MSRP|Everyday Low Price|SALE LABEL|Free Pistol|SALE GIFT PROMOTION|FREE VARIANT GIFT|promotion-only\.png|variant-promo\.png|Commercial Quote|Request a Quote/);
+  for (const product of products) {
+    assert.ok(html.includes(product.name));
+    assert.ok(html.includes(`Information about ${product.brand}.`));
+    assert.ok(html.includes(`/test/${product.id}.png`));
+    assert.ok(html.includes(`href="/equipment/${product.slug}"`));
+  }
+  assert.equal(JSON.stringify(products), unchanged);
+});
+
+test('information-only cards preserve unavailable state, full-description fallback, and availability links', () => {
+  const product = { ...yarbo(), isAvailable: false, homepageSummary: null, fullDescription: 'Tracked equipment for difficult terrain.' };
+  const html = renderToStaticMarkup(<EquipmentCards products={[product]} aftermarketEnabled={false} featuredBrands />);
+  assert.match(html, /Unavailable|Currently Unavailable/);
+  assert.match(html, /Tracked equipment for difficult terrain/);
+  assert.match(html, /View Details/);
+  assert.doesNotMatch(html, /\$|OLD FAMILY PROMOTION/);
+  const checkAvailability = { ...product, id: 'special', slug: 'yarbo-refurbished-core', adminManaged: true, brand: 'Other' };
+  const checkHtml = renderToStaticMarkup(<EquipmentCards products={[checkAvailability]} aftermarketEnabled={false} featuredBrands />);
+  assert.match(checkHtml, /Check Availability/);
+});
+
+test('separate equipment cards retain their price, promotion, and commercial quote content', () => {
+  const product = yarbo();
+  const pandag = { ...product, id: 'pandag', slug: 'pandag-g1', brand: 'Pandag', name: 'Pandag G1' };
+  const html = renderToStaticMarkup(<EquipmentCards products={[product, pandag]} aftermarketEnabled={false} />);
+  assert.match(html, /Starting at|\$3,749/);
+  assert.match(html, /OLD FAMILY PROMOTION/);
+  assert.match(html, /Contact IDS for a Commercial Quote Today/);
+  assert.match(html, /Request a Quote/);
+});
+
+test('Our Machines no longer schedules price-only catalog refreshes', () => {
+  const source = readFileSync('components/equipment/EquipmentCatalog.tsx', 'utf8');
+  assert.doesNotMatch(source, /MachineOfferSummary|nextPackageSaleBoundaryDelay|Refreshing current equipment prices|visibilitychange|setRefreshing/);
+  assert.match(source, /fetchCatalog\(\{ signal: controller.signal \}\)/);
+});
