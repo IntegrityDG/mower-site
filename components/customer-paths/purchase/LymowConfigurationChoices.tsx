@@ -1,5 +1,5 @@
 import CatalogCardImage from "@/components/equipment/CatalogCardImage";
-import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
+import BuilderPriceDisplay, { matchingBuilderSaleLabel } from "./BuilderPriceDisplay";
 import { catalogCardImage } from "@/lib/catalog/card-image";
 import { catalogPackageIsAvailable } from "@/lib/catalog/availability";
 import { LYMOW_ENHANCED_DISCHARGE_KIT_SLUG, lymowEnhancedPackageVariant } from "@/lib/catalog/lymow-enhanced-packages";
@@ -43,8 +43,8 @@ export default function LymowConfigurationChoices({ product, selection, onSelect
             <h5 className="text-xl font-black text-slate-950">{title}</h5>
             <p className="mt-2 text-sm leading-6 text-slate-600">{offering?.description ?? variant.description}</p>
             <p className="mt-3 text-sm font-semibold text-slate-700">Includes the mower and {label} charging configuration{offering ? ", plus one Enhanced Grass Discharge Kit." : ". No Enhanced Grass Discharge Kit included."}</p>
-            {!available ? <span className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span> :
-              <EverydayPriceDisplay item={offering ?? variant} comparisonLabel="Lymow Everyday Price" className="mt-4" />}
+            {!available && <span className="mt-3 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
+              {<BuilderPriceDisplay item={offering ?? variant} offerName={offering?.name ?? variant.name} saleLabel={matchingBuilderSaleLabel(offering ?? variant, [...product.variants, ...product.packages])} className="mt-4" />}
           </button>;
         });
       })}
