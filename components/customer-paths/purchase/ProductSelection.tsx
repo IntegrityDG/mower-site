@@ -4,6 +4,7 @@ import { yarboSeriesForProduct, yarboSeriesOrder } from "@/lib/catalog/yarbo-ser
 import { Fragment } from "react";
 import Link from "next/link";
 import { priceLabel } from "@/lib/catalog/pricing";
+import BuilderPriceDisplay from "./BuilderPriceDisplay";
 import { productRequiresAvailabilityCheck } from "@/lib/catalog/sales-mode";
 import { useState } from "react";
 import type { CatalogProduct } from "@/lib/catalog/types";
@@ -62,7 +63,7 @@ export default function ProductSelection({ products, selectedProductId, onSelect
         <h4 className="mt-5 text-2xl font-black">{path.title}</h4>
         {!path.available && <span className="mt-3 w-fit rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-950">Unavailable</span>}
         <p className="mt-3 flex-1 leading-7 text-slate-600">{path.copy}</p>
-        {group && product?.adminManaged && <p className="mt-3 text-xl font-black text-emerald-800">{priceLabel(product)}</p>}
+        {group && product?.adminManaged && (product.salesMode === "quote_only" || product.brand?.toLowerCase() === "pandag" ? <p className="mt-3 text-xl font-black text-emerald-800">{priceLabel(product)}</p> : <BuilderPriceDisplay item={product} offerName={product.name} className="mt-3" />)}
         {group && product && productRequiresAvailabilityCheck(product) ? <>
           <p className="mt-3 text-sm text-slate-600">Contact IDS to confirm availability before purchasing this refurbished equipment.</p>
           <Link href="/contact" className="mt-5 rounded-2xl bg-slate-950 px-4 py-3 text-center font-black text-white">Check Availability</Link>

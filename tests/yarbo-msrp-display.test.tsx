@@ -126,10 +126,10 @@ test("Fall Sale MSRP display preserves one package selection, Core choice, and p
     assert.equal((html.match(/name="yarbo-complete-core"/g) ?? []).length, 2);
     assert.match(html, new RegExp(`<input(?=[^>]*name="yarbo-complete-core")(?=[^>]*value="${variantId}")(?=[^>]*checked)[^>]*>`));
     const selectedPackages = (html.match(/<button[^>]*aria-pressed="true"[^>]*>[\s\S]*?<\/button>/g) ?? [])
-      .filter((button) => button.includes("Y40P MSRP"));
+      .filter((button) => button.includes("Manufacturer MSRP"));
     assert.equal(selectedPackages.length, 1);
     assert.match(html, /Early Access \/ Pre-Order/);
-    assert.match(html, /Y40P MSRP<\/p><p[^>]*>\$7,599<\/p>/);
+    assert.match(html, /Manufacturer MSRP<\/p><p[^>]*>\$7,599<\/p>/);
     assert.equal(productBuildIsComplete(product, selection), true);
     assert.equal(resolveBuildSelection(product, selection).packageIncludedItems.length, 1);
     assert.equal(resolveBuildSelection(product, selection).equipmentTotalCents, variantId === "y40p" ? 719900 : 579900);

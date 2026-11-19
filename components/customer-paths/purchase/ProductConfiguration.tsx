@@ -6,15 +6,15 @@ import YarboCoreInclusions from "@/components/equipment/YarboCoreInclusions";
 import CatalogCardImage from "@/components/equipment/CatalogCardImage";
 import { catalogCardImage } from "@/lib/catalog/card-image";
 
-import YarboPriceDisplay from "@/components/equipment/YarboPriceDisplay";
-import YarboCorePrice from "@/components/equipment/YarboCorePrice";
+import BuilderPriceDisplay from "./BuilderPriceDisplay";
+import BuilderCorePrice from "./BuilderCorePrice";
 import CoreAvailabilityBadge from "@/components/equipment/CoreAvailabilityBadge";
 import PreorderNotice from "@/components/equipment/PreorderNotice";
 import LymowConfigurationChoices from "./LymowConfigurationChoices";
 import { isLymowEnhancedPackage } from "@/lib/catalog/lymow-enhanced-packages";
 import YarboPackageGroupSelector from "./YarboPackageGroupSelector";
 import { selectedYarboCore, yarboCoreCanBeSelected, yarboCorePrice, yarboCoreVariants } from "@/lib/catalog/yarbo-core";
-import EverydayPriceDisplay from "@/components/equipment/EverydayPriceDisplay";
+
 import { priceLabel } from "@/lib/catalog/pricing";
 import { packageComponentKey, packageComponentName } from "@/lib/catalog/package-components";
 import { catalogPackageIsAvailable } from "@/lib/catalog/availability";
@@ -110,7 +110,8 @@ function groupAppliesToVariant(
   return true;
 }
 
-function OptionPrice({ option }: { option: CatalogOption }) {
+function OptionPrice({ option, product }: { option: CatalogOption; product: CatalogProduct }) {
+  if (product.salesMode !== "quote_only" && product.brand?.toLowerCase() !== "pandag" && !option.isIncluded) return <>{!option.isAvailable && <p className="mt-3 text-sm font-black text-amber-800">Unavailable</p>}<BuilderPriceDisplay item={option} offerName={option.name} className="mt-3" /></>;
   return (
     <p className={`mt-3 text-sm font-black ${option.isAvailable ? "text-emerald-700" : "text-amber-800"}`}>
       {!option.isAvailable ? "Unavailable" : option.isIncluded ? "Included" : priceLabel(option)}
@@ -158,7 +159,7 @@ export default function ProductConfiguration({
 function OptionalAccessories({product,selection,onChangeOptionQuantity}:{product:CatalogProduct;selection:ProductBuildSelection;onChangeOptionQuantity:(id:string,q:number)=>void}){
   const [open,setOpen]=useState(false);const[search,setSearch]=useState("");const accessories=builderAccessoryOptions(product).filter(o=>o.name.toLowerCase().includes(search.toLowerCase()));
   if(!accessories.length)return null;
-  return <section className="mt-8 rounded-[2rem] border border-emerald-200 bg-emerald-50/40 p-5 md:p-7"><button type="button" aria-expanded={open} onClick={()=>setOpen(v=>!v)} className="flex w-full items-center justify-between text-left"><span><span className="text-xs font-bold uppercase tracking-[.18em] text-emerald-700">Optional Accessories &amp; Parts</span><span className="mt-2 block text-2xl font-black">Add Optional Accessories &amp; Parts</span></span><span className="text-2xl">{open?'−':'+'}</span></button>{open&&<div className="mt-6"><label className="block font-bold">Search accessories<input value={search} onChange={e=>setSearch(e.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3"/></label><div className="mt-5 grid gap-4 lg:grid-cols-2">{accessories.map(option=>{const q=quantityForOption(selection,option);return <article key={option.id} className="rounded-2xl border bg-white p-4"><CatalogCardImage image={catalogCardImage(option, product)} /><h4 className="font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p><OptionPrice option={option}/><div className="mt-3 flex items-center gap-3"><button type="button" disabled={!option.isAvailable} aria-label={`Decrease ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q-1))} className="h-9 w-9 rounded-lg border font-black disabled:cursor-not-allowed disabled:opacity-40">−</button><span className="min-w-6 text-center font-black">{q}</span><button type="button" disabled={!option.isAvailable} aria-label={`Increase ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q+1))} className="h-9 w-9 rounded-lg border font-black disabled:cursor-not-allowed disabled:opacity-40">+</button></div></article>})}</div></div>}</section>
+  return <section className="mt-8 rounded-[2rem] border border-emerald-200 bg-emerald-50/40 p-5 md:p-7"><button type="button" aria-expanded={open} onClick={()=>setOpen(v=>!v)} className="flex w-full items-center justify-between text-left"><span><span className="text-xs font-bold uppercase tracking-[.18em] text-emerald-700">Optional Accessories &amp; Parts</span><span className="mt-2 block text-2xl font-black">Add Optional Accessories &amp; Parts</span></span><span className="text-2xl">{open?'−':'+'}</span></button>{open&&<div className="mt-6"><label className="block font-bold">Search accessories<input value={search} onChange={e=>setSearch(e.target.value)} className="mt-2 w-full rounded-xl border bg-white p-3"/></label><div className="mt-5 grid gap-4 lg:grid-cols-2">{accessories.map(option=>{const q=quantityForOption(selection,option);return <article key={option.id} className="rounded-2xl border bg-white p-4"><CatalogCardImage image={catalogCardImage(option, product)} /><h4 className="font-black">{option.name}</h4><p className="mt-2 text-sm leading-6 text-slate-600">{option.description}</p><OptionPrice product={product} option={option}/><div className="mt-3 flex items-center gap-3"><button type="button" disabled={!option.isAvailable} aria-label={`Decrease ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q-1))} className="h-9 w-9 rounded-lg border font-black disabled:cursor-not-allowed disabled:opacity-40">−</button><span className="min-w-6 text-center font-black">{q}</span><button type="button" disabled={!option.isAvailable} aria-label={`Increase ${option.name} quantity`} onClick={()=>onChangeOptionQuantity(option.id,clampQuantity(option,q+1))} className="h-9 w-9 rounded-lg border font-black disabled:cursor-not-allowed disabled:opacity-40">+</button></div></article>})}</div></div>}</section>
 }
 
 function YarboConfiguration({
@@ -351,14 +352,14 @@ function YarboConfiguration({
                             </h6>
                             {!available && <span className="mt-2 inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-black text-amber-950">Unavailable</span>}
                           </div>
-                          {available && coreVariants.length === 0 && <YarboPriceDisplay item={catalogPackage} />}
+                          {coreVariants.length === 0 && <BuilderPriceDisplay item={catalogPackage} />}
                         </div>
 
                         {coreVariants.length > 0 && <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2">
                           {coreVariants.map((core) => <div key={core.id} className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-3">
                             <p className="font-black text-slate-950">{core.name}</p>
                             <CoreAvailabilityBadge core={core} />
-                            <YarboCorePrice core={core} price={yarboCorePrice(product, core, yarboPackageForCore(product, catalogPackage, core.id))} />
+                            <BuilderCorePrice core={core} price={yarboCorePrice(product, core, yarboPackageForCore(product, catalogPackage, core.id))} fallbackMsrp={yarboCorePrice(product, core, catalogPackage)?.displayMsrpPriceCents} offerName={yarboPackageForCore(product, catalogPackage, core.id).name} />
                           </div>)}
                         </div>}
 
@@ -428,7 +429,7 @@ function YarboConfiguration({
                 const selectable = Boolean(catalogPackage && yarboCoreCanBeSelected(product, core, catalogPackage));
                 return <label key={core.id} className={`flex min-w-0 gap-3 rounded-xl border p-4 ${selection.variantId === core.id ? "border-emerald-700 bg-emerald-50" : "border-slate-300"} ${!selectable ? "cursor-not-allowed bg-slate-100" : "cursor-pointer"}`}>
                   <input type="radio" name="yarbo-complete-core" value={core.id} checked={selection.variantId === core.id} disabled={!selectable} onChange={() => onSelectVariant(core.id)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-700" aria-describedby={`yarbo-core-status-${core.id}`} />
-                  <span className="min-w-0 flex-1"><CatalogCardImage image={catalogCardImage(core, product)} /><strong className="block text-lg">{core.name}</strong><span id={`yarbo-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700"><CoreAvailabilityBadge core={core} />{!catalogPackage ? " · Choose a package first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={price} /></span></span>
+                  <span className="min-w-0 flex-1"><CatalogCardImage image={catalogCardImage(core, product)} /><strong className="block text-lg">{core.name}</strong><span id={`yarbo-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700"><CoreAvailabilityBadge core={core} />{!catalogPackage ? " · Choose a package first" : ""}</span><span className="mt-2 block"><BuilderCorePrice core={core} price={price} fallbackMsrp={selectedCard ? yarboCorePrice(product, core, selectedCard)?.displayMsrpPriceCents : null} offerName={catalogPackage?.name} /></span></span>
                 </label>;
               })}
             </div>
@@ -495,8 +496,8 @@ function YarboConfiguration({
               </div>
               <div className="mt-4">
                 {coreSelected && chosenCore
-                  ? <YarboCorePrice core={chosenCore} price={yarboCorePrice(product, chosenCore)} />
-                  : <YarboPriceDisplay item={product} priceClassName="text-lg font-black text-emerald-700" />}
+                  ? <BuilderCorePrice core={chosenCore} price={yarboCorePrice(product, chosenCore)} />
+                  : <BuilderPriceDisplay item={product} priceClassName="text-lg font-black text-emerald-700" />}
               </div>
             </button>
 
@@ -545,7 +546,7 @@ function YarboConfiguration({
                       ✓
                     </span>
                   </div>
-                  {option.isAvailable && <YarboPriceDisplay
+                  {<BuilderPriceDisplay
                     item={option}
                     className="mt-4"
                     priceClassName="text-lg font-black text-emerald-700"
@@ -565,7 +566,7 @@ function YarboConfiguration({
               const selectable = coreSelected && yarboCoreCanBeSelected(product, core);
               return <label key={core.id} className={`flex min-w-0 gap-3 rounded-xl border p-4 ${selection.variantId === core.id && coreSelected ? "border-emerald-700 bg-emerald-50" : "border-slate-300"} ${!selectable ? "cursor-not-allowed bg-slate-100" : "cursor-pointer"}`}>
                 <input type="radio" name="yarbo-individual-core" value={core.id} checked={coreSelected && selection.variantId === core.id} disabled={!selectable} onChange={() => onSelectVariant(core.id)} className="mt-1 h-5 w-5 shrink-0 accent-emerald-700" aria-describedby={`yarbo-individual-core-status-${core.id}`} />
-                <span className="min-w-0 flex-1"><CatalogCardImage image={catalogCardImage(core, product)} /><strong className="block text-lg">{core.name}</strong><span id={`yarbo-individual-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700"><CoreAvailabilityBadge core={core} />{!coreSelected ? " · Add Core first" : ""}</span><span className="mt-2 block"><YarboCorePrice core={core} price={yarboCorePrice(product, core)} /></span></span>
+                <span className="min-w-0 flex-1"><CatalogCardImage image={catalogCardImage(core, product)} /><strong className="block text-lg">{core.name}</strong><span id={`yarbo-individual-core-status-${core.id}`} className="block text-sm font-bold uppercase text-slate-700"><CoreAvailabilityBadge core={core} />{!coreSelected ? " · Add Core first" : ""}</span><span className="mt-2 block"><BuilderCorePrice core={core} price={yarboCorePrice(product, core)} /></span></span>
               </label>;
             })}</div>
           </fieldset>}
@@ -676,7 +677,7 @@ function StandardProductConfiguration({
               <p className="mt-2 leading-6 text-slate-600">
                 {option.description}
               </p>
-              <OptionPrice option={option} />
+              <OptionPrice product={product} option={option} />
             </div>
 
             {isIncludedInPackage ? (
@@ -780,7 +781,7 @@ function StandardProductConfiguration({
             ✓
           </span>
         </div>
-        <OptionPrice option={option} />
+        <OptionPrice product={product} option={option} />
         {isIncludedInPackage && (
           <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em] text-emerald-700">
             Already included in selected package
@@ -863,14 +864,13 @@ function StandardProductConfiguration({
                       ✓
                     </span>
                   </div>
-                  {variant.isAvailable && (product.slug === "lymow-one-plus" ? (
-                    <EverydayPriceDisplay
-                      item={variant}
-                      comparisonLabel="Lymow Everyday Price"
+                  {(product.salesMode !== "quote_only" && product.brand?.toLowerCase() !== "pandag" ? (
+                    <BuilderPriceDisplay
+                      item={variant} offerName={variant.name}
                       className="mt-4"
                       priceClassName="text-lg font-black text-emerald-700"
                     />
-                  ) : (
+                  ) : variant.isAvailable && (
                     <p className="mt-4 text-lg font-black text-emerald-700">
                       {priceLabel(variant)}
                     </p>
@@ -976,9 +976,7 @@ function StandardProductConfiguration({
                     </div>
                   )}
 
-                  {available && <p className="mt-4 text-xl font-black text-emerald-700">
-                    {priceLabel(catalogPackage)}
-                  </p>}
+                  {(product.salesMode === "quote_only" || product.brand?.toLowerCase() === "pandag" ? available && <p className="mt-4 text-xl font-black text-emerald-700">{priceLabel(catalogPackage)}</p> : <BuilderPriceDisplay item={catalogPackage} offerName={catalogPackage.name} className="mt-4" />)}
                 </button>
               );
             })}
