@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Homepage from "@/components/home/Homepage";
+import HomepageExplore from "@/components/home/HomepageExplore";
 import { connection } from "next/server";
 import { readPublicHomepageSlides } from "@/lib/homepage-slides/server";
 
@@ -14,5 +15,9 @@ export const metadata: Metadata = {
 export default async function Page() {
   await connection();
   const heroSnapshot = await readPublicHomepageSlides();
-  return <Homepage key={heroSnapshot.serverTime} heroSnapshot={heroSnapshot} />;
+  return (
+    <Homepage key={heroSnapshot.serverTime} heroSnapshot={heroSnapshot}>
+      <HomepageExplore />
+    </Homepage>
+  );
 }

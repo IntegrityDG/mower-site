@@ -66,7 +66,7 @@ test("robots allow the new public pages without changing the existing private ex
 });
 
 test("homepage variants and equipment introduce the authority architecture contextually", () => {
-  for (const file of ["components/home/DesktopHomepage.tsx", "components/mobile/MobileHomepage.tsx", "app/equipment/page.tsx"]) {
+  for (const file of ["components/home/HomepageExplore.tsx", "app/equipment/page.tsx"]) {
     assert.match(readFileSync(file, "utf8"), /href="\/robot-mowers"/);
   }
 });

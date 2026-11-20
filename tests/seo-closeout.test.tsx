@@ -75,8 +75,9 @@ test("admin layout is noindex without changing access controls", () => {
   assert.match(source("app/admin/layout.tsx"), /<AdminNav \/>/);
 });
 test("homepage links expose all previously orphaned public routes in both layouts", () => {
-  for(const file of ["components/home/DesktopHomepage.tsx","components/mobile/MobileHomepage.tsx"]){
-    for(const href of ["/ids-in-action","/reviews","/featured-businesses","/dealer-tech-resources","/referral-program"])assert.ok(source(file).includes(`href="${href}"`), `${file}: ${href}`);
+  for (const href of ["/ids-in-action", "/reviews"]) assert.ok(source("components/home/HomepageExplore.tsx").includes(`href="${href}"`), href);
+  for (const file of ["components/home/DesktopHomepage.tsx", "components/mobile/MobileHomepage.tsx"]) {
+    for (const href of ["/featured-businesses", "/dealer-tech-resources", "/referral-program"]) assert.ok(source(file).includes(`href="${href}"`), `${file}: ${href}`);
   }
 });
 test("server wrappers use existing public readers and recover through existing clients", () => {

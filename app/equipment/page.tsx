@@ -22,6 +22,7 @@ export default async function EquipmentPage() {
       <p className="text-sm font-black uppercase tracking-[0.25em] text-emerald-400">Equipment catalog</p>
       <h1 className="mt-4 max-w-4xl text-4xl font-black tracking-tight sm:text-6xl">Find the robot mower that fits your property.</h1>
       <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">Compare Lymow and Yarbo robotic mowers for self-service configuration, or explore Pandag as a commercial project platform. Current availability is shown on every machine while informational details remain accessible. For help comparing navigation, terrain and ownership needs, read the <Link href="/robot-mowers" className="font-bold text-emerald-300 underline underline-offset-4">robot mower buying guide</Link>.</p>
+      <p className="mt-3 max-w-3xl text-base leading-7 text-slate-300">Match a mower to your property with the guides to <Link href="/robot-mowers/large-acreage" className="font-bold text-emerald-300 underline underline-offset-4">mowing large acreage</Link>, <Link href="/robot-mowers/hills-rough-terrain" className="font-bold text-emerald-300 underline underline-offset-4">hills and rough terrain</Link>, and <Link href="/robot-mower-guides/tracked-vs-wheeled" className="font-bold text-emerald-300 underline underline-offset-4">tracked versus wheeled robot mowers</Link>.</p>
     </div></section><section className="mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16"><EquipmentCatalog initialData={initialData} /></section></main>
   </div>;
 }

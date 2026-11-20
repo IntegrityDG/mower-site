@@ -13,7 +13,7 @@ test("both layouts use the same visible navigation and scheduled hero", () => {
     assert.match(layout, /<HomepageNavigation activeView=\{view\} onSelect=\{selectView\}/);
     assert.doesNotMatch(layout, /HomeNavigation open=|menuOpen|<SalesTicker/);
     const home = layout.slice(layout.indexOf('view === "home"'), layout.indexOf('view !== "home"'));
-    assert.match(home, /<HomePromotionHero initialSnapshot=\{heroSnapshot\} serverObservedAt=\{heroObservedAt\} onBuild=\{\(\) => selectView\("build"\)\} \/><HomeSalesSpecial \/><HomePriceMatch \/><HomeBusinessSpotlight \/>/);
+    assert.match(home, /<HomePromotionHero initialSnapshot=\{heroSnapshot\} serverObservedAt=\{heroObservedAt\} onBuild=\{\(\) => selectView\("build"\)\} \/>\{children\}<HomeSalesSpecial \/><HomePriceMatch \/><HomeBusinessSpotlight \/>/);
     assert.doesNotMatch(home, /EquipmentCatalog|NationwidePurchaseFlow|HomeFinancing|HomeReviews|IdsActionCarousel|HomepageContactSection/);
   }
 });
@@ -51,9 +51,9 @@ test("shared financing preserves Hearth content, link, artwork, and disclaimer",
 
 test("responsive boundary selects one homepage below or above 768", () => {
   assert.match(desktop, /max-width: 767px/);
-  assert.match(desktop, /isMobile \? <MobileHomepage heroSnapshot=\{heroSnapshot\} heroObservedAt=\{heroObservedAt\} \/> : <DesktopHomepage heroSnapshot=\{heroSnapshot\} heroObservedAt=\{heroObservedAt\} \/>/);
+  assert.match(desktop, /isMobile \? \(\s*<MobileHomepage [^>]+>\{children\}<\/MobileHomepage>\s*\) : \(\s*<DesktopHomepage [^>]+>\{children\}<\/DesktopHomepage>/);
   assert.match(mobile, /md:hidden/);
-  assert.match(desktopHome, /hidden min-h-screen[\s\S]*md:block/);
+  assert.doesNotMatch(desktopHome, /className="hidden min-h-screen/);
 });
 
 test("desktop internal selections mount only their requested existing component", () => {
