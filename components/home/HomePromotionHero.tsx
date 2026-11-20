@@ -77,9 +77,9 @@ export default function HomePromotionHero({ initialSnapshot, onBuild, serverObse
     <div className={styles.content}>
       {!slide.sale ? <div aria-live={rotating ? "off" : "polite"} aria-atomic="true">
         <p className={styles.eyebrow}>{slide.eyebrow}</p>
-        <h1 className={styles.title}>{slide.title}</h1>
+        <p className={styles.title}>{slide.title}</p>
         <p className={styles.description}>{slide.description}</p>
-      </div> : <h1 className="sr-only">Integrity Distribution Systems equipment and current promotions</h1>}
+      </div> : null}
       {slide.sale && <p className="sr-only" aria-live={rotating ? "off" : "polite"}>Slide {index + 1} of {slides.length}: {slide.imageAlt}</p>}
       <div className={styles.actions}>
         <button type="button" className={styles.primary} onClick={onBuild}>Build Your System <span aria-hidden="true">&nbsp;↗</span></button>

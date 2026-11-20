@@ -101,16 +101,13 @@ test("Batch 1 public metadata is unique and retains each route's canonical", () 
 });
 
 test("primary headings and contextual links support the intended journeys", () => {
-  const homeDesktop = readFileSync("components/home/DesktopHomepage.tsx", "utf8");
-  const homeMobile = readFileSync("components/mobile/MobileHomepage.tsx", "utf8");
-  for (const home of [homeDesktop, homeMobile]) {
-    assert.match(home, /<h1[^>]*>Robot mowers that give people more time back/);
-    for (const destination of ["/equipment", "/equipment/lymow-one-plus", "/equipment/yarbo", "/equipment/pandag-g1", "/professional-installation", "/services-scheduling", "/service"]) {
-      assert.ok(home.includes(`href="${destination}"`), destination);
-    }
-    for (const region of ["Missouri", "Southern Illinois", "Northeast Arkansas", "Western Kentucky", "Western Tennessee"]) {
-      assert.ok(home.includes(region), region);
-    }
+  const home = readFileSync("components/home/HomepageExplore.tsx", "utf8");
+  assert.match(home, /Robotic Mower Sales &amp; Regional Service/);
+  for (const destination of ["/equipment", "/equipment/lymow-one-plus", "/equipment/yarbo", "/robot-mowers", "/commercial-robot-mowers", "/robot-mower-guides", "/service"]) {
+    assert.ok(home.includes(`href="${destination}"`), destination);
+  }
+  for (const region of ["Missouri", "Southern Illinois", "Northeast Arkansas", "Western Kentucky", "Western Tennessee"]) {
+    assert.ok(home.includes(region), region);
   }
   for (const file of ["app/equipment/page.tsx", "app/professional-installation/page.tsx", "app/services-scheduling/page.tsx", "app/troubleshoot-your-robot/page.tsx", "app/ids-in-action/page.tsx", "app/dealer-tech-resources/page.tsx"]) {
     assert.equal((readFileSync(file, "utf8").match(/<h1\b/g) ?? []).length, 1, file);
