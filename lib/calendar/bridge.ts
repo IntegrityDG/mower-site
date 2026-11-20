@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { debuglog } from "node:util";
-import { parseBriefing } from "./proton";
+import { parseBriefing, parseCalendarRange, validCalendarRange } from "./proton";
 
 const MAX_FEED_BYTES = 2 * 1024 * 1024;
 const PRIVATE_HEADERS = {
@@ -69,24 +69,46 @@ export async function calendarBridge(
   env: NodeJS.ProcessEnv = process.env,
   fetchFeed: typeof fetch = fetch,
   now: Date = new Date(),
+  mode: "today" | "range" = "today",
 ) {
   if (request.method !== "GET") {
     const response = reply({ error: "Method not allowed" }, 405);
     response.headers.set("Allow", "GET");
     return response;
   }
-  const token = env.PROTON_CALENDAR_BRIDGE_TOKEN;
+  const token = mode === "range" ? env.PROTON_CALENDAR_RANGE_TOKEN : env.PROTON_CALENDAR_BRIDGE_TOKEN;
+  // Range permission must never expand the authority of an existing today token.
+  if (mode === "range" && token && token === env.PROTON_CALENDAR_BRIDGE_TOKEN) return reply({ error: "Calendar bridge unavailable" }, 503);
   if (!token || token.length < 32) return reply({ error: "Calendar bridge unavailable" }, 503);
   if (!authorized(request, token)) return reply({ error: "Unauthorized" }, 401);
 
   const query = new URL(request.url).searchParams;
-  if ([...query.keys()].some(k => k !== "date") || query.getAll("date").length > 1) {
-    return reply({ error: "Only an optional date (YYYY-MM-DD) is supported" }, 400);
+  let date: string;
+  let endDate: string;
+  if (mode === "range") {
+    date = query.get("start") ?? "";
+    endDate = query.get("end") ?? "";
+    if ([...query.keys()].some(key => key !== "start" && key !== "end") ||
+        query.getAll("start").length !== 1 || query.getAll("end").length !== 1 ||
+        !validCalendarRange(date, endDate)) {
+      return reply({ error: "Provide start and end as YYYY-MM-DD for an inclusive range of 1–60 calendar days" }, 400);
+    }
+    const todayMs = Date.parse(`${chicagoToday(now)}T00:00:00Z`);
+    const withinEnvelope = (value: string) => Math.abs(Date.parse(`${value}T00:00:00Z`) - todayMs) <= 60 * 86400000;
+    if (!withinEnvelope(date) || !withinEnvelope(endDate)) {
+      return reply({ error: "Both dates must be within 60 Central calendar days of today" }, 400);
+    }
+  } else {
+    if ([...query.keys()].some(k => k !== "date") || query.getAll("date").length > 1) {
+      return reply({ error: "Only an optional date (YYYY-MM-DD) is supported" }, 400);
+    }
+    date = query.get("date") ?? chicagoToday(now);
+    if (!validDate(date)) return reply({ error: "Invalid date; use YYYY-MM-DD" }, 400);
+    const distance = Math.abs(new Date(`${date}T00:00:00Z`).getTime() - new Date(`${chicagoToday(now)}T00:00:00Z`).getTime());
+    if (distance > 7 * 86400000) return reply({ error: "Date must be within seven days of today" }, 400);
+
+    endDate = date;
   }
-  const date = query.get("date") ?? chicagoToday(now);
-  if (!validDate(date)) return reply({ error: "Invalid date; use YYYY-MM-DD" }, 400);
-  const distance = Math.abs(new Date(`${date}T00:00:00Z`).getTime() - new Date(`${chicagoToday(now)}T00:00:00Z`).getTime());
-  if (distance > 7 * 86400000) return reply({ error: "Date must be within seven days of today" }, 400);
 
   const feed = env.PROTON_CALENDAR_ICS_URL?.trim();
   if (!feed) return reply({ error: "Calendar bridge unavailable" }, 503);
@@ -116,9 +138,13 @@ export async function calendarBridge(
       headers: { Accept: "text/calendar" },
     });
     const text = await readFeed(upstream);
-    const secrets = [feed, token, ...feedUrl.searchParams.values(),
+    const secrets = [feed, token, env.PROTON_CALENDAR_BRIDGE_TOKEN ?? "", env.PROTON_CALENDAR_RANGE_TOKEN ?? "", ...feedUrl.searchParams.values(),
       ...feedUrl.pathname.split("/").filter(part => part.length >= 16),
     ].filter(Boolean).sort((a, b) => b.length - a.length);
+    if (mode === "range") {
+      const range = parseCalendarRange(text, date, endDate, secrets);
+      return reply({ ...range, fetchedAt: new Date().toISOString() });
+    }
     const briefing = parseBriefing(text, date, secrets);
     // Defence in depth if an event title or location itself contains the feed.
     const clean = (value: string) => secrets.reduce((cleaned, secret) =>
@@ -134,4 +160,9 @@ export async function calendarBridge(
     // or event values. Never turn an upstream failure into an empty calendar.
     return reply({ error: "Calendar temporarily unavailable" }, 502);
   }
+}
+
+/** Disabled until a distinct read-only range credential is explicitly configured. */
+export function calendarRangeBridge(request: Request, env: NodeJS.ProcessEnv = process.env, fetchFeed: typeof fetch = fetch, now: Date = new Date()) {
+  return calendarBridge(request, env, fetchFeed, now, "range");
 }

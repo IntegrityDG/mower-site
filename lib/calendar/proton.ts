@@ -299,7 +299,45 @@ export function parseCalendarDigest(icsText: string, date: string, secrets: read
   return parseCalendar(icsText, date, secrets, true);
 }
 
-function parseCalendar(icsText: string, date: string, secrets: readonly string[], includeDescription: boolean): CalendarDigest {
+export type CalendarRange = {
+  startDate: string;
+  endDate: string;
+  timeZone: typeof BRIEFING_TIME_ZONE;
+  events: Pick<BriefingEvent, "title" | "start" | "end" | "allDay">[];
+};
+
+/** Inclusive calendar dates, not elapsed 24-hour periods (DST days vary). */
+export function validCalendarRange(start: string, end: string): boolean {
+  if (start.length !== 10 || end.length !== 10 || !validDate(start) || !validDate(end)) return false;
+  const days = (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / DAY_MS + 1;
+  return Number.isInteger(days) && days >= 1 && days <= 60;
+}
+
+function rangeTitle(value: unknown, secrets: readonly string[]): string {
+  let text = typeof value === "string" ? value : "";
+  // Decode before redaction/truncation, including escaped URLs and known secrets.
+  for (let pass = 0; pass < 3; pass++) {
+    const decoded = text.replace(/(?:%[\da-f]{2})+/gi, encoded => {
+      try { return decodeURIComponent(encoded); } catch { return "[encoded text omitted]"; }
+    });
+    if (decoded === text) break;
+    text = decoded;
+  }
+  text = text.replace(/\S*%[\da-f]{2}\S*/gi, "[encoded text omitted]");
+  text = plainDescription(text, secrets).replace(/\bBearer\s+\S+/gi, "[credential omitted]")
+    .replace(/\b(?:password|passwd|token|secret|api[_ -]?key|access[_ -]?key)\s*[:=]\s*(?:"[^"]*"|'[^']*'|\S+)/gi, "[credential omitted]");
+  return text.slice(0, 200) || "Untitled event";
+}
+
+/** Pure read-only range projection. IDs and private detail never leave the parser. */
+export function parseCalendarRange(icsText: string, startDate: string, endDate: string, secrets: readonly string[] = []): CalendarRange {
+  if (!validCalendarRange(startDate, endDate)) throw new CalendarParseError();
+  const result = parseCalendar(icsText, startDate, secrets, false, endDate, true);
+  return { startDate, endDate, timeZone: BRIEFING_TIME_ZONE,
+    events: result.events.map(({ title, start, end, allDay }) => ({ title, start, end, allDay })) };
+}
+
+function parseCalendar(icsText: string, date: string, secrets: readonly string[], includeDescription: boolean, endDate = date, minimalRange = false): CalendarDigest {
   try {
     if (!validDate(date) || date.length !== 10 || typeof icsText !== "string" || Buffer.byteLength(icsText, "utf8") > MAX_FEED_BYTES) throw new CalendarParseError();
     const redactionSecrets = [...new Set(secrets)].filter(Boolean).sort((a, b) => b.length - a.length);
@@ -392,7 +430,8 @@ function parseCalendar(icsText: string, date: string, secrets: readonly string[]
 
     const [year, month, day] = date.split("-").map(Number);
     const dayStartTime = new ICAL.Time({ year, month, day, hour: 0, minute: 0, second: 0, isDate: false }, chicagoZone);
-    const nextDayTime = dayStartTime.clone();
+    const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
+    const nextDayTime = new ICAL.Time({ year: endYear, month: endMonth, day: endDay, hour: 0, minute: 0, second: 0, isDate: false }, chicagoZone);
     nextDayTime.adjust(1, 0, 0, 0);
     const dayStart = instant(dayStartTime);
     const dayEnd = instant(nextDayTime);
@@ -415,14 +454,19 @@ function parseCalendar(icsText: string, date: string, secrets: readonly string[]
       const group = groups.get(uid);
       const description = includeDescription ? plainDescription(descriptionFor(event, group?.master, group?.exceptions.values() ?? []), redactionSecrets) : "";
       const briefingEvent: CalendarDigestEvent = {
-        title: safeText(event.summary, "Untitled event", 1_000, redactionSecrets),
+        title: minimalRange ? rangeTitle(event.summary, redactionSecrets) : safeText(event.summary, "Untitled event", 1_000, redactionSecrets),
         start: allDay ? dateText(start) : localIso(startMs, formatter),
         end: allDay ? dateText(end) : localIso(endMs, formatter),
         allDay,
-        ...(location ? { location } : {}),
+        ...(!minimalRange && location ? { location } : {}),
         ...(description ? { description } : {}),
       };
-      results.set(JSON.stringify([uid, recurrenceKey]), { event: briefingEvent, order: allDay ? dayStart - 1 : startMs });
+      let allDayOrder = dayStart - 1;
+      if (allDay && minimalRange) {
+        const allDayWall = new ICAL.Time({ year: start.year, month: start.month, day: start.day, hour: 0, minute: 0, second: 0, isDate: false }, chicagoZone);
+        allDayOrder = Math.max(dayStart, instant(allDayWall)) - 1;
+      }
+      results.set(JSON.stringify([uid, recurrenceKey]), { event: briefingEvent, order: allDay ? allDayOrder : startMs });
       if (results.size > MAX_RESULTS) throw new CalendarParseError();
     };
 
