@@ -1,5 +1,6 @@
 "use client";
 
+import TroubleshootingRevisionReview from "./TroubleshootingRevisionReview";
 import {
   useCallback,
   useEffect,
@@ -340,7 +341,7 @@ export default function DealerNetworkAdmin() {
               ["suggestions", "Suggestions"],
               [
                 "troubleshooting",
-                `Troubleshooting (${data.troubleshooting.filter((entry) => entry.status === "pending").length})`,
+                `Troubleshooting (${data.troubleshooting.filter((entry) => entry.status === "pending" || entry.pendingRevision).length})`,
               ],
               ["reports", `Reports (${data.reports.filter((report) => report.status === "new").length})`],
               ["security", "Account / Security"],
@@ -1799,7 +1800,7 @@ function TroubleshootingTab({
           ? successMessage
           : (payload.error ?? "Troubleshooting entry update failed."),
       );
-      if (response.ok) await reload();
+      if (response.ok || (key.startsWith("revision:") && response.status === 409)) await reload();
     } catch {
       notify("Troubleshooting entry update failed.");
     } finally {
@@ -1824,6 +1825,15 @@ function TroubleshootingTab({
       publiclyPublished
         ? "Troubleshooting entry published on the public website."
         : "Troubleshooting entry removed from the public website.",
+    );
+  }
+
+  function reviewRevision(id: string, revisionId: string, approve: boolean) {
+    return update(
+      `revision:${id}`,
+      `/api/admin/dealer-network/troubleshooting/${id}/revision`,
+      { revisionId, approve },
+      approve ? "Author edit approved." : "Author edit rejected. The current text did not change.",
     );
   }
 
@@ -1934,6 +1944,13 @@ function TroubleshootingTab({
               )}
             </section>
           </div>
+          {entry.pendingRevision && (
+            <TroubleshootingRevisionReview
+              entry={entry}
+              busy={updating === `revision:${entry.id}`}
+              review={(revisionId, approve) => void reviewRevision(entry.id, revisionId, approve)}
+            />
+          )}
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             {(["issue", "fix"] as const).map((kind) => (
               <section key={kind} className="rounded-2xl bg-slate-50 p-4">

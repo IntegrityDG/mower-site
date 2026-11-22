@@ -303,11 +303,7 @@ export type TroubleshootingPhoto = {
   position: number;
 };
 
-export type TroubleshootingEntry = {
-  id: string;
-  memberId: string;
-  memberName: string;
-  companyName: string;
+export type TroubleshootingTextFields = {
   title: string;
   brand: string;
   model: string;
@@ -317,10 +313,41 @@ export type TroubleshootingEntry = {
   badPart: string | null;
   issueDescription: string;
   fixDescription: string;
+};
+
+export type TroubleshootingEntry = TroubleshootingTextFields & {
+  id: string;
+  memberId: string;
+  memberName: string;
+  companyName: string;
   status: TroubleshootingStatus;
   photos: TroubleshootingPhoto[];
   approvedAt: string | null;
   createdAt: string;
+};
+
+export type TroubleshootingUpdate = {
+  id: string;
+  body: string;
+  createdAt: string;
+};
+
+export type TroubleshootingComment = TroubleshootingUpdate & {
+  memberName: string;
+  companyName: string;
+};
+
+export type TroubleshootingRevision = {
+  id: string;
+  submittedAt: string;
+  patch: TroubleshootingTextFields;
+};
+
+export type MemberTroubleshootingEntry = TroubleshootingEntry & {
+  isOwner: boolean;
+  updates: TroubleshootingUpdate[];
+  comments: TroubleshootingComment[];
+  pendingRevision?: TroubleshootingRevision;
 };
 
 export type AdminTroubleshootingPhoto = TroubleshootingPhoto & {
@@ -330,6 +357,7 @@ export type AdminTroubleshootingPhoto = TroubleshootingPhoto & {
 export type AdminTroubleshootingEntry = Omit<TroubleshootingEntry, "photos"> & {
   publiclyPublished: boolean;
   photos: AdminTroubleshootingPhoto[];
+  pendingRevision?: TroubleshootingRevision;
 };
 
 export type TroubleshootingUploadTicket = MessageUploadTicket & {

@@ -3,12 +3,15 @@ import {
   consumeDealerRateLimit,
   requireActiveUnlockedMember,
 } from "@/lib/dealer-network/member-auth";
+import { addTroubleshootingActivity } from "@/lib/dealer-network/troubleshooting-activity-server";
 import { privateIdentifierHash } from "@/lib/dealer-network/security";
 import {
   createTroubleshootingEntry,
   readOwnTroubleshootingEntries,
   readTroubleshootingLibrary,
 } from "@/lib/dealer-network/troubleshooting-server";
+
+const privateHeaders = { "Cache-Control": "private, no-store" };
 
 export async function GET(request: Request) {
   try {
@@ -18,7 +21,8 @@ export async function GET(request: Request) {
       readTroubleshootingLibrary(query),
       readOwnTroubleshootingEntries(session.memberId),
     ]);
-    return Response.json({ entries, ownEntries });
+    const result = await addTroubleshootingActivity(session.memberId, entries, ownEntries);
+    return Response.json(result, { headers: privateHeaders });
   } catch (error) {
     return Response.json(
       {
@@ -27,7 +31,7 @@ export async function GET(request: Request) {
             ? error.message
             : "Troubleshooting entries are unavailable.",
       },
-      { status: error instanceof MemberAccessError ? error.status : 400 },
+      { status: error instanceof MemberAccessError ? error.status : 400, headers: privateHeaders },
     );
   }
 }
@@ -50,7 +54,7 @@ export async function POST(request: Request) {
       session.memberId,
       await request.json().catch(() => null),
     );
-    return Response.json({ entry }, { status: 201 });
+    return Response.json({ entry }, { status: 201, headers: privateHeaders });
   } catch (error) {
     return Response.json(
       {
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
             ? error.message
             : "Troubleshooting entry could not be submitted.",
       },
-      { status: error instanceof MemberAccessError ? error.status : 400 },
+      { status: error instanceof MemberAccessError ? error.status : 400, headers: privateHeaders },
     );
   }
 }

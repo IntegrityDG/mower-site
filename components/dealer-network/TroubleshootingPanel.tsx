@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { uploadMessagePhoto } from "@/lib/dealer-network/message-upload";
 import {
   messageFileType,
@@ -12,10 +12,12 @@ import {
   TROUBLESHOOTING_TITLE_LIMIT,
 } from "@/lib/dealer-network/troubleshooting-validation";
 import type {
+  MemberTroubleshootingEntry,
   TroubleshootingEntry,
   TroubleshootingPhotoKind,
   TroubleshootingUploadTicket,
 } from "@/lib/dealer-network/types";
+import { OwnerTroubleshootingActivity, TroubleshootingComments, TroubleshootingUpdates } from "./TroubleshootingActivity";
 
 const inputClass =
   "mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200";
@@ -33,8 +35,8 @@ export default function TroubleshootingPanel({
 }: {
   onMessage: (value: string) => void;
 }) {
-  const [entries, setEntries] = useState<TroubleshootingEntry[]>([]);
-  const [ownEntries, setOwnEntries] = useState<TroubleshootingEntry[]>([]);
+  const [entries, setEntries] = useState<MemberTroubleshootingEntry[]>([]);
+  const [ownEntries, setOwnEntries] = useState<MemberTroubleshootingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -44,7 +46,10 @@ export default function TroubleshootingPanel({
   const [fixLength, setFixLength] = useState(0);
   const [progress, setProgress] = useState<Record<string, number>>({});
 
-  const load = useCallback(async (query = "") => {
+  const activeQuery = useRef("");
+
+  const load = useCallback(async (query = activeQuery.current) => {
+    activeQuery.current = query;
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     const response = await fetch(
@@ -67,6 +72,12 @@ export default function TroubleshootingPanel({
       )
       .finally(() => setLoading(false));
   }, [load, onMessage]);
+
+  function refreshActivity(saved = true) {
+    void load().catch(() => onMessage(saved
+      ? "The change was saved, but this list could not refresh. Reload the troubleshooting tab to see it."
+      : "The list could not refresh. Reload the troubleshooting tab to see the latest comment count."));
+  }
 
   async function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -245,7 +256,7 @@ export default function TroubleshootingPanel({
         </form>
         <div className="mt-6 space-y-4">
           {entries.map((entry) => (
-            <TroubleshootingCard key={entry.id} entry={entry} />
+            <TroubleshootingCard key={entry.id} entry={entry} onSaved={refreshActivity} />
           ))}
           {!loading && !entries.length && (
             <p className="rounded-2xl bg-slate-50 p-5 text-slate-600">
@@ -377,6 +388,7 @@ export default function TroubleshootingPanel({
                 <p className="mt-2 text-xs text-slate-500">
                   Submitted {new Date(entry.createdAt).toLocaleString()}
                 </p>
+                <OwnerTroubleshootingActivity entry={entry} onSaved={refreshActivity} />
               </article>
             ))}
             {!ownEntries.length && (
@@ -483,7 +495,7 @@ function PhotoChooser({
   );
 }
 
-function TroubleshootingCard({ entry }: { entry: TroubleshootingEntry }) {
+function TroubleshootingCard({ entry, onSaved }: { entry: MemberTroubleshootingEntry; onSaved: (saved?: boolean) => void }) {
   return (
     <article className="rounded-3xl border p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -522,6 +534,8 @@ function TroubleshootingCard({ entry }: { entry: TroubleshootingEntry }) {
           photos={entry.photos.filter((photo) => photo.photoKind === "fix")}
         />
       </div>
+      <TroubleshootingUpdates updates={entry.updates} />
+      <TroubleshootingComments entry={entry} onSaved={onSaved} />
     </article>
   );
 }
