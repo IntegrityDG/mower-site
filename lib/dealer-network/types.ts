@@ -357,6 +357,7 @@ export type AdminTroubleshootingPhoto = TroubleshootingPhoto & {
 export type AdminTroubleshootingEntry = Omit<TroubleshootingEntry, "photos"> & {
   publiclyPublished: boolean;
   photos: AdminTroubleshootingPhoto[];
+  updates: TroubleshootingUpdate[];
   pendingRevision?: TroubleshootingRevision;
 };
 

@@ -24,7 +24,7 @@ import type {
   TroubleshootingUploadTicket,
 } from "./types";
 import { validateUuid } from "./validation";
-import { readTroubleshootingRevisions } from "./troubleshooting-activity-server";
+import { readAdminTroubleshootingUpdates, readTroubleshootingRevisions } from "./troubleshooting-activity-server";
 
 export const TROUBLESHOOTING_UPLOAD_SECONDS = 30 * 60;
 
@@ -140,7 +140,7 @@ async function mapEntries(
 function mapAdminEntry(
   row: AdminEntryRow,
   photos: AdminPhotoRow[],
-): AdminTroubleshootingEntry {
+): Omit<AdminTroubleshootingEntry, "updates"> {
   const publiclyVisibleById = new Map(
     photos.map((photo) => [photo.id, Boolean(photo.publicly_visible)]),
   );
@@ -208,11 +208,12 @@ export async function readAdminTroubleshootingEntries() {
   const rows = (data ?? []) as AdminEntryRow[];
   if (!rows.length) return [];
   const entryIds = rows.map((row) => row.id);
-  const [{ data: photoData, error: photoError }, revisions] = await Promise.all([
+  const [{ data: photoData, error: photoError }, revisions, updates] = await Promise.all([
     client.from("dealer_network_troubleshooting_photos")
       .select("id,entry_id,photo_kind,width,height,position,publicly_visible")
       .in("entry_id", entryIds),
     readTroubleshootingRevisions(entryIds),
+    readAdminTroubleshootingUpdates(entryIds),
   ]);
   if (photoError) throw photoError;
   const photos = (photoData ?? []) as AdminPhotoRow[];
@@ -225,6 +226,7 @@ export async function readAdminTroubleshootingEntries() {
   return rows.map((row) => ({
     ...mapAdminEntry(row, photosByEntry.get(row.id) ?? []),
     pendingRevision: revisions.get(row.id),
+    updates: updates.get(row.id) ?? [],
   }));
 }
 

@@ -15,7 +15,7 @@ const current: TroubleshootingTextFields = {
 };
 const entry: AdminTroubleshootingEntry = {
   ...current, id: entryId, memberId: "author", memberName: "Author", companyName: "Company",
-  status: "approved", photos: [], approvedAt: "2026-11-02", createdAt: "2026-11-01", publiclyPublished: true,
+  status: "approved", photos: [], updates: [], approvedAt: "2026-11-02", createdAt: "2026-11-01", publiclyPublished: true,
   pendingRevision: { id: revisionId, submittedAt: "2026-11-03T12:00:00Z",
     patch: { ...current, badPart: null, fixDescription: "Proposed <script>text</script>" } },
 };

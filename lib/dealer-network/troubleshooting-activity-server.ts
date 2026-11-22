@@ -54,6 +54,31 @@ async function readTroubleshootingUpdates(entryIds: string[], memberId: string) 
   }
 }
 
+/** For the authenticated admin dashboard only; member visibility filtering is unchanged. */
+export async function readAdminTroubleshootingUpdates(entryIds: string[]) {
+  const byEntry = new Map<string, TroubleshootingUpdate[]>();
+  const batchSize = 500;
+  // Keep the UUID filter short even when the dashboard returns its full 500 entries.
+  for (let start = 0; start < entryIds.length; start += 100) {
+    const ids = entryIds.slice(start, start + 100);
+    for (let offset = 0; ; offset += batchSize) {
+      const { data, error } = await client().from("dealer_network_troubleshooting_updates")
+        .select(activityColumns).in("entry_id", ids)
+        .order("created_at").order("id").range(offset, offset + batchSize - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as UpdateRow[];
+      for (const { entry_id, id, body, created_at } of rows) {
+        const item = { id, body, createdAt: created_at };
+        const group = byEntry.get(entry_id);
+        if (group) group.push(item);
+        else byEntry.set(entry_id, [item]);
+      }
+      if (rows.length < batchSize) break;
+    }
+  }
+  return byEntry;
+}
+
 export async function addTroubleshootingActivity(
   memberId: string,
   entries: TroubleshootingEntry[],

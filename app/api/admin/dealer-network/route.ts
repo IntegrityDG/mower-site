@@ -1,10 +1,12 @@
 import { requireDealerNetworkAdmin } from "@/lib/dealer-network/admin-auth";
 import { readDealerNetworkAdminDashboard } from "@/lib/dealer-network/admin-server";
 
+const privateHeaders = { "Cache-Control": "private, no-store" };
+
 export async function GET() {
   try {
     await requireDealerNetworkAdmin();
-    return Response.json(await readDealerNetworkAdminDashboard());
+    return Response.json(await readDealerNetworkAdminDashboard(), { headers: privateHeaders });
   } catch (error) {
     const unauthorized =
       error instanceof Error && error.name === "DealerNetworkAdminError";
@@ -14,7 +16,7 @@ export async function GET() {
           ? "Unauthorized"
           : "Dealer Network administration is unavailable.",
       },
-      { status: unauthorized ? 401 : 500 },
+      { status: unauthorized ? 401 : 500, headers: privateHeaders },
     );
   }
 }

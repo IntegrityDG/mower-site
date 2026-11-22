@@ -1,5 +1,6 @@
 "use client";
 
+import { TroubleshootingUpdates } from "./TroubleshootingActivity";
 import TroubleshootingRevisionReview from "./TroubleshootingRevisionReview";
 import {
   useCallback,
@@ -1944,6 +1945,7 @@ function TroubleshootingTab({
               )}
             </section>
           </div>
+          <TroubleshootingUpdates updates={entry.updates ?? []} />
           {entry.pendingRevision && (
             <TroubleshootingRevisionReview
               entry={entry}
