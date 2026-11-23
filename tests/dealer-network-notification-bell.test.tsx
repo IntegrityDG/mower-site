@@ -68,7 +68,7 @@ const checks: Array<[string, string, RegExp]> = [
   ["Board rows navigate directly to a topic", portal, /setOpenBoardTopicId\(item\.topicId\)/],
   ["message navigation selects the messages tab", portal, /setTab\("messages"\)/],
   ["Board navigation selects the announcements tab", portal, /setTab\("announcements"\)/],
-  ["Board direct opens use the read endpoint", board, /board\/\$\{topicId\}\/read/],
+  ["Board direct opens use the read endpoint", board, /request\(`\$\{path\}\/\$\{topic\.id\}\/read`, "PATCH"\)/],
   ["vote completion refreshes bell attention", board, /Promise\.all\(\[load\(\), onAttentionChanged\(\)\]\)/],
 ];
 

@@ -1,3 +1,6 @@
+import { boardPhotoLimit, boardTextCount, boardTextLimit } from "./board-member";
+import { validateUuid } from "./validation";
+
 export type BoardTopicInput = {
   title: string;
   announcementBody: string | null;
@@ -49,8 +52,41 @@ export function validateBoardPoll(input: unknown): BoardPollInput | null {
   return { question, explanation, options, allowVoteChange: body.allowVoteChange === true, closesAt };
 }
 
-export function validateCommentBody(input: unknown) {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
-  const body = clean((input as Record<string, unknown>).body, 5000);
-  return body && body.length <= 5000 ? body : null;
+function record(input: unknown) {
+  return input && typeof input === "object" && !Array.isArray(input)
+    ? input as Record<string, unknown> : null;
+}
+
+export function validateCommentBody(input: unknown, max = 200) {
+  const value = record(input)?.body;
+  if (typeof value !== "string") return null;
+  const body = value.trim();
+  return body && !body.includes("\u0000") && boardTextCount(body) <= max ? body : null;
+}
+
+export function validateNewBoardComment(input: unknown) {
+  const data = record(input);
+  if (!data || Object.keys(data).some(key => !["body", "parentCommentId", "uploadIds"].includes(key))) return null;
+  const parent = data.parentCommentId == null ? null : validateUuid(data.parentCommentId);
+  if (data.parentCommentId != null && !parent) return null;
+  const body = validateCommentBody(data, boardTextLimit(parent));
+  if (!body) return null;
+  const ids = data.uploadIds === undefined ? [] : data.uploadIds;
+  if (!Array.isArray(ids) || ids.length > boardPhotoLimit(parent)) return null;
+  const uploadIds = ids.map(validateUuid);
+  if (uploadIds.some(id => !id) || new Set(uploadIds).size !== uploadIds.length) return null;
+  return { body, parent, uploadIds: uploadIds as string[] };
+}
+
+export function validateBoardTopicUpdate(input: unknown) {
+  const data = record(input);
+  if (!data || Object.keys(data).some(key => !["action", "title", "announcementBody", "discussionContext"].includes(key))) return null;
+  const title = clean(data.title, 180);
+  const announcementBody = data.announcementBody == null ? null : clean(data.announcementBody, 5000);
+  const discussionContext = data.discussionContext == null ? null : clean(data.discussionContext, 5000);
+  if (!title || title.length > 180 || title.includes("\u0000") || announcementBody === "" ||
+      (announcementBody?.length ?? 0) > 5000 || (discussionContext?.length ?? 0) > 5000 ||
+      announcementBody?.includes("\u0000") || discussionContext?.includes("\u0000")) return null;
+  if (data.discussionContext != null && typeof data.discussionContext !== "string") return null;
+  return { title, announcementBody, discussionContext };
 }

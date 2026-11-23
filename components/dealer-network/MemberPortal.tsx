@@ -62,11 +62,19 @@ type Suggestion = {
 const inputClass =
   "mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200";
 
-export default function MemberPortal() {
+function clearBoardLocation() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.has("boardTopic")) {
+    url.searchParams.delete("boardTopic");
+    window.history.replaceState(window.history.state, "", url);
+  }
+}
+
+export default function MemberPortal({ initialBoardTopicId = null }: { initialBoardTopicId?: string | null }) {
   const router = useRouter();
   const [account, setAccount] = useState<AccountState | null>(null),
     [loading, setLoading] = useState(true),
-    [tab, setTab] = useState<Tab>("directory"),
+    [tab, setTab] = useState<Tab>(initialBoardTopicId ? "announcements" : "directory"),
     [message, setMessage] = useState("");
   const [profile, setProfile] = useState<MemberProfile | null>(null),
     [brands, setBrands] = useState<DealerBrand[]>([]),
@@ -78,7 +86,8 @@ export default function MemberPortal() {
     [conversations, setConversations] = useState<ConversationSummary[]>([]),
     [unreadTotal, setUnreadTotal] = useState(0),
     [openConversationId, setOpenConversationId] = useState<string | null>(null),
-    [openBoardTopicId, setOpenBoardTopicId] = useState<string | null>(null);
+    [openBoardTopicId, setOpenBoardTopicId] = useState<string | null>(initialBoardTopicId);
+  const clearBoardSelection = useCallback(() => setOpenBoardTopicId(null), []);
   const [unreadBroadcastTotal, setUnreadBroadcastTotal] =
     useState(0);
   const { summary: notificationSummary, unavailable: notificationsUnavailable, refreshNotifications } =
@@ -212,6 +221,7 @@ export default function MemberPortal() {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) return setMessage(payload.error ?? "Conversation could not be opened.");
     setOpenConversationId(payload.conversationId);
+    clearBoardLocation();
     setTab("messages");
     await refreshCommunication();
   }
@@ -255,7 +265,7 @@ export default function MemberPortal() {
         <div className="max-w-md rounded-3xl bg-white p-8 text-slate-950">
           <h1 className="text-3xl font-black">Member session required</h1>
           <a
-            href="/dealer-tech-resources/login"
+            href={initialBoardTopicId ? `/dealer-tech-resources/login?boardTopic=${encodeURIComponent(initialBoardTopicId)}` : "/dealer-tech-resources/login"}
             className="mt-6 inline-flex rounded-xl bg-emerald-600 px-5 py-3 font-black text-white"
           >
             Member Login
@@ -300,6 +310,7 @@ export default function MemberPortal() {
               onNavigate={(item) => {
                 if (item.conversationId) {
                   setOpenConversationId(item.conversationId);
+                  clearBoardLocation();
                   setTab("messages");
                 } else if (item.topicId) {
                   setOpenBoardTopicId(item.topicId);
@@ -336,7 +347,10 @@ export default function MemberPortal() {
           ).map(([value, label]) => (
             <button
               key={value}
-              onClick={() => setTab(value)}
+              onClick={() => {
+                if (value !== "announcements") clearBoardLocation();
+                setTab(value);
+              }}
               className={`rounded-xl px-4 py-3 font-black ${tab === value ? "bg-emerald-600 text-white" : "border bg-white"}`}
             >
               {label}
@@ -393,7 +407,8 @@ export default function MemberPortal() {
           <DealerNetworkBoardPanel
             onMessage={setMessage}
             selectedTopicId={openBoardTopicId}
-            onSelectedTopicHandled={() => setOpenBoardTopicId(null)}
+            onSelectedTopicHandled={clearBoardSelection}
+            onPrivateMessage={account.messagingEnabled ? (memberId) => void startMessage(memberId) : undefined}
             onAttentionChanged={refreshNotifications}
           />
         )}{" "}
