@@ -7,6 +7,53 @@ import type {
   MemberNotificationSummary,
 } from "./types";
 
+import { DEALER_ACTIVITY_ALERT_LABELS, isDealerActivityAlertKind, type DealerActivityAlertKind } from "./activity-alert-links";
+
+type ActivityRow = {
+  id: string;
+  kind: DealerActivityAlertKind;
+  source_id: string;
+  context_id: string;
+  created_at: string;
+  unread_total: number;
+};
+
+async function readActivityAlerts(memberId: string) {
+  const { data, error } = await getSupabaseServiceClient().rpc("dealer_network_read_activity_alerts", {
+    p_member_id: memberId,
+  });
+  if (error) throw error;
+  const rows = (data ?? []) as ActivityRow[];
+  const items = rows.flatMap((row): MemberNotificationItem[] => {
+    if (!isDealerActivityAlertKind(row.kind) || row.kind === "board_topic") return [];
+    const board = row.kind === "board_comment" || row.kind === "board_reply";
+    return [{
+      id: `activity:${row.id}`,
+      kind: row.kind,
+      title: DEALER_ACTIVITY_ALERT_LABELS[row.kind],
+      detail: board ? "Open the Board topic in the member portal." : "Open the troubleshooting issue in the member portal.",
+      occurredAt: row.created_at,
+      unreadCount: 1,
+      conversationId: null,
+      topicId: board ? row.context_id : null,
+      activityAlertId: row.id,
+      ...(board ? { boardActivityId: row.source_id } : {
+        troubleshootingEntryId: row.context_id,
+        ...(row.kind === "troubleshooting_issue" ? {} : { troubleshootingActivityId: row.source_id }),
+      }),
+    }];
+  });
+  return { items, total: Number(rows[0]?.unread_total ?? 0) };
+}
+
+export async function markMemberActivityAlertRead(memberId: string, alertId: string, contextId: string, sourceId: string | null) {
+  const { data, error } = await getSupabaseServiceClient().rpc("dealer_network_mark_activity_alerts_read", {
+    p_member_id: memberId, p_alert_ids: [alertId], p_context_id: contextId, p_source_id: sourceId,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
 type RecipientRow = {
   topic_id: string;
   first_read_at: string | null;
@@ -16,9 +63,10 @@ type RecipientRow = {
 export async function readMemberNotifications(
   memberId: string,
 ): Promise<MemberNotificationSummary> {
-  const [communication, boardItems] = await Promise.all([
+  const [communication, boardItems, activity] = await Promise.all([
     listConversations(memberId),
     readBoardNotifications(memberId),
+    readActivityAlerts(memberId),
   ]);
   const messageItems: MemberNotificationItem[] = communication.conversations
     .filter((conversation) => conversation.unreadCount > 0)
@@ -32,12 +80,12 @@ export async function readMemberNotifications(
       conversationId: conversation.id,
       topicId: null,
     }));
-  const items = [...messageItems, ...boardItems].sort(
+  const items = [...messageItems, ...boardItems, ...activity.items].sort(
     (left, right) =>
       new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime(),
   );
   return {
-    total: items.reduce((total, item) => total + item.unreadCount, 0),
+    total: items.reduce((total, item) => total + item.unreadCount, 0) + Math.max(0, activity.total - activity.items.length),
     items,
   };
 }

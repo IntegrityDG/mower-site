@@ -31,9 +31,12 @@ type PreparedFile = {
 };
 
 export default function TroubleshootingPanel({
-  onMessage,
+  onMessage, selectedEntryId, selectedActivityId, onOpened,
 }: {
   onMessage: (value: string) => void;
+  selectedEntryId?: string | null;
+  selectedActivityId?: string | null;
+  onOpened?: (entryId: string, activityId: string | null) => void;
 }) {
   const [entries, setEntries] = useState<MemberTroubleshootingEntry[]>([]);
   const [ownEntries, setOwnEntries] = useState<MemberTroubleshootingEntry[]>([]);
@@ -45,6 +48,49 @@ export default function TroubleshootingPanel({
   const [issueLength, setIssueLength] = useState(0);
   const [fixLength, setFixLength] = useState(0);
   const [progress, setProgress] = useState<Record<string, number>>({});
+
+  const [targetEntry, setTargetEntry] = useState<MemberTroubleshootingEntry | null>(null);
+  const [targetVersion, setTargetVersion] = useState(0);
+  const [targetUnavailable, setTargetUnavailable] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedEntryId) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`/api/dealer-network/member/troubleshooting/${encodeURIComponent(selectedEntryId)}`, {
+          cache: "no-store", signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Entry unavailable");
+        const { entry } = await response.json();
+        if (entry?.id !== selectedEntryId) throw new Error("Entry unavailable");
+        if (!controller.signal.aborted) {
+          setTargetEntry(entry);
+          setTargetUnavailable(null);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setTargetEntry(null);
+          setTargetUnavailable(selectedEntryId);
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [selectedEntryId, targetVersion]);
+
+  const exactEntry = selectedEntryId && targetEntry?.id === selectedEntryId ? targetEntry : null;
+  useEffect(() => {
+    if (!exactEntry) return;
+    const anchor = selectedActivityId && [...exactEntry.comments, ...exactEntry.updates].some(activity => activity.id === selectedActivityId)
+      ? selectedActivityId : null;
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(anchor ? `troubleshooting-activity-${anchor}` : `troubleshooting-entry-${exactEntry.id}`);
+      if (!target) return;
+      target.scrollIntoView({ block: "start" });
+      if (!selectedActivityId || anchor) onOpened?.(exactEntry.id, anchor);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [exactEntry, selectedActivityId, onOpened]);
 
   const activeQuery = useRef("");
 
@@ -74,6 +120,7 @@ export default function TroubleshootingPanel({
   }, [load, onMessage]);
 
   function refreshActivity(saved = true) {
+    if (selectedEntryId) setTargetVersion(value => value + 1);
     void load().catch(() => onMessage(saved
       ? "The change was saved, but this list could not refresh. Reload the troubleshooting tab to see it."
       : "The list could not refresh. Reload the troubleshooting tab to see the latest comment count."));
@@ -255,10 +302,15 @@ export default function TroubleshootingPanel({
           </button>
         </form>
         <div className="mt-6 space-y-4">
-          {entries.map((entry) => (
+          {selectedEntryId && targetUnavailable === selectedEntryId && (
+            <p role="status" className="rounded-2xl bg-slate-50 p-5 text-slate-600">This linked troubleshooting entry is unavailable.</p>
+          )}
+          {selectedEntryId && !exactEntry && targetUnavailable !== selectedEntryId && <p role="status">Opening linked troubleshooting entry…</p>}
+          {exactEntry && <TroubleshootingCard entry={exactEntry} onSaved={refreshActivity} selectedActivityId={selectedActivityId} />}
+          {entries.filter(entry => entry.id !== exactEntry?.id).map((entry) => (
             <TroubleshootingCard key={entry.id} entry={entry} onSaved={refreshActivity} />
           ))}
-          {!loading && !entries.length && (
+          {!loading && !entries.length && !exactEntry && (
             <p className="rounded-2xl bg-slate-50 p-5 text-slate-600">
               No approved troubleshooting entries matched your search.
             </p>
@@ -495,9 +547,9 @@ function PhotoChooser({
   );
 }
 
-function TroubleshootingCard({ entry, onSaved }: { entry: MemberTroubleshootingEntry; onSaved: (saved?: boolean) => void }) {
+function TroubleshootingCard({ entry, onSaved, selectedActivityId }: { entry: MemberTroubleshootingEntry; selectedActivityId?: string | null; onSaved: (saved?: boolean) => void }) {
   return (
-    <article className="rounded-3xl border p-5">
+    <article id={`troubleshooting-entry-${entry.id}`} className="rounded-3xl border p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-2xl font-black">{entry.title}</h3>
@@ -534,8 +586,8 @@ function TroubleshootingCard({ entry, onSaved }: { entry: MemberTroubleshootingE
           photos={entry.photos.filter((photo) => photo.photoKind === "fix")}
         />
       </div>
-      <TroubleshootingUpdates updates={entry.updates} />
-      <TroubleshootingComments entry={entry} onSaved={onSaved} />
+      <TroubleshootingUpdates updates={entry.updates} anchorActivities />
+      {entry.status === "approved" && <TroubleshootingComments entry={entry} onSaved={onSaved} selectedActivityId={selectedActivityId} />}
     </article>
   );
 }

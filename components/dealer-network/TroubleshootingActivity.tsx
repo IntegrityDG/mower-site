@@ -38,14 +38,14 @@ function When({ date }: { date: string }) {
   return <time dateTime={date} className="text-xs text-slate-500">{new Date(date).toLocaleString()}</time>;
 }
 
-export function TroubleshootingUpdates({ updates }: { updates: TroubleshootingUpdate[] }) {
+export function TroubleshootingUpdates({ updates, anchorActivities = false }: { updates: TroubleshootingUpdate[]; anchorActivities?: boolean }) {
   if (!updates.length) return null;
   return (
     <section aria-label="Author updates" className="mt-5 border-t border-slate-200 pt-4">
       <h4 className="font-bold text-slate-900">Author Updates</h4>
       <ol className="mt-2 space-y-2">
         {updates.map((update) => (
-          <li key={update.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
+          <li key={update.id} id={anchorActivities ? `troubleshooting-activity-${update.id}` : undefined} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
             <When date={update.createdAt} />
             <p className="whitespace-pre-wrap break-words">{update.body}</p>
           </li>
@@ -102,15 +102,15 @@ function ActivityForm({ entryId, kind, onSaved }: { entryId: string; kind: "upda
   );
 }
 
-export function TroubleshootingComments({ entry, onSaved }: { entry: MemberTroubleshootingEntry; onSaved: Refresh }) {
+export function TroubleshootingComments({ entry, onSaved, selectedActivityId }: { entry: MemberTroubleshootingEntry; onSaved: Refresh; selectedActivityId?: string | null }) {
   const count = entry.comments.length;
   return (
-    <details className="mt-5 rounded-xl border border-slate-200 px-3 py-2">
+    <details open={entry.comments.some(comment => comment.id === selectedActivityId) || undefined} className="mt-5 rounded-xl border border-slate-200 px-3 py-2">
       <summary className={summaryClass}>Comments {count}/{TROUBLESHOOTING_COMMENT_LIMIT}</summary>
       {count > 0 && (
         <ol className="mt-3 space-y-2">
           {entry.comments.map((comment) => (
-            <li key={comment.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
+            <li key={comment.id} id={`troubleshooting-activity-${comment.id}`} className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
               <p className="font-semibold">{comment.memberName} · {comment.companyName}</p>
               <When date={comment.createdAt} />
               <p className="whitespace-pre-wrap break-words">{comment.body}</p>

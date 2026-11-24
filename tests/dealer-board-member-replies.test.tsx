@@ -100,11 +100,11 @@ test("server verification runs before binding signed photo IDs and does not writ
 
 test("stable member link restores the authenticated Board route and existing private-message destination", () => {
   const read = (p:string) => readFileSync(new URL("../"+p,import.meta.url),"utf8");
-  assert.match(read("app/dealer-tech-resources/member/page.tsx"),/searchParams[\s\S]*\.boardTopic[\s\S]*initialBoardTopicId/);
+  assert.match(read("app/dealer-tech-resources/member/page.tsx"),/readMemberPortalSelection\(await searchParams\)[\s\S]*initialBoardTopicId=\{selection\.boardTopicId\}/);
   assert.match(read("components/dealer-network/MemberPortal.tsx"),/initialBoardTopicId \? "announcements"/);
   assert.match(read("components/dealer-network/MemberPortal.tsx"),/onPrivateMessage=\{[\s\S]*startMessage\(memberId\)/);
-  assert.match(read("app/dealer-tech-resources/login/page.tsx"),/validateUuid\(boardTopic\)/);
-  assert.match(read("components/dealer-network/MemberLogin.tsx"), /member\?boardTopic=\$\{encodeURIComponent\(boardTopicId\)\}/);
+  assert.match(read("app/dealer-tech-resources/login/page.tsx"),/readMemberPortalSelection\(params\)/);
+  assert.match(read("components/dealer-network/MemberLogin.tsx"), /memberPortalLocation\("member", selection \?\? \{\}\)/);
   const panelSource=read("components/dealer-network/DealerNetworkBoardPanel.tsx");
   assert.match(panelSource,/setFilter\(boardTopicFilter\(topic\)\);\s*setSearch\(""\)/);
   assert.match(panelSource,/history.replaceState[\s\S]*boardLink\(topic.id\)/);

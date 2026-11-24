@@ -183,6 +183,20 @@ export async function readTroubleshootingLibrary(searchValue: unknown) {
   );
 }
 
+export async function readMemberTroubleshootingEntry(entryId: string, memberId: string) {
+  if (!validateUuid(entryId) || !validateUuid(memberId)) return null;
+  const { data, error } = await getSupabaseServiceClient()
+    .from("dealer_network_troubleshooting_entries")
+    .select(entryColumns)
+    .eq("id", entryId)
+    .or(`status.eq.approved,member_id.eq.${memberId}`)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const [entry] = await mapEntries([data as EntryRow], (id) => `/api/dealer-network/member/troubleshooting/photos/${id}`);
+  return entry ?? null;
+}
+
 export async function readOwnTroubleshootingEntries(memberId: string) {
   const { data, error } = await getSupabaseServiceClient()
     .from("dealer_network_troubleshooting_entries")

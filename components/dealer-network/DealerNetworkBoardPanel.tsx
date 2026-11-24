@@ -109,9 +109,9 @@ function BoardComposer({ discussionId, parent, onSaved }: {
   </form>;
 }
 
-export default function DealerNetworkBoardPanel({ onMessage, selectedTopicId, onSelectedTopicHandled, onAttentionChanged, onPrivateMessage }: {
+export default function DealerNetworkBoardPanel({ onMessage, selectedTopicId, onSelectedTopicHandled, onSelectedTopicOpened, selectedActivityId, onAttentionChanged, onPrivateMessage }: {
   onMessage: (message: string) => void; selectedTopicId: string | null;
-  onSelectedTopicHandled: () => void; onAttentionChanged: () => Promise<void>;
+  onSelectedTopicHandled: () => void; onSelectedTopicOpened?: (topicId: string, activityId: string | null) => void; selectedActivityId?: string | null; onAttentionChanged: () => Promise<void>;
   onPrivateMessage?: (memberId: string) => void;
 }) {
   const [topics, setTopics] = useState<BoardMemberTopic[]>([]);
@@ -123,6 +123,22 @@ export default function DealerNetworkBoardPanel({ onMessage, selectedTopicId, on
   const [editingBusy, setEditingBusy] = useState(false);
   const [focusedTopicId, setFocusedTopicId] = useState<string | null>(null);
   const picked = useRef<string | null>(null);
+  const [scrollTarget, setScrollTarget] = useState<{
+    topicId: string;
+    activityId: string | null;
+    onOpened?: (topicId: string, activityId: string | null) => void;
+  } | null>(null);
+  useEffect(() => {
+    if (!scrollTarget) return;
+    const frame = window.requestAnimationFrame(() => {
+      const { topicId, activityId, onOpened } = scrollTarget;
+      const target = document.getElementById(activityId ? `board-activity-${activityId}` : `board-topic-${topicId}`);
+      if (!target) return;
+      target.scrollIntoView({ block: "start" });
+      onOpened?.(topicId, activityId);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [scrollTarget]);
   const load = useCallback(async () => {
     const data = await request(path);
     setTopics(data.topics ?? []);
@@ -130,12 +146,13 @@ export default function DealerNetworkBoardPanel({ onMessage, selectedTopicId, on
   }, []);
   useEffect(() => { void load().catch(error => onMessage(error.message)); }, [load, onMessage]);
 
-  const openTopic = useCallback(async (topic: BoardMemberTopic) => {
+  const openTopic = useCallback(async (topic: BoardMemberTopic, activityId?: string | null, onOpened?: (topicId: string, activityId: string | null) => void) => {
     setFilter(boardTopicFilter(topic));
     setSearch("");
     setFocusedTopicId(topic.id);
     window.history.replaceState(window.history.state, "", boardLink(topic.id));
-    window.requestAnimationFrame(() => document.getElementById(`board-topic-${topic.id}`)?.scrollIntoView({ block: "start" }));
+    const activity = activityId && topic.comments.some(comment => comment.id === activityId && !comment.hidden) ? activityId : null;
+    setScrollTarget({ topicId: topic.id, activityId: activity, onOpened: !activityId || activity ? onOpened : undefined });
     try {
       await request(`${path}/${topic.id}/read`, "PATCH");
       await Promise.all([load(), onAttentionChanged()]);
@@ -147,10 +164,10 @@ export default function DealerNetworkBoardPanel({ onMessage, selectedTopicId, on
     if (!loaded || picked.current === selectedTopicId) return;
     picked.current = selectedTopicId;
     const target = topics.find(topic => topic.id === selectedTopicId);
-    if (target) void openTopic(target);
+    if (target) void openTopic(target, selectedActivityId, onSelectedTopicOpened);
     else onMessage("That Board topic is unavailable to this account.");
     onSelectedTopicHandled();
-  }, [loaded, onMessage, onSelectedTopicHandled, openTopic, selectedTopicId, topics]);
+  }, [loaded, onMessage, onSelectedTopicHandled, onSelectedTopicOpened, openTopic, selectedActivityId, selectedTopicId, topics]);
 
   function openFromCard(event: MouseEvent<HTMLAnchorElement>, topic: BoardMemberTopic) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -185,7 +202,7 @@ export default function DealerNetworkBoardPanel({ onMessage, selectedTopicId, on
     const open = topic.discussion?.status === "open" && topic.status === "active";
     const max = boardTextLimit(item.parentCommentId);
     const editCount = boardTextCount(editBody);
-    return <div key={item.id} className={`${reply ? "ml-6 border-l-2 pl-3" : ""} mt-2 rounded-xl bg-slate-50 p-3`}>
+    return <div key={item.id} id={`board-activity-${item.id}`} className={`${reply ? "ml-6 border-l-2 pl-3" : ""} mt-2 rounded-xl bg-slate-50 p-3`}>
       {item.author && <b>{item.author.firstName}{item.author.companyName ? ` · ${item.author.companyName}` : ""}</b>}
       <p className="text-xs text-slate-500"><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time> {item.edited && "· Edited"}</p>
       {editing === item.id ? <div className="mt-2"><textarea aria-label="Edit comment text" value={editBody} onChange={event => setEditBody(event.target.value)} rows={3} className={field} />

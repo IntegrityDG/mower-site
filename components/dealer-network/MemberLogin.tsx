@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
+import { memberPortalLocation, type MemberPortalSelection } from "@/lib/dealer-network/member-portal-location";
+
 const inputClass =
   "mt-2 w-full rounded-xl border border-slate-300 p-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200";
-export default function MemberLogin({ initialMessage = "", boardTopicId = null }: { initialMessage?: string; boardTopicId?: string | null }) {
+export default function MemberLogin({ initialMessage = "", selection }: { initialMessage?: string; selection?: MemberPortalSelection }) {
   const router = useRouter();
   const [forgot, setForgot] = useState(false),
     [message, setMessage] = useState(initialMessage),
@@ -31,7 +33,7 @@ export default function MemberLogin({ initialMessage = "", boardTopicId = null }
     const payload = await response.json().catch(() => ({}));
     setBusy(false);
     if (response.ok && !forgot) {
-      router.push(boardTopicId ? `/dealer-tech-resources/member?boardTopic=${encodeURIComponent(boardTopicId)}` : "/dealer-tech-resources/member");
+      router.push(memberPortalLocation("member", selection ?? {}));
       return;
     }
     setMessage(

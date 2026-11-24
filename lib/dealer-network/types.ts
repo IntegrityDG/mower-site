@@ -260,7 +260,12 @@ export type MemberNotificationKind =
   | "private_message"
   | "poll_response"
   | "discussion"
-  | "board_topic";
+  | "board_topic"
+  | "board_comment"
+  | "board_reply"
+  | "troubleshooting_issue"
+  | "troubleshooting_comment"
+  | "troubleshooting_update";
 
 export type MemberNotificationItem = {
   id: string;
@@ -271,6 +276,10 @@ export type MemberNotificationItem = {
   unreadCount: number;
   conversationId: string | null;
   topicId: string | null;
+  activityAlertId?: string;
+  boardActivityId?: string;
+  troubleshootingEntryId?: string;
+  troubleshootingActivityId?: string;
 };
 
 export type MemberNotificationSummary = {

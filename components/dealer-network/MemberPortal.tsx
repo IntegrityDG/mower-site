@@ -1,5 +1,6 @@
 "use client";
 
+import { memberPortalLocation, type MemberPortalSelection } from "@/lib/dealer-network/member-portal-location";
 import { businessLocationLabel } from "@/lib/dealer-network/member-location-presentation";
 import { DEALER_NETWORK_GEOLOCATION_UI_ENABLED, memberDirectorySearchParams } from "@/lib/dealer-network/member-features";
 
@@ -64,17 +65,20 @@ const inputClass =
 
 function clearBoardLocation() {
   const url = new URL(window.location.href);
-  if (url.searchParams.has("boardTopic")) {
-    url.searchParams.delete("boardTopic");
+  if (["boardTopic", "boardActivity", "troubleshootingEntry", "troubleshootingActivity", "activityAlert"].some(key => url.searchParams.has(key))) {
+    for (const key of ["boardTopic", "boardActivity", "troubleshootingEntry", "troubleshootingActivity", "activityAlert"]) url.searchParams.delete(key);
     window.history.replaceState(window.history.state, "", url);
   }
 }
 
-export default function MemberPortal({ initialBoardTopicId = null }: { initialBoardTopicId?: string | null }) {
+export default function MemberPortal({ initialBoardTopicId = null, initialSelection }: {
+  initialBoardTopicId?: string | null;
+  initialSelection?: MemberPortalSelection;
+}) {
   const router = useRouter();
   const [account, setAccount] = useState<AccountState | null>(null),
     [loading, setLoading] = useState(true),
-    [tab, setTab] = useState<Tab>(initialBoardTopicId ? "announcements" : "directory"),
+    [tab, setTab] = useState<Tab>(initialSelection?.troubleshootingEntryId ? "troubleshooting" : initialBoardTopicId ? "announcements" : "directory"),
     [message, setMessage] = useState("");
   const [profile, setProfile] = useState<MemberProfile | null>(null),
     [brands, setBrands] = useState<DealerBrand[]>([]),
@@ -87,11 +91,53 @@ export default function MemberPortal({ initialBoardTopicId = null }: { initialBo
     [unreadTotal, setUnreadTotal] = useState(0),
     [openConversationId, setOpenConversationId] = useState<string | null>(null),
     [openBoardTopicId, setOpenBoardTopicId] = useState<string | null>(initialBoardTopicId);
-  const clearBoardSelection = useCallback(() => setOpenBoardTopicId(null), []);
+  const [openBoardActivityId, setOpenBoardActivityId] = useState<string | null>(initialSelection?.boardActivityId ?? null);
+  const clearBoardSelection = useCallback(() => {
+    setOpenBoardTopicId(null);
+    setOpenBoardActivityId(null);
+  }, []);
   const [unreadBroadcastTotal, setUnreadBroadcastTotal] =
     useState(0);
   const { summary: notificationSummary, unavailable: notificationsUnavailable, refreshNotifications } =
     useDealerNetworkNotifications(Boolean(account && !account.effectiveLocked));
+  const [troubleshootingSelection, setTroubleshootingSelection] = useState<{
+    entryId: string; activityId: string | null; alertId: string | null;
+  } | null>(initialSelection?.troubleshootingEntryId ? {
+    entryId: initialSelection.troubleshootingEntryId,
+    activityId: initialSelection.troubleshootingActivityId,
+    alertId: initialSelection.activityAlertId,
+  } : null);
+  const boardActivityAlert = useRef<{ topicId: string; alertId: string; activityId: string | null } | null>(
+    initialBoardTopicId && initialSelection?.activityAlertId
+      ? { topicId: initialBoardTopicId, alertId: initialSelection.activityAlertId, activityId: initialSelection.boardActivityId } : null,
+  );
+  const acknowledged = useRef(new Set<string>());
+  const acknowledge = useCallback(async (alertId: string, contextId: string, sourceId: string | null = null) => {
+    if (acknowledged.current.has(alertId)) return;
+    acknowledged.current.add(alertId);
+    try {
+      const response = await fetch("/api/dealer-network/member/notifications", {
+        method: "PATCH", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ alertId, contextId, sourceId }),
+      });
+      if (!response.ok) throw new Error("Could not acknowledge the alert.");
+      await refreshNotifications();
+    } catch {
+      acknowledged.current.delete(alertId);
+      setMessage("This alert could not be marked as read.");
+    }
+  }, [refreshNotifications]);
+  const onBoardOpened = useCallback((topicId: string, sourceId: string | null) => {
+    if (boardActivityAlert.current?.topicId !== topicId || boardActivityAlert.current.activityId !== sourceId) return;
+    const { alertId } = boardActivityAlert.current;
+    boardActivityAlert.current = null;
+    void acknowledge(alertId, topicId, sourceId);
+  }, [acknowledge]);
+  const onTroubleshootingOpened = useCallback((entryId: string, sourceId: string | null) => {
+    if (troubleshootingSelection?.entryId === entryId && troubleshootingSelection.alertId) {
+      void acknowledge(troubleshootingSelection.alertId, entryId, sourceId ?? entryId);
+    }
+  }, [acknowledge, troubleshootingSelection]);
 
   const searchForm = useRef<HTMLFormElement>(null);
   const load = useCallback(async () => {
@@ -265,7 +311,7 @@ export default function MemberPortal({ initialBoardTopicId = null }: { initialBo
         <div className="max-w-md rounded-3xl bg-white p-8 text-slate-950">
           <h1 className="text-3xl font-black">Member session required</h1>
           <a
-            href={initialBoardTopicId ? `/dealer-tech-resources/login?boardTopic=${encodeURIComponent(initialBoardTopicId)}` : "/dealer-tech-resources/login"}
+            href={memberPortalLocation("login", initialSelection ?? { boardTopicId: initialBoardTopicId })}
             className="mt-6 inline-flex rounded-xl bg-emerald-600 px-5 py-3 font-black text-white"
           >
             Member Login
@@ -313,8 +359,22 @@ export default function MemberPortal({ initialBoardTopicId = null }: { initialBo
                   clearBoardLocation();
                   setTab("messages");
                 } else if (item.topicId) {
+                  boardActivityAlert.current = item.activityAlertId ? { topicId: item.topicId, alertId: item.activityAlertId, activityId: item.boardActivityId ?? null } : null;
+                  setOpenBoardActivityId(item.boardActivityId ?? null);
                   setOpenBoardTopicId(item.topicId);
                   setTab("announcements");
+                } else if (item.troubleshootingEntryId) {
+                  setTroubleshootingSelection({
+                    entryId: item.troubleshootingEntryId,
+                    activityId: item.troubleshootingActivityId ?? null,
+                    alertId: item.activityAlertId ?? null,
+                  });
+                  const location = memberPortalLocation("member", {
+                    troubleshootingEntryId: item.troubleshootingEntryId,
+                    troubleshootingActivityId: item.troubleshootingActivityId ?? null,
+                  });
+                  window.history.replaceState(window.history.state, "", location);
+                  setTab("troubleshooting");
                 }
               }}
             />
@@ -408,6 +468,8 @@ export default function MemberPortal({ initialBoardTopicId = null }: { initialBo
             onMessage={setMessage}
             selectedTopicId={openBoardTopicId}
             onSelectedTopicHandled={clearBoardSelection}
+            onSelectedTopicOpened={onBoardOpened}
+            selectedActivityId={openBoardActivityId}
             onPrivateMessage={account.messagingEnabled ? (memberId) => void startMessage(memberId) : undefined}
             onAttentionChanged={refreshNotifications}
           />
@@ -427,7 +489,12 @@ export default function MemberPortal({ initialBoardTopicId = null }: { initialBo
         )}{" "}
         {tab === "account" && <AccountSecurityPanel />}{" "}
         {tab === "troubleshooting" && (
-          <TroubleshootingPanel onMessage={setMessage} />
+          <TroubleshootingPanel
+            onMessage={setMessage}
+            selectedEntryId={troubleshootingSelection?.entryId}
+            selectedActivityId={troubleshootingSelection?.activityId}
+            onOpened={onTroubleshootingOpened}
+          />
         )}{" "}
         {tab === "suggestions" && (
           <SuggestionsPanel

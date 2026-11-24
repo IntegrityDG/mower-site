@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 import MemberPortal from "@/components/dealer-network/MemberPortal";
-import { validateUuid } from "@/lib/dealer-network/validation";
+import { readMemberPortalSelection } from "@/lib/dealer-network/member-portal-location";
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
 export default async function DealerMemberPortalPage({ searchParams }: {
-  searchParams: Promise<{ boardTopic?: string | string[] }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const topic = validateUuid((await searchParams).boardTopic);
-  return <MemberPortal initialBoardTopicId={topic} />;
+  const selection = readMemberPortalSelection(await searchParams);
+  return <MemberPortal initialBoardTopicId={selection.boardTopicId} initialSelection={selection} />;
 }

@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import * as memberFeatures from "../../lib/dealer-network/member-features";
 import * as locationPresentation from "../../lib/dealer-network/member-location-presentation";
+import * as memberPortalLocation from "../../lib/dealer-network/member-portal-location";
 import * as types from "../../lib/dealer-network/types";
 
 type Panel = "DirectoryPanel" | "DirectoryCard" | "AccountSecurityPanel";
@@ -29,6 +30,7 @@ export function loadDealerPortal(fetcher: typeof fetch = fetch, geolocationEnabl
     "@/lib/dealer-network/member-features": { ...memberFeatures, DEALER_NETWORK_GEOLOCATION_UI_ENABLED: geolocationEnabled },
     "@/lib/dealer-network/member-location-presentation": locationPresentation,
     "@/lib/dealer-network/types": types,
+    "@/lib/dealer-network/member-portal-location": memberPortalLocation,
     "@/lib/dealer-network/browser-geolocation": {},
     "@/lib/dealer-network/messaging-validation": {},
     "@/lib/dealer-network/message-upload": {},
